@@ -454,8 +454,8 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
       <div class="row"><input type="checkbox" id="s-fps"><label for="s-fps" style="margin:0">Show frame rate</label></div>
       <!-- s-arrow: pause-menu setting or control -->
       <div class="row"><input type="checkbox" id="s-arrow" checked><label for="s-arrow" style="margin:0">Guide arrow to the current task</label></div>
-      <!-- s-grass: pause-menu setting or control -->
-      <div class="row"><input type="checkbox" id="s-grass"><label for="s-grass" style="margin:0">Tall grass and flowers</label></div>
+      <!-- s-grass: removed with the ground cover. nothing to toggle, so the row is gone rather than left dead.
+      <div class="row"><input type="checkbox" id="s-grass"><label for="s-grass" style="margin:0">Tall grass and flowers</label></div> -->
       <!-- skills: game interface element -->
       </div><div>
       <label>Skills — practice makes you better</label><div id="skills"></div>
@@ -1426,7 +1426,10 @@ const __boot = (async () => {
     }
     draw(g, size);
     const t = new THREE.CanvasTexture(c);
-    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    // cutout textures are sampled once over 0..1, and repeat-wrapping them bleeds the opaque bottom row back in at the
+    // top edge: on a crossed-quad billboard that drew a solid bar across both quads, which read as a cross hanging above
+    // the grass. tiling surfaces still need repeat, and cloneTex inherits this, so only the alpha cutouts are clamped.
+    t.wrapS = t.wrapT = alpha ? THREE.ClampToEdgeWrapping : THREE.RepeatWrapping;
     t.repeat.set(repeat, repeat);
     t.encoding = THREE.sRGBEncoding;
     t.anisotropy = 4;
@@ -3343,8 +3346,15 @@ const __boot = (async () => {
     swayMats.push(mat);
     return mat;
   };
+  // scattered ground cover is switched off: no tall grass, flowers, ferns, reeds or mushrooms anywhere in the valley.
+  // the code is kept whole rather than deleted so any one layer can come back by uncommenting its block. the meshes
+  // become inert stand-ins so the handful of "grassMesh.visible = ..." lines elsewhere stay harmless, and grassOn is
+  // pinned false so placeGround is never called. if you restore any of this, also force the billboard normal in the
+  // fragment stage: crossGeo gives vertical quads an up-facing normal, which DoubleSide flips to (0,-1,0) on the back
+  // face and blacks it out, so each billboard is bright from one side and dark from the other as you orbit.
   const GRASS_N = 2600,
-    FLOWER_N = 320,
+    FLOWER_N = 320;
+  /*
     grassMat = grassSway(
       new THREE.MeshStandardMaterial({ map: TEX.blade, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 1, color: toLin(0xd8f0b0) })
     );
@@ -3356,10 +3366,16 @@ const __boot = (async () => {
   const flowerMesh = new THREE.InstancedMesh(crossGeo(0.7, 0.8), flowerMat, FLOWER_N);
   flowerMesh.frustumCulled = false;
   scene.add(flowerMesh);
-  let grassCenter = V3(1e9, 0, 1e9),
-    grassOn = false;
+  */
+  const grassMesh = { visible: false },
+    flowerMesh = { visible: false };
+  let grassCenter = V3(1e9, 0, 1e9);
+  const grassOn = false;
   // repopulate grass and flower instances around the player as they move
+  // disabled with the rest of the ground cover: grassOn is pinned false so this is never called, and the early return
+  // keeps it inert if it ever is. the body is left intact so restoring the grass is a matter of deleting one line.
   function placeGround(cx, cz) {
+    return;
     grassCenter.set(cx, 0, cz);
     const m = new THREE.Matrix4(),
       q = new THREE.Quaternion(),
@@ -3446,21 +3462,29 @@ const __boot = (async () => {
         z = (hash(i, 102) - 0.5) * (SIZE - 60),
         h = terrainH(x, z);
       if (Math.hypot(x, z) < TOWN_R + 3 || pathDist(x, z) < 4 || slopeAt(x, z) > 4) continue;
+      // only bushes are scattered now; ferns, reeds and mushrooms are off with the rest of the ground cover.
+      // the bush branch is unaffected by the removal because it came first in the chain.
       if (h > 1.5 && h < 60 && hash(i, 103) < 0.07 && bushes.length < 1800)
         bushes.push({ x, y: h, z, a: hash(i, 104) * 6.28, s: 0.8 + hash(i, 105) * 1.4 });
+      /*
       else if (h > 1.5 && h < 50 && isShaded(x, z) && hash(i, 106) < 0.5 && ferns.length < 1600)
         ferns.push({ x, y: h, z, a: hash(i, 107) * 6.28, s: 0.9 + hash(i, 108) * 1.2 });
       else if (h > -1 && h < 1.2 && hash(i, 109) < 0.6 && reeds.length < 1400)
         reeds.push({ x, y: Math.max(h, 0), z, a: hash(i, 110) * 6.28, s: 0.8 + hash(i, 111) * 0.8, sy: 1.4 + hash(i, 112) });
       if (h > 2 && isShaded(x, z) && hash(i, 113) < 0.12 && shrooms.length < 700)
         shrooms.push({ x, y: h, z, a: hash(i, 114) * 6.28, s: 0.35 + hash(i, 115) * 0.5 });
+      */
     }
     const bushMat = new THREE.MeshStandardMaterial({ color: toLin(0x78bc54), map: TEX.leaf, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 1 });
     leafSway(bushMat);
     swayMats.push(bushMat);
     const bush = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 10, 8), bushMat, Math.max(1, bushes.length));
     bush.castShadow = true;
+    // r128's InstancedMesh never recomputes its bounding sphere, so culling tests a small sphere at the world origin
+    // and the whole scatter blinks in and out together as the camera turns. bushes are everywhere, so never cull them.
+    bush.frustumCulled = false;
     put(bush, bushes);
+    /*
     const fernMesh = new THREE.InstancedMesh(
       crossGeo(2.2, 1.6),
       grassSway(new THREE.MeshStandardMaterial({ map: TEX.fern, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 1 })),
@@ -3486,6 +3510,7 @@ const __boot = (async () => {
     const shroomStem = new THREE.InstancedMesh(stemG, lam(0xf0e8d0), Math.max(1, shrooms.length));
     put(shroomStem, shrooms);
     window._shroomMat = shroomCap.material;
+    */
   }
 
   await __stage(62, "Finding the waterfalls…");
@@ -4720,7 +4745,10 @@ const __boot = (async () => {
       onHelix: false,
       prompt: null,
       name: opts.name || null,
-      allowInside: !!insideInterior(pos.x, pos.z),
+      // this was a plain boolean, so "spawned inside a building" was read as "may walk into any building" — the throne
+      // room included. it holds the specific room they belong to now; the handful of characters who really are allowed
+      // anywhere still set it to literal true.
+      allowInside: insideInterior(pos.x, pos.z) || false,
       female: !!opts.female,
       kid: !!opts.kid,
       age: opts.age || (seed < 0.18 ? "old" : "adult"),
@@ -5184,6 +5212,18 @@ const __boot = (async () => {
   }
   // advance npcs state, animation and related scene objects for this frame
   const sepGrid = new Map();
+  // shoving people apart used to ignore the ground completely, so a knot of villagers on a bank could push one of their
+  // own into the shallows — where the shoreline rule then pinned them in place. a shove that would land someone in
+  // water, or inside a building they are not allowed in, is dropped instead of applied.
+  function shoveNPC(e, dx, dz) {
+    const sx = e.pos.x + dx,
+      sz = e.pos.z + dz;
+    if (wetBlockAt(sx, sz, groundAt(sx, sz, e.pos.y))) return;
+    const room = insideInterior(sx, sz, 0.4);
+    if (room && room !== insideInterior(e.pos.x, e.pos.z, 0.4) && room !== e.homeInterior && room !== e.hut && !(e.allowInside === true || e.allowInside === room)) return;
+    e.pos.x = sx;
+    e.pos.z = sz;
+  }
   function updateNPCs(dtFrame) {
     const dayTime = dayElev > 0.02,
       goblinsAlive = goblins.some(g => g.alive && g.rise <= 0);
@@ -5263,8 +5303,13 @@ const __boot = (async () => {
             if (Math.hypot(mp.x - mx, mp.z - mz) > 0.05) continue;
           }
           {
-            const it2 = insideInterior(nx, nz, 0.4) || insideInterior(lx, lz, 0.4);
-            if (it2 && it2 !== n.homeInterior && it2 !== n.hut && it2 !== n.hideTo && !n.allowInside) continue;
+            const it2 = insideInterior(nx, nz, 0.4) || insideInterior(lx, lz, 0.4),
+              // a villager who somehow ended up inside a building they do not belong in used to be trapped there: every
+              // candidate step landed inside it too, so every direction was refused, including straight out of the door.
+              // the keep grows around whoever is standing on the plateau when the player walks in, so this is not
+              // hypothetical. if they are already inside it, let them move — the wall collision still holds them in.
+              alreadyIn = insideInterior(n.pos.x, n.pos.z, 0.4);
+            if (it2 && it2 !== alreadyIn && it2 !== n.homeInterior && it2 !== n.hut && it2 !== n.hideTo && !(n.allowInside === true || n.allowInside === it2)) continue;
           }
           const wetOK =
             n.wetOK ||
@@ -5274,7 +5319,18 @@ const __boot = (async () => {
           const lg = groundAt(lx, lz, n.pos.y + 1.2),
             deckHere = gh > terrainH(nx, nz) + 0.4, // standing on a bridge deck or a platform: the water under it does not matter
             deckAhead = lg > terrainH(lx, lz) + 0.4;
-          if (!wetOK && ((!deckHere && wetBlockAt(nx, nz, gh)) || (!deckAhead && wetBlockAt(lx, lz, lg)) || (!deckHere && gh < 0.8 && nearWater(nx, nz, 1.6))))
+          // the shoreline test used to be sampled at nx,nz, which is only a few centimetres from where the villager
+          // already stands, so it gave the same answer for all nine candidate directions: anyone who ended up beside
+          // water froze solid, unable even to turn inland. it is sampled at the look-ahead point now, so it actually
+          // depends on where they are heading. and whenever they are already standing somewhere wet, a step onto
+          // drier ground is always allowed, so there is never a position with no way out of the water.
+          const wetHere = !deckHere && (wetBlockAt(n.pos.x, n.pos.z, n.pos.y) || (n.pos.y < 0.8 && nearWater(n.pos.x, n.pos.z, 1.6))),
+            escaping = wetHere && lg >= gh && !wetBlockAt(lx, lz, lg);
+          if (
+            !wetOK &&
+            !escaping &&
+            ((!deckHere && wetBlockAt(nx, nz, gh)) || (!deckAhead && wetBlockAt(lx, lz, lg)) || (!deckAhead && lg < 0.8 && nearWater(lx, lz, 1.6)))
+          )
             continue;
           if (
             (deckHere || !isDeep(nx, nz)) &&
@@ -5300,7 +5356,7 @@ const __boot = (async () => {
       const reachable = (x, z) => {
         const itX = insideInterior(x, z, 0.3);
         if (!inBounds(x, z) || isWater(x, z) || (itX && itX !== n.homeInterior) || slopeAt(x, z) > 3.2) return false;
-        if (n.kind !== "king" && Math.abs(x - KEEP.cx) < KEEP.w + 5 && Math.abs(z - KEEP.cz) < KEEP.d + 5) return false;
+        if (n.kind !== "king" && Math.abs(x - KEEP.cx) < KEEP.w * TUNE.world.keepGrow + 5 && Math.abs(z - KEEP.cz) < KEEP.d * TUNE.world.keepGrow + 5) return false;
         if (itX) return true;
         if (Math.hypot(n.home.x, n.home.z) < TOWN_R - 2 && Math.hypot(x, z) > TOWN_R - 3) return false;
         const gy = groundAt(x, z, terrainH(x, z) + 1.5);
@@ -5654,7 +5710,7 @@ const __boot = (async () => {
                   r = 4 + Math.random() * n.radius,
                   tx = n.home.x + Math.cos(a) * r,
                   tz = n.home.z + Math.sin(a) * r;
-                n.target = Math.abs(tx - KEEP.cx) < KEEP.w + 5 && Math.abs(tz - KEEP.cz) < KEEP.d + 5 ? null : V3(tx, 0, tz);
+                n.target = Math.abs(tx - KEEP.cx) < KEEP.w * TUNE.world.keepGrow + 5 && Math.abs(tz - KEEP.cz) < KEEP.d * TUNE.world.keepGrow + 5 ? null : V3(tx, 0, tz);
               }
               if (n.target) {
                 if (arrive(n.target, 0.8) || !step(n.target.x, n.target.z, 5.2)) n.target = null;
@@ -5899,7 +5955,11 @@ const __boot = (async () => {
       }
       {
         const it = insideInterior(n.pos.x, n.pos.z);
-        if (it && it !== n.homeInterior && it !== n.hut && it !== n.hideTo && !n.allowInside && it.door && !(n.hide > 0) && !(it.grow > 1.05)) {
+        // this used to stand down whenever the room was grown, which is exactly when the player is stood inside looking
+        // at it — so the one moment a stray villager was visible in the hall was the one moment nothing removed them.
+        // they are walked out whenever they should not be there now; the teleport below is still held back until the
+        // player is well away, so nobody sees anyone pop.
+        if (it && it !== n.homeInterior && it !== n.hut && it !== n.hideTo && !(n.allowInside === true || n.allowInside === it) && it.door && !(n.hide > 0)) {
           n.indoorT = (n.indoorT || 0) + dt;
           if (!step(it.door.x, it.door.z, 2.8) && n.indoorT > 5 && distToPlayer > 60) {
             n.pos.x = it.door.x;
@@ -6041,16 +6101,12 @@ const __boot = (async () => {
                 const push = Math.min(0.1, (0.95 - od) * 0.35),
                   co = claim(o);
                 if (co < cn) {
-                  o.pos.x -= (ox / od) * push;
-                  o.pos.z -= (oz / od) * push;
+                  shoveNPC(o, -(ox / od) * push, -(oz / od) * push);
                 } else if (cn < co) {
-                  n.pos.x += (ox / od) * push;
-                  n.pos.z += (oz / od) * push;
+                  shoveNPC(n, (ox / od) * push, (oz / od) * push);
                 } else {
-                  n.pos.x += (ox / od) * push * 0.5;
-                  n.pos.z += (oz / od) * push * 0.5;
-                  o.pos.x -= (ox / od) * push * 0.5;
-                  o.pos.z -= (oz / od) * push * 0.5;
+                  shoveNPC(n, (ox / od) * push * 0.5, (oz / od) * push * 0.5);
+                  shoveNPC(o, -(ox / od) * push * 0.5, -(oz / od) * push * 0.5);
                 }
               }
             }
@@ -6079,8 +6135,21 @@ const __boot = (async () => {
           } else if (n.phase === "back") {
             n.phase = "home";
             n.t = 4;
-            n.home.set(n.pos.x, n.pos.y, n.pos.z);
-            n.homeInterior = insideInterior(n.pos.x, n.pos.z, 0.3);
+            // giving up here used to adopt wherever they were standing as their new home, which is the worst possible
+            // moment to decide: they are standing there precisely because they got stuck. one villager blocked at the
+            // water's edge became a villager whose home was the water's edge, so every errand afterwards started and
+            // ended in the same trap, and the shoreline population only ever grew. the same ratchet is what turned a
+            // villager caught inside the keep into a permanent resident of the throne room. only accept a spot that is
+            // somewhere they could actually live; otherwise send them back to their hut and leave home alone.
+            const spot = insideInterior(n.pos.x, n.pos.z, 0.3),
+              settleable = !spot || spot === n.hut || spot === n.homeInterior;
+            if (settleable && !wetBlockAt(n.pos.x, n.pos.z, n.pos.y) && !nearWater(n.pos.x, n.pos.z, 2.5)) {
+              n.home.set(n.pos.x, n.pos.y, n.pos.z);
+              n.homeInterior = spot;
+            } else if (n.hut) {
+              n.home.set(n.hut.cx, n.hut.y, n.hut.cz);
+              n.homeInterior = n.hut;
+            }
           } else if (n.job === "wagoner") {
             n.ri = (n.ri + 1) % n.route.length;
             n.t = 0.5;
@@ -6958,6 +7027,10 @@ const __boot = (async () => {
       flatY: [daisMesh],
       noSleep: true,
       floorTop: 0.02,
+      // the keep was the one interior with no door recorded, and every routine that puts a stray villager back outside
+      // is written as "walk them to the door" — so for the throne room it simply never ran, and anyone who got in
+      // stayed in. the gateway is the gap in the south wall, centred on x = 0.
+      door: V3(K.cx, PLATEAU, K.cz + K.d + 1.6),
       keep: true
     };
     interiors.push(KEEP_ROOM);
@@ -10210,12 +10283,14 @@ const __boot = (async () => {
         document.getElementById("fps").classList.remove("hidden");
       } else document.getElementById("s-fps").checked = false;
     } catch (_) {}
+    /* the grass toggle went with the ground cover; its checkbox no longer exists, so wiring it would throw on null
     document.getElementById("s-grass").onchange = e => {
       grassOn = e.target.checked;
       grassMesh.visible = flowerMesh.visible = grassOn;
       saveGraphics();
       graphicsStatus();
     };
+    */
     document.getElementById("resume").onclick = () => setPaused(false);
     document.getElementById("pauseX").onclick = () => setPaused(false);
     document.getElementById("invX").onclick = () => closeInv();
@@ -15221,10 +15296,10 @@ const __boot = (async () => {
   }
   function graphicsStatus() {
     const el = document.getElementById("graphics-status");
-    if (el) el.textContent = `${graphics.far} m distance · high-quality shaders ${hqShaders ? "on" : "off"} · grass ${grassOn ? "on" : "off"}.`;
+    if (el) el.textContent = `${graphics.far} m distance · high-quality shaders ${hqShaders ? "on" : "off"}.`;
     const hq = document.getElementById("s-hq");
     if (hq) hq.checked = hqShaders;
-    document.getElementById("s-grass").checked = grassOn;
+    // the grass checkbox is gone with the ground cover, so there is nothing left to mirror here
   }
   // apply the rendering profile, releasing old shadow targets and clearing stale particle instances
   function applyGraphics(index) {
@@ -15299,8 +15374,7 @@ const __boot = (async () => {
     } catch (_) {}
     if (saved && typeof saved.hq === "boolean") hqShaders = saved.hq;
     applyGraphics(0);
-    if (saved && typeof saved.grass === "boolean") grassOn = saved.grass;
-    grassMesh.visible = flowerMesh.visible = grassOn;
+    // a stored grass preference is ignored now that the ground cover is gone; grassOn is a constant false
     graphicsStatus();
     const hq = document.getElementById("s-hq");
     if (hq)
