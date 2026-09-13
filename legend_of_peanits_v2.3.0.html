@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.2.0</title>
+<title>Legend of Peanits 2.3.0</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -373,7 +373,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.2.0</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.3.0</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -440,7 +440,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.2.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.3.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -788,6 +788,30 @@ const __boot = (async () => {
   const difficulty = () => 1 + 0.12 * relicCount() + 0.03 * villagesDone() + (WORLDSTATE.finaleStarted ? 0.2 : 0);
   const evidence = k => { if (!STORY.evidence.includes(k)) STORY.evidence.push(k); };
   const relicCount = () => ["seal", "root", "warden", "tear"].filter(k => WORLDSTATE.relics[k]).length;
+  // ============================================================ 3.0: dread — how far the valley has gone wrong, 0..1
+  // a pure function of state that is already saved, so it survives a reload and a rejoin without a byte of new save
+  // format. it is deliberately zero until the pool wakes: acts i and ii have to look EXACTLY as they always did,
+  // because the whole turn in act iii is that they did, and then stopped.
+  let _dreadV = -1, // -1 means never computed: the first tick snaps, so a loaded save opens at its true colour
+    _dreadT = 0;
+  const dread = () => (_dreadV < 0 ? 0 : _dreadV);
+  function updateDread(dt) {
+    _dreadT -= dt;
+    if (_dreadT > 0 && _dreadV >= 0) return; // twice a second is far oftener than any of these inputs actually move
+    _dreadT = 0.5;
+    let d = 0;
+    if (WORLDSTATE.blackPoolAwake)
+      d =
+        0.18 + // the pool opening its eye is worth a fifth of the way on its own
+        0.13 * relicCount() + // 0.52 across the four relics: the loudest voice
+        0.025 * Math.min(8, villagesDone()) + // 0.20 across the eight villages
+        (WORLDSTATE.finaleStarted ? 0.1 : 0); // the water is already rising
+    if (WORLDSTATE.ending) d = 0; // it is over. the valley gets its colour back the moment you choose
+    d = clamp(d, 0, 1);
+    // it creeps in over about thirteen seconds and drains in four, so picking up a relic never snaps the sky
+    if (_dreadV < 0) _dreadV = d;
+    else _dreadV += clamp(d - _dreadV, -dt * 0.25, dt * 0.06);
+  }
   function storyAct() {
     if (WORLDSTATE.ending) return STORY_ACT.COMPLETE;
     if (WORLDSTATE.finaleStarted) return STORY_ACT.FINALE;
@@ -1328,6 +1352,12 @@ const __boot = (async () => {
         this.nextB = now;
         this.stepB = 0;
       }
+      // 3.0: the valley's pulse drags as the pool's grip tightens. every DURATION below is scaled by the same number, so
+      // it is a tempo change and not a stretched tape. the boss channel is exempt on purpose — a slow boss track is a bad
+      // boss track — and the gain crossfades are untouched, so track switching behaves exactly as it did.
+      // the typeof guard is load-bearing: dread is an arrow const declared after this object, so it is not hoisted.
+      const dr = typeof dread === "function" ? dread() : 0,
+        slow = 1 + 0.55 * dr;
       this.gT.gain.setTargetAtTime(boss ? 0 : townness * (night ? 0.55 : 1) * (inside ? 0.45 : 1), now, boss ? 0.4 : 1.5);
       this.gW.gain.setTargetAtTime(boss ? 0 : (1 - townness) * (night ? 0.6 : 1) * (inside ? 0.45 : 1), now, boss ? 0.4 : 1.5);
       this.gB.gain.setTargetAtTime(boss ? 1.3 : 0, now, boss ? 0.6 : 1.2);
@@ -1359,11 +1389,12 @@ const __boot = (async () => {
         const i = this.stepT % TM.length,
           bar = Math.floor(this.stepT / 8),
           d = TM[i];
-        if (d !== -9) this.pluck(deg(d, 1), this.nextT, this.gT, 0.32, 0.2);
-        if (i % 4 === 0) this.pluck(deg(TB[bar % 8], -1), this.nextT, this.gT, 0.6, 0.16, "sine");
-        if (i % 8 === 0 || i % 8 === 5) this.drum(this.nextT, this.gT, i % 8 === 0 ? 0.2 : 0.1);
+        if (d !== -9) this.pluck(deg(d, 1), this.nextT, this.gT, 0.32 * slow, 0.2);
+        if (i % 4 === 0) this.pluck(deg(TB[bar % 8], -1), this.nextT, this.gT, 0.6 * slow, 0.16, "sine");
+        // the tabor is the first thing to go. a town whose drum has stopped is a town that has stopped dancing.
+        if (i % 8 === 0 || i % 8 === 5) this.drum(this.nextT, this.gT, (i % 8 === 0 ? 0.2 : 0.1) * (1 - 0.85 * dr));
         this.stepT++;
-        this.nextT += 0.27;
+        this.nextT += 0.27 * slow;
       }
       // overworld: slow harp arpeggios drifting over a soft pad
       const CH = [
@@ -1382,11 +1413,12 @@ const __boot = (async () => {
             ch.map(d => deg(d, 0)),
             this.nextW,
             this.gW,
-            8 * 0.46
+            8 * 0.46 * slow
           );
-        if (Math.random() < 0.85) this.pluck(deg(n, 1), this.nextW, this.gW, 1.3, 0.14, "sine");
+        // the harp thins out as well as slowing: fewer notes, longer gaps, the pad left holding the room on its own
+        if (Math.random() < 0.85 - 0.4 * dr) this.pluck(deg(n, 1), this.nextW, this.gW, 1.3 * slow, 0.14, "sine");
         this.stepW++;
-        this.nextW += 0.46;
+        this.nextW += 0.46 * slow;
       }
     }
   };
@@ -5157,6 +5189,45 @@ const __boot = (async () => {
     const v = villages[Math.floor(Math.random() * villages.length)];
     return `Follow the road ${dirTo(v.center)} and it winds up to ${v.name}. Every road here ends at a village, so you can't get lost for long.`;
   };
+  // ============================================================ 3.0: what people say as the valley goes wrong
+  // band 0 (dread .22-.5): unease — wrong, but still explicable. band 1 (.5-.75): fear and suspicion, and the first
+  // people leaving. band 2 (.75+): open hostility and religious panic. the hanged are up by band 2 and nobody names
+  // them; a child says he is not allowed to look at the big oak, and that is the whole restraint budget spent.
+  const DREAD_TOWN = [
+    ["The milk went sour in the pail. In the pail, mind, not the pan.", "My wife's started locking the door in the daytime. I've stopped asking why.", "Sun's going down earlier. My father would have known the reason. I don't.", "Did the bells ring last night? Everyone says no. I heard them.", "The dogs have stopped barking at goblins. They bark at the water now.", "I keep counting the children twice. I couldn't tell you what for."],
+    ["Somebody's been leaving salt on the doorsteps. I'd stop them, but I've started doing it myself.", "The priest's gone. Not dead, gone. Took the good candlesticks and the south road.", "We were never a godly town. Maybe that's the whole of it.", "You carry those old things about like a market basket. I'd not stand beside you at dusk.", "Old Tam took a hatchet to his own door last week. Said something knocked.", "They say you need the whole valley behind you. The whole valley. That's how big it is.", "Don't speak to me after dark. I can't always tell who's asking."],
+    ["Hale was right. There. I've said it. Somebody has to pay, and it won't be me.", "Whatever God had this valley, he's let go of it. We're on our own and it shows.", "Get away from my door. You've been at that water. I can smell it on you.", "There's a rope in every shed in this town now. Ask yourself why.", "My brother went out to the pool with a lamp. His boots came back.", "You'll fix it, will you. Everyone who says that ends up in the reeds.", "Don't look at the trees on the road. Just walk."]
+  ];
+  const DREAD_HILL = [
+    ["The sheep won't go down the east slope. They know something we've forgotten.", "Snow's come early and it's come grey. Grey snow. Look at it.", "We've sung the midwinter song in summer, three nights running. It felt right."],
+    ["Our grandmothers drew marks on the doorsteps. We laughed at them. We're drawing them now.", "Nobody's come up the road in a fortnight. That's a mercy and a worry both.", "The stone's warm at night. The stone. Feel it if you like. I'd rather not.", "Eight villages and four old things, they say. Sounds a lot. Then you see the water at night and it sounds like nothing."],
+    ["We've sealed the low houses. Whoever's still inside them chose it.", "The valley's finished. Up here we'll last a winter longer. That's all it is.", "You're the one carrying it about. Take it past our gate, not through it."]
+  ];
+  const DREAD_HUNTER = [
+    ["No deer. Not one, three days. Something's moved into that wood.", "I've started sleeping with the fire between me and the trees."],
+    ["I shot at something on the ridge and it turned and looked at the arrow.", "Take a lamp on the road. Take two. Take somebody you trust more than a lamp."],
+    ["I don't go out after dark, and I don't ask what the others are doing out there.", "If I see a shape on the path I put an arrow in it first. That's where we are now."]
+  ];
+  const DREAD_WORK = [
+    ["The river runs cold in the middle of the day now. It never has before.", "Something's growing in the shallows. Black, and it wasn't there last week."],
+    ["I'll wash at the well, sour or not. I'll not kneel at that water again.", "The herbs have all come up bitter. Maren says pick them anyway. I don't."],
+    ["Don't ask me to go to the river. Don't ask me twice.", "I threw my good linen in rather than wade for it. You'd have done the same."]
+  ];
+  const DREAD_KID = [
+    ["Mother says not to count the stars any more. She won't say why.", "We played hide and seek and found somebody we didn't know. So we went in."],
+    ["There's a new game. You stand still, and whoever moves first has to go to the pool.", "Da took my shutter off and nailed it on the outside. So it's dark in there now."],
+    ["Are you the one Mother says is making it worse? She said it quiet. I still heard.", "The men went up the road with a rope. They came back without it.", "I'm not allowed to look at the big oak. So I don't. Mostly."]
+  ];
+  const DREAD_KNIGHT = [
+    ["Two of the watch didn't come back. We've stopped saying it out loud.", "Stay where the torches are. That's not an order, that's a favour."],
+    ["The king's had every torch in the keep doubled. Doesn't help. It's something.", "Orders are to hold the gate and not go out. I've never been glad of an order before.", "Whatever you're building toward, build it faster."],
+    ["Half the hall says the Inquisitor should be let out. Half. Do that arithmetic.", "We've buried three inside the walls this week and none of them died fighting.", "If you're going to the water, go. Nobody here is following you."]
+  ];
+  const DREAD_CANOPY = [
+    ["From up here you can see which chimneys have stopped smoking. I've stopped counting.", "The birds went. All at once, one morning. We heard them go."],
+    ["We've pulled the lower ladders up. Say what you like about us.", "You can see the pool from the rail now. You couldn't before. I don't know what that means."],
+    ["Don't look down at the roadside oaks on your way out. Look at the sky. I'm asking you kindly.", "We're not coming down. Not for the king, not for you."]
+  ];
   const CROWN_LINES = [
     "From up here the whole valley looks like a quilt somebody left out in the rain.",
     "On a clear morning you can count every chimney in the kingdom from this rail.",
@@ -5221,7 +5292,25 @@ const __boot = (async () => {
         "Straight up the avenue, past the fountain, through the big doors. The king's inside.",
         "You'll want the keep. The king's had a face like thunder since Ysolde. Maybe you can help."
       ]);
-    if (n.canopy && Math.random() < 0.6) return pick(CROWN_LINES);
+    if (n.canopy && Math.random() < 0.6 - 0.4 * dread()) return pick(CROWN_LINES); // the crown folk stop admiring the view
+    // 3.0: the valley souring. this sits above the knight and kid branches on purpose, because both of those return
+    // unconditionally and would shadow it entirely.
+    // NOTE the probability guard. a bare `if (x) return pick(...)` here is exactly the bug the poolAwake branch had
+    // for two versions, which made eleven written lines unreachable for the whole back half of the game.
+    {
+      const d = dread();
+      if (d > 0.22 && Math.random() < 0.25 + 0.45 * d) {
+        const b = d < 0.5 ? 0 : d < 0.75 ? 1 : 2;
+        const pool = n.canopy ? DREAD_CANOPY[b]
+          : n.kid ? DREAD_KID[b]
+          : n.kind === "knight" ? DREAD_KNIGHT[b]
+          : n.job === "hunter" ? DREAD_HUNTER[b]
+          : n.job === "gatherer" || n.job === "washer" || n.job === "water" || n.job === "bather" ? DREAD_WORK[b]
+          : n.hill || n.village !== undefined ? DREAD_HILL[b]
+          : DREAD_TOWN[b];
+        if (pool && pool.length) return pick(pool);
+      }
+    }
     if (n.kind === "knight") return Math.random() < 0.55 ? pick(KNIGHT_TALK) : pick(OPEN) + " " + pick(KNIGHT_NEWS);
     if (n.kind !== "knight" && Math.random() < 0.06) return DIRECTIONS();
     if (Math.random() < 0.1) return pick(LEVEL_HINTS);
@@ -5239,7 +5328,10 @@ const __boot = (async () => {
       if (r.ending === "break") return pick(["The pool's gone. Just stones and a green edge. My mother won't believe it till she's stood in it.", "They say the champion broke something under the water and the whole valley let out a breath.", "No more dreams. First quiet night I've had since midsummer."]);
       if (r.ending === "bind") return pick(["The beacon burns all night now, and a thread of it lies across the sky to the pool. Say what you like, it's a comfort.", "The king's made beacon-keeping a crown office. Fancy that. A wage for keeping a lamp lit.", "Bound it to the light, they say. Then the light had better never go out."]);
       if (r.ending === "fairy") return pick(["Singing, at night, from the pool. Not a sad sound. My children sleep better for it.", "Petals on the black water. Pink ones. Whatever's down there, the little folk have it now.", "The herbalist says it dreams. I hope it dreams of something kind."]);
-      if (r.poolAwake) return pick(["I dreamt of the pool again. Standing in it up to my neck and something under my feet, breathing.", "The dog won't go near the reeds. Sits at the edge of the path and shakes.", "My husband walked out of the house asleep last night. Toward the water. I had to take his hand.", "The fish are floating. All of them, belly up, and not a bird will touch them.", "Whatever Hale was feeding, he's not feeding it now, and it's hungry."]);
+      // this branch had no probability guard and every one of its siblings does, so from the moment the pool woke until
+      // an ending was chosen — the entire back half of the game — the kingSlain, haleExposed and champion pools below
+      // were unreachable. eleven written lines nobody could hear.
+      if (r.poolAwake && Math.random() < 0.5) return pick(["I dreamt of the pool again. Standing in it up to my neck and something under my feet, breathing.", "The dog won't go near the reeds. Sits at the edge of the path and shakes.", "My husband walked out of the house asleep last night. Toward the water. I had to take his hand.", "The fish are floating. All of them, belly up, and not a bird will touch them.", "Whatever Hale was feeding, he's not feeding it now, and it's hungry."]);
       if (r.kingSlain && Math.random() < 0.5) return pick(["The guards stand outside the gate now, if you can believe it. The roads are safer than they've been in years.", "Killed the goblin king, they say. The carters are singing about it already, badly."]);
       if (r.haleExposed && Math.random() < 0.5) return pick(["Hale in the stocks and the herbalist walking free. I threw the first turnip. I'm not sorry.", "I believed him. About the witch. I'd have carried a torch. I don't know what to do with that.", "The pyre's gone. Good. I never liked walking past it."]);
       if (r.champion && Math.random() < 0.4) return pick(["The beacon's lit. First time in my life. My father would have wept.", "Champion, they call you. The king doesn't hand that out for nothing.", "You lit the beacon. Now every goblin in the valley knows where the kingdom is. I'm joking. Mostly."]);
@@ -14366,6 +14458,27 @@ const __boot = (async () => {
   }
 
   // ============================================================ day / night / weather
+  // 3.0: the same sky, soured. the day only warms and drains — a wrong-coloured, smoky afternoon, never orange juice.
+  // the night goes properly red, because night is when the valley is meant to frighten you.
+  const skyDayD = toLin(0xb8a07a), // sun through smoke
+    skyNightD = toLin(0x2a0806), // dried blood, almost black
+    horDayD = toLin(0xe0cdb4), // dust haze where the horizon was
+    horNightD = toLin(0x54100e), // the horizon glows like a fire just out of sight
+    skyDuskD = toLin(0xc4381e), // a harder, angrier dusk — the one place red is allowed in daylight
+    moonDread = toLin(0x9a5a58); // moonlight gone the colour of a scab
+  // rebuilt only when the dread number actually moves, never per frame, so this adds no allocation to the hot loop
+  const SKY_NOW = { at: -1, day: new THREE.Color(), night: new THREE.Color(), horDay: new THREE.Color(), horNight: new THREE.Color(), dusk: new THREE.Color(), moon: new THREE.Color() };
+  function skyForDread(d) {
+    if (Math.abs(d - SKY_NOW.at) < 0.004) return SKY_NOW;
+    SKY_NOW.at = d;
+    SKY_NOW.day.copy(skyDay).lerp(skyDayD, d * 0.55); // the daytime dome is held back hardest of all
+    SKY_NOW.night.copy(skyNight).lerp(skyNightD, d);
+    SKY_NOW.horDay.copy(horDay).lerp(horDayD, d * 0.6);
+    SKY_NOW.horNight.copy(horNight).lerp(horNightD, d);
+    SKY_NOW.dusk.copy(skyDusk).lerp(skyDuskD, d * 0.8);
+    SKY_NOW.moon.copy(toLin(0x8ea0d8)).lerp(moonDread, d * 0.85);
+    return SKY_NOW;
+  }
   const skyDay = toLin(0x86c6f6),
     skyDusk = toLin(0xf6a46e),
     skyNight = toLin(0x0c1430),
@@ -14373,18 +14486,26 @@ const __boot = (async () => {
     horNight = toLin(0x1c2440);
   // advance the sun, fog, lights, sky colours, clouds and wind
   function updateDayNight(dt) {
-    dayT = (dayT + dt / DAY_LEN) % 1;
+    updateDread(dt);
+    // the pool eats the daylight. dayT still maps to the sun by sin(2*pi*dayT), so every dayElev test in the game is
+    // untouched and the hud clock still agrees with the sky — only the hours hurry. the dark half keeps its length
+    // and gains a little, because a shorter day that was also a shorter night would just be a faster game.
+    {
+      const dr = dread();
+      dayT = (dayT + dt / (dayT < 0.5 ? DAY_LEN * (1 - 0.45 * dr) : DAY_LEN * (1 + 0.12 * dr))) % 1;
+    }
     const th = dayT * Math.PI * 2,
       sunDir = V3(Math.cos(th) * 0.75, Math.sin(th), Math.cos(th) * 0.35).normalize();
     dayElev = sunDir.y;
     sunDirNow.copy(sunDir);
     const day = sstep(-0.06, 0.22, dayElev),
       dusk = (1 - sstep(0.06, 0.32, Math.abs(dayElev))) * 0.8;
-    const top = skyNight.clone().lerp(skyDay, day),
-      hor = horNight
+    const SD = skyForDread(dread()); // at dread 0 every one of these is the constant it replaces, to the bit
+    const top = SD.night.clone().lerp(SD.day, day),
+      hor = SD.horNight
         .clone()
-        .lerp(horDay, day)
-        .lerp(skyDusk, dusk * (dayElev > -0.1 ? 1 : 0.4));
+        .lerp(SD.horDay, day)
+        .lerp(SD.dusk, dusk * (dayElev > -0.1 ? 1 : 0.4));
     sky.material.uniforms.top.value.copy(top);
     sky.material.uniforms.horizon.value.copy(hor);
     sky.material.uniforms.sunDir.value.copy(sunDir);
@@ -14402,7 +14523,7 @@ const __boot = (async () => {
         camera.updateProjectionMatrix();
       }
       scene.fog.near = lerp(far * 0.24, 8, interiorK);
-      scene.fog.far = lerp(far * 0.92, 30, interiorK);
+      scene.fog.far = lerp(far * (0.92 - 0.22 * dread()), 30, interiorK); // the valley gets smaller as it gets worse, and that is a net win on overdraw
     } // until the beacon is relit the kingdom draws only a short way ahead; the distance comes back gradually as you leave
     sky.material.uniforms.top.value.multiplyScalar(1 - interiorK);
     sky.material.uniforms.horizon.value.multiplyScalar(1 - interiorK);
@@ -14413,7 +14534,8 @@ const __boot = (async () => {
     sun.target.position.copy(P.pos);
     updateLightPool();
     sun.intensity = moon ? 0.35 : lerp(0.2, 1.9, sstep(-0.02, 0.3, dayElev));
-    sun.color.copy(moon ? toLin(0x8ea0d8) : toLin(0xffb070).lerp(toLin(0xffe9c4), sstep(0, 0.45, dayElev)));
+    // the moon is the only light at night, so reddening it is what actually makes the GROUND look wrong rather than just the dome
+    sun.color.copy(moon ? SD.moon : toLin(0xffb070).lerp(toLin(0xffe9c4), sstep(0, 0.45, dayElev)));
     hemi.intensity = (0.18 + 0.72 * day) * (1 - interiorK * 0.7) * (1 - caveK * 0.75);
     hemi.color.copy(top).lerp(toLin(0xd8c8ff), 0.45);
     hemi.groundColor.copy(toLin(0x9a7a4a).lerp(toLin(0x5a4a3a), 1 - day));

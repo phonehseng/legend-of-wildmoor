@@ -1255,3 +1255,106 @@ distance, and distance is exactly the sort of thing that changes later.
 `EXTRA` kind without an `e.mat` would throw a `TypeError` **from inside
 `update()`, on every frame of its own corpse** — which takes the whole game
 down, not the one enemy. No kind hits it today. Guarded before one does.
+
+---
+
+## 2.3.0 — The valley souring (3.0 phase 7)
+
+"things feel too peaceful." They don't now.
+
+### One number
+
+`dread()` — 0 to 1, a pure function of state that is **already saved**, so it
+survives a reload and a rejoin without a byte of new save format. It reads only
+`blackPoolAwake`, `relicCount()`, `villagesDone()`, `finaleStarted` and
+`ending`.
+
+It is **exactly zero until the pool wakes**, by design: Acts I and II have to
+look precisely as they always did, because the whole turn in Act III is that
+they did, and then stopped. It returns to zero the moment an ending is chosen —
+the valley gets its colour back.
+
+|  | dread |
+|---|---|
+| Acts I–II | 0.00 |
+| pool woken, nothing done | 0.18 |
+| 2 relics, 4 villages | 0.54 |
+| 4 relics, 8 villages (the finale gate) | 0.90 |
+| the warden risen | 1.00 |
+
+Because the finale gate is exactly four relics and eight villages, **dread 0.90
+is exactly the moment the player is ready.** The sky is the readiness
+indicator. That is free signposting for something big waiting.
+
+It creeps in over ~13 seconds and drains in 4, so picking up a relic never
+snaps the sky.
+
+### The sky leans red, and the nights lean harder
+
+Days do **not** go red — that is the annoying-colour failure mode. Days go
+hazy, drained and wrong, a sun through smoke: `#86C6F6` → `#A4B3BF`. Nights go
+properly red: `#0C1430` → `#2A0806`, with the horizon at `#54100E`.
+
+The highest-leverage change is one line nobody would guess: at night the
+directional light **is** the moon, and it is blue. Reddening it
+(`#8EA0D8` → `#9A5F5C`) is what makes the *ground* look wrong rather than just
+the dome. And because `scene.fog.color` already copies the horizon, the fog
+follows for free.
+
+Fog distance also closes in 22% at full dread — the valley gets smaller as it
+gets worse, which is a net win on overdraw.
+
+### Days run short
+
+`DAY_LEN` is referenced in exactly one place, which made this clean. The rate is
+scaled **per half-cycle** rather than warping `dayT → sun` — so every `dayElev`
+test in the game is untouched and the HUD clock still agrees with the sky. The
+hours simply hurry.
+
+| dread | daylight | dark |
+|---|---|---|
+| 0.00 | 300 s | 300 s (*identical to today*) |
+| 1.00 | 165 s | 336 s |
+
+Every system keyed on the day was checked rather than assumed. Wraiths need
+4 seconds above the dawn threshold and get 157. Goblins need 9 seconds of sun
+to burn and get 161. Sleeping still maps dawn↔dusk because the map stayed
+linear. The multiplayer day broadcast diverges by 0.0017 against a 0.02 snap
+threshold — 12× under. **Nothing needed a fix**, which is the payoff of scaling
+the rate instead of warping the map.
+
+### The music slows
+
+One tempo multiplier on every duration in the town and wilderness tracks — a
+tempo change, not a stretched tape. 35% slower at full dread. The **tabor goes
+first**: a town whose drum has stopped is a town that has stopped dancing. The
+harp thins to 45% note density. The boss track is deliberately exempt, because a
+slow boss track is a bad boss track, and the gain crossfades are untouched.
+
+### Bug 83 — Eleven villager lines were unreachable for half the game · FIXED
+
+In `npcLineRaw`, every branch of the reputation block has a probability guard
+except one: `if (r.poolAwake) return pick([...])`. It returns unconditionally.
+
+`repTags()` sets `poolAwake` from the moment the pool wakes until an ending is
+chosen — **the entire back half of the game**. So the `kingSlain`,
+`haleExposed` and `champion` pools below it were dead code for most of a
+playthrough. Eleven written lines about killing the Goblin King, freeing Maren
+and lighting the beacon that nobody could hear.
+
+One word: `&& Math.random() < 0.5`.
+
+### Villagers say worse things
+
+Seven line pools × three bands, for town folk, hill folk, hunters, water
+workers, children, knights and the canopy folk. Unease, then fear and
+suspicion, then open hostility and religious panic.
+
+The branch sits **above** the knight and kid branches, because both of those
+also return unconditionally and would have shadowed it — the same bug as 83,
+which is why it carries a comment saying so. At full dread it fires 70% of the
+time, so **30% of lines are still the ordinary pools**. The jokes survive.
+
+The connective line is a child's: *"I'm not allowed to look at the big oak. So
+I don't. Mostly."* He tells you what is on the road before you see it, and never
+says what it is.
