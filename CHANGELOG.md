@@ -347,3 +347,105 @@ reach "Save key" — everything since their last manual save was lost. Worse,
 `showFault` stays silent for pointer-lock-shaped messages, so an unlucky storm
 froze the screen with no explanation at all. The loop now backs off for two
 seconds and resumes.
+
+---
+
+## Animation pass — one continuous motion instead of state switching
+
+### New — damp(a, b, lambda, dt)
+
+The codebase had no exponential-decay helper; everything used
+lerp(x, target, dt * k). That drifts with frame rate and overshoots once
+dt * k passes 1 — which the player's arms did on any frame slower than 45 fps
+(dt * 22). damp converges at the same real-world rate whatever the frame rate
+and can never overshoot.
+
+### Bug 22 — The player's legs never blended · FIXED
+
+Sixteen hard leg.rotation.x assignments across five branches, against twelve
+properly eased writes for the arms, hand, shield, head, cape and hair. The legs
+were 100% snap, so every state change popped them to a new pose in one frame
+while the arms eased. That split is the "changing states rather than one
+animation" feeling. Legs are chosen as targets now and written once through the
+same easing the arms use, including the airSlash, dive and climb overrides.
+
+### Bug 23 — The hip teleported 0.65 m on every slide · FIXED
+
+u.rig.position.y jumped 1.2 to 0.55 entering a slide and back on exit in one
+frame — the most visible snap in the game, and the only hard write in an
+otherwise eased block. It damps now.
+
+### Bug 24 — A leg buried itself half a metre during slides · FIXED
+
+Reported: "one leg should not be clipping through the ground."
+
+The leg reaches 1.133 m below its pivot, which sits 0.15 m under the hip, so the
+sole stays on the surface only while 1.133 * cos(rigPitch + legPitch) is within
+the hip height. Sliding dropped the hip to 0.55 while the pose left the front leg
+nearly straight at 0.2 — total pitch 0.4 against a requirement of 1.098 — putting
+the sole 0.528 m below the terrain for the entire slide. Because the hip snapped
+instantly while the torso pitch eased over ~0.3 s, the deepest penetration
+(-0.62 m) happened on the first frame. The leg angle is now solved against the
+hip height as it actually is that frame, so the foot stays planted through the
+transition too. Skipped while swimming, airborne or mid-dodge-roll.
+
+### Bug 25 — Walk cycles stopped dead mid-stride · FIXED
+
+Villagers, goblins and the bear advanced their cycle by dt * (moving ? n : 0), so
+the phase froze the instant movement stopped. For villagers the pose also swapped
+source discontinuously, from a half-radian stride to a four-hundredth-radian idle
+sway at a different frequency and phase. Amplitude eases between the two now and
+the phase keeps turning slowly while idle. The bear's cycle rate (7 to 16
+entering a charge) eases too.
+
+### Bug 26 — Sitting villagers only ever posed one arm · FIXED
+
+The if (n.sit) block set both arms, then the next line overwrote arms[0]
+unconditionally.
+
+### Bug 27 — Wolves, wraiths and the Warden had no heading smoothing · FIXED
+
+They wrote mesh.rotation.y = heading raw every frame. Wolves recompute heading
+every frame while circling, so they whipped round on the spot.
+
+### Bug 28 — Goblin and bear attack telegraphs popped · FIXED
+
+The goblin's arm jumped ~2.1 rad the frame a windup began and 1.2 rad back on the
+swing; its body dropped 0.15 m instantly. The bear's head made three hard jumps
+per attack. These ease now, fast enough to still read as a telegraph.
+
+### Bug 29 — Wraith opacity flickered through four values · FIXED
+
+0.55, 0.85, 1.0, 0.55 as hard assignments — four pops per attack. Their
+ground-follow also lagged enough to sink through terrain at a cliff edge, so the
+climb is now much faster than the settle.
+
+### Bug 30 — The pose helper posed nothing · FIXED (caught by the reviewer)
+
+poseNPCEarly advanced the walk cycle counter, but the code that turns that
+counter into limb rotations lives past the early exit. A villager fleeing goblins
+ran the full six seconds with completely rigid limbs, frozen in whatever pose the
+last full tick left. It now poses the limbs itself, and no longer ground-snaps
+someone climbing the elder tree or drops a seated villager 6 cm.
+
+### Bug 31 — Water folk were stranded by a mismatched gate · FIXED
+
+The exemption letting washers, water carriers and bathers stand in the shallows
+is granted by job AND phase; the shore rescue was withheld by job ALONE. The
+moment one turned for home she was both no longer allowed in the water and no
+longer eligible to be pulled out of it.
+
+### Bug 32 — The fault backoff cycled forever and still blocked saving · FIXED
+
+The 2 s retry cleared loopFaulted, so a deterministic error re-showed the fault
+overlay every ~2.5 s indefinitely. Nothing ever hid #loading again, so the pause
+menu stayed unreachable and the player still could not press "Save key" — the
+entire reason for the change. It now hides the overlay on resume, caps at five
+retries, and calls guardPlayerPosition() first.
+
+### Also hardened
+
+shoveNPC refuses a jostle that would put someone out of their depth, and exempts
+an NPC's own shelter during a raid. The kid sleep search excludes the keep
+explicitly rather than relying on noSleep — the same "excluded by accident" shape
+that caused the original castle bug.
