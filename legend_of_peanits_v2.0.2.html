@@ -689,7 +689,7 @@ const __boot = (async () => {
       napGapMin: 240,
       napGapMax: 600,
       napHideRange: 14, // he will not vanish into the tent while you are stood close enough to watch him do it
-      napReach: 90, // further than this from his own tent and he does not bother turning back
+      napReach: 25, // further than this and he does not bother: the nap clock runs while he walks, and 2.4 m/s for napMin seconds is about this far
       wakeRange: 40, // a goblin this close ends a nap — wider than his own shooting range, so he is up before it is in his
       engageDay: 34,
       engageNight: 22, // by night he lets them come closer: this and the cadence below are the whole night balance
@@ -5200,7 +5200,7 @@ const __boot = (async () => {
             r = TUNE.hunters.patrolMin + Math.random() * (TUNE.hunters.patrolMax - TUNE.hunters.patrolMin),
             s = findSpot(f.x + Math.cos(a) * r, f.z + Math.sin(a) * r, 0.6, 300, 4, 2);
           // findSpot never returns null — it falls back to the point you asked for — so check the distance instead
-          if (s && !isWater(s.x, s.z) && dist2D(s, f) < TUNE.hunters.patrolMax + 8) return s;
+          if (s && !isWater(s.x, s.z) && !insideInterior(s.x, s.z, 0.5) && dist2D(s, f) < TUNE.hunters.patrolMax + 8) return s;
         }
         return null; // nothing walkable: the caller wanders him, which is fine for a night
       }
@@ -6102,12 +6102,12 @@ const __boot = (async () => {
             } else if (!step(d.pos.x, d.pos.z, 3.4)) {
               n.stuck = (n.stuck || 0) + dt;
               if (n.stuck > 4) {
+                // blocked on the way to a carcass — a tree, a rock, a neighbour, a river he cannot cross. this is the
+                // ordinary way a fetch dies, and it used to null the claim without ever setting a respawn, so the deer
+                // was struck out of the pool for good.
                 n.stuck = 0;
+                releasePrey(n);
                 n.phase = "back";
-                if (n.prey) {
-                  n.prey.claimed = null;
-                  n.prey = null;
-                }
               }
             }
             break;
@@ -6115,24 +6115,14 @@ const __boot = (async () => {
           case "haul": {
             const t = n.hearth || n.home;
             if (arrive(t, 2.6)) {
-              n.carrying = null;
-              if (n.prey) {
-                n.prey.carried = false;
-                n.prey.respawnT = 50 + Math.random() * 70;
-                n.prey = null;
-              }
+              releasePrey(n, 50 + Math.random() * 70); // eaten: a longer wait before another takes its place
               cookAt(t);
               n.phase = "back";
             } else if (!step(t.x, t.z, 2.2)) {
               n.stuck = (n.stuck || 0) + dt;
               if (n.stuck > 5) {
                 n.stuck = 0;
-                n.carrying = null;
-                if (n.prey) {
-                  n.prey.carried = false;
-                  n.prey.respawnT = 30;
-                  n.prey = null;
-                }
+                releasePrey(n);
                 n.phase = "back";
               }
             }
@@ -6208,6 +6198,7 @@ const __boot = (async () => {
         } else n.indoorT = 0;
       }
       n.wantedMove = n.wantMove;
+      n.aiming = false; // cleared once a tick, not inside the branch that sets it: any earlier ladder arm winning used to leave the bow drawn
       n.wantMove = false;
       if (!n.onHelix) {
         if (!n.sit && !n.seating && n.job !== "trainee" && n.kind !== "stocks") resolveStructs(n.pos, 0.5); // the trainee's leap carries him right up to the straw
@@ -7762,7 +7753,7 @@ const __boot = (async () => {
     for (let k = 0; k < 10 && !t; k++) {
       const a = Math.atan2(h.home.x, h.home.z) + 2.2 + k * 0.63,
         c = findSpot(h.home.x + Math.cos(a) * 5.5, h.home.z + Math.sin(a) * 5.5, 0.6, 300, 4, 2);
-      if (!c || dist2D(c, h.home) > 12 || insideInterior(c.x, c.z, 2.2)) continue;
+      if (!c || dist2D(c, h.home) > 12 || insideInterior(c.x, c.z, 2.2) || pathDist(c.x, c.z) < 4) continue;
       const probe = { x: c.x, y: c.y, z: c.z };
       resolveStructs(probe, 2);
       if (Math.hypot(probe.x - c.x, probe.z - c.z) > 0.05) continue; // a wall or a cart already stands there
@@ -9296,11 +9287,11 @@ const __boot = (async () => {
   // only thing that could bring it back is updateDeer's deadT fallback, which never ticks for a deer more than 170 m
   // from a player. a kill dropped out in the wood was gone from the pool for the rest of the game. every path that
   // throws away a fetch or a haul comes through here now, and it sets the respawn itself.
-  function releasePrey(n) {
+  function releasePrey(n, delay) {
     if (!n.prey) return;
     n.prey.carried = false;
     n.prey.claimed = null;
-    n.prey.respawnT = 30;
+    n.prey.respawnT = delay === undefined ? 30 : delay;
     n.prey = null;
     n.preyT = 0;
     n.carrying = null;
@@ -9309,6 +9300,24 @@ const __boot = (async () => {
   // advance deer state, animation and related scene objects for this frame
   function updateDeer(dt) {
     for (const d of deer) {
+      // the respawn clock runs wherever the carcass is. it used to sit below the distance cull, so a deer abandoned in
+      // a far corner of the moor kept its timer frozen until the player happened to walk back within a hundred and
+      // seventy metres of it — which on a nine-hundred-unit map could be never. respawning picks a fresh random spot
+      // anyway, so doing it off-screen is exactly right.
+      if (d.dead && d.respawnT !== undefined) {
+        d.respawnT -= dt;
+        if (d.respawnT <= 0) {
+          d.respawnT = undefined;
+          d.dead = false;
+          d.claimed = null;
+          d.carried = false;
+          const p = findLand((hash(Math.floor(time * 13), d.pos.x) - 0.5) * 900, (hash(d.pos.z, Math.floor(time * 7)) - 0.5) * 900);
+          d.pos.copy(p);
+          d.home.copy(p);
+          d.mesh.rotation.z = 0;
+          d.mesh.visible = true;
+        }
+      }
       const distToPlayer = dist2D(P.pos, d.pos);
       if (distToPlayer > 170) continue;
       if (d.dead) {

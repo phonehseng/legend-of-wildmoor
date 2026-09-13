@@ -570,3 +570,51 @@ target the player, so a night hunter cannot be hurt. The risk is entirely
 one-sided — ten-odd bowmen at two damage a hit against 4 HP goblins and a spawn
 cap of 7 would trivialise the night. Hence the shorter night range and slower
 cadence. Arrow damage is the next lever if it is still too easy.
+
+---
+
+### Bug 44 — The deer fix missed the commonest path, and the last commit said otherwise · FIXED
+
+The previous entry claimed "every path that throws away a fetch or a haul comes
+through `releasePrey`". That was **wrong**. The fetch-stuck path — a hunter
+blocked for four seconds on his way to a carcass, which is the ordinary way a
+fetch dies — still nulled the claim without setting a respawn, orphaning the deer
+exactly as before. The 90-second watchdog could not catch it either, because that
+path nulls `n.prey` itself, so the watchdog's `if (n.prey)` never fires.
+
+All four paths now route through `releasePrey`, which takes an optional delay so
+the successful-haul case keeps its longer timer. Two of them were also leaving
+`claimed` set for the whole respawn window, so no other hunter could take the
+carcass.
+
+### Bug 45 — The respawn clock only ran within 170 m of the player · FIXED
+
+`updateDeer`'s distance cull sits above the `dead` block, so it gated the
+`respawnT` countdown as well as the animation. A deer abandoned in a far corner
+kept its timer frozen until the player happened to walk back to it — on a
+900-unit map, potentially never. The countdown is now hoisted above the cull;
+respawning picks a fresh random position anyway, so doing it off-screen is
+correct.
+
+### Bug 46 — Night patrol points could land inside buildings · FIXED
+
+`findSpot` tests height, slope and trees only. A town hunter's fire falls back to
+his own doorstep, so his beat circles inside the walls — and `findSpot` would
+happily return a point inside a neighbour's front room, which `step`'s interior
+guard then refuses to walk to. He would grind at the wall every night.
+
+### Bug 47 — Tents could be pitched across roads · FIXED
+
+The probe rejected interiors and structs but not paths, and a tent is a solid
+1.6 m collider placed 5.5 m from a door that is often beside the road.
+
+### Bug 48 — `n.aiming` could latch the bow drawn · FIXED
+
+The flag was cleared inside the same branch that sets it, so any tick where an
+earlier ladder arm won skipped the reset. Cleared once per tick now.
+
+### Tuning — `napReach` 90 → 25
+
+The nap clock runs while the hunter walks to his tent, so 30 seconds of nap buys
+at most 72 m of walking. A hunter 72-90 m out would drop his work, walk, time out
+en route, and walk back having gained nothing.
