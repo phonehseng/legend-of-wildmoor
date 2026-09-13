@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.1.1</title>
+<title>Legend of Peanits 2.1.2</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -369,7 +369,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.1.1</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.1.2</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -436,7 +436,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.1.1</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.1.2</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -1734,9 +1734,13 @@ const __boot = (async () => {
   function terrainH(x, z) {
     let h = (fbm(x / 110 + 100, z / 110 + 100) - 0.42) * 40 + (fbm(x / 42 + 300, z / 42 + 300, 3) - 0.5) * 16;
     const pk = peakNoise(x, z);
-    h += pk * 190 + pk * fbm(x / 25, z / 25, 3) * 30;
-    const d = Math.max(Math.abs(x), Math.abs(z)) / HALF;
-    h += sstep(0.74, 1, d) * 320 + sstep(0.74, 1, d) * fbm(x / 40, z / 40, 3) * 60;
+    // both of these terms are multiplied by a factor that is zero over most of the map, and the fbm inside them costs
+    // twelve hash lookups each. terrainH is the hottest function in the game — every villager step samples it dozens of
+    // times — so skipping the multiply-by-zero cases cuts a third off it for exactly the same output.
+    if (pk > 0) h += pk * 190 + pk * fbm(x / 25, z / 25, 3) * 30;
+    const d = Math.max(Math.abs(x), Math.abs(z)) / HALF,
+      rim = sstep(0.74, 1, d);
+    if (rim > 0) h += rim * 320 + rim * fbm(x / 40, z / 40, 3) * 60;
     const r = Math.hypot(x, z);
     if (r < 120) h = lerp(PLATEAU, h, sstep(80, 120, r));
     const r2 = Math.hypot(x - ELDER.x, z - ELDER.z);
@@ -1867,7 +1871,8 @@ const __boot = (async () => {
         sgrid.get(k).push(s);
       }
   }
-  const structsAt = (x, z) => sgrid.get(skey(Math.floor(x / SCELL), Math.floor(z / SCELL))) || [];
+  const _nostruct = []; // shared: the miss is the common path across a mostly-empty map, and it used to allocate on every one
+  const structsAt = (x, z) => sgrid.get(skey(Math.floor(x / SCELL), Math.floor(z / SCELL))) || _nostruct;
   const addCircle = (cx, cz, r, top, soft = false) => addStruct({ cx, cz, r, top, b: r, soft });
   const addRect = (cx, cz, w, d, top) => addStruct({ cx, cz, w, d, top, b: Math.max(w, d) }),
     addDeck = (cx, cz, w, d, top) => addStruct({ cx, cz, w, d, top, bottom: top - 0.6, b: Math.max(w, d), walk: true, floorOnly: true }); // decks and ramps: a slab you stand on and walk beneath
@@ -5422,7 +5427,12 @@ const __boot = (async () => {
           dz = tz - n.pos.z,
           base = Math.atan2(dx, dz);
         n.wantMove = true;
-        const offs = [0, 0.5, -0.5, 1, -1, 1.6, -1.6, 2.2, -2.2];
+        // the fan reaches ±126°, which is enough to slide along a wall but not enough to escape a peninsula: cornered by
+        // water on three sides, every one of these headings is wet and the villager stands there for good. when they
+        // have been blocked a while the fan opens to a full circle, so they can walk back down their own spit of land —
+        // and because lastOff is tried first, they keep turning the same way and end up following the shoreline round
+        // rather than dithering at the tip.
+        const offs = n.blockedT > 0.8 ? [0, 0.5, -0.5, 1, -1, 1.6, -1.6, 2.2, -2.2, 2.7, -2.7, 3.14] : [0, 0.5, -0.5, 1, -1, 1.6, -1.6, 2.2, -2.2];
         if (n.lastOff) offs.splice(1, 0, n.lastOff); // straight ahead first; failing that, keep sliding the same way along a wall rather than flipping
         for (const off of offs) {
           const a = base + off,
@@ -5542,14 +5552,17 @@ const __boot = (async () => {
           return true;
         }
         n.target = null;
-        const d = Math.hypot(b.pos.x - n.pos.x, b.pos.z - n.pos.z);
-        if (d > 2.6) return step(b.pos.x, b.pos.z, spd * 0.75);
+        const bw = bedWorld(b),
+          bx = bw.x,
+          bz = bw.z;
+        const d = Math.hypot(bx - n.pos.x, bz - n.pos.z);
+        if (d > 2.6) return step(bx, bz, spd * 0.75);
         // the last stride is a lerp, not a step: step()'s two-and-a-half metre look-ahead is inside the wall this close
         // to one, so every candidate direction is refused and the villager stalls beside the mattress. the king's
         // throne is seated the same way.
         n.wantMove = true;
-        n.pos.x = lerp(n.pos.x, b.pos.x, Math.min(1, dt * 3));
-        n.pos.z = lerp(n.pos.z, b.pos.z, Math.min(1, dt * 3));
+        n.pos.x = lerp(n.pos.x, bx, Math.min(1, dt * 3));
+        n.pos.z = lerp(n.pos.z, bz, Math.min(1, dt * 3));
         n.heading = b.yaw;
         if (d < 0.3 && !b.by) {
           b.by = n;
@@ -5611,11 +5624,12 @@ const __boot = (async () => {
               fz = Math.cos(b.yaw),
               len = b.len * k,
               along = Math.min(len / 2 - 0.2, -len / 2 + 0.35 * k + 2.6); // feet at the foot, body back toward the pillow
-            n.pos.set(b.pos.x, it.y + (it.floorTop || 0) * ky, b.pos.z);
+            const bw = bedWorld(b);
+            n.pos.set(bw.x, it.y + (it.floorTop || 0) * ky, bw.z);
             n.mesh.position.set(
-              b.pos.x + fx * along,
+              bw.x + fx * along,
               it.y + b.top * ky + TUNE.player.lieHeightOverMattress + Math.sin(time * 0.8) * 0.015,
-              b.pos.z + fz * along
+              bw.z + fz * along
             );
             n.mesh.rotation.order = "YXZ";
             n.mesh.rotation.y = b.yaw;
@@ -6546,6 +6560,18 @@ const __boot = (async () => {
     }
     FIRES.push({ tongues, light, base: light ? light.intensity : 0, ph: FIRES.length * 1.7, s });
     return tongues;
+  }
+  // three.js never frees a geometry or a material on its own: scene.remove only unhooks the node and the buffers stay on
+  // the card until dispose fires. every culled goblin was leaking about fifty geometries and fifty materials, and a
+  // night of spawning cycles dozens of them — which is a strong candidate for what was crashing safari. textures are
+  // shared through TEX and keepTex, so they are deliberately left alone.
+  function disposeTree(root) {
+    if (!root) return;
+    root.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      const m = o.material;
+      if (m) (Array.isArray(m) ? m : [m]).forEach(x => x && x.dispose && x.dispose());
+    });
   }
   function nearestHearth(p) {
     let best = null,
@@ -8375,14 +8401,9 @@ const __boot = (async () => {
   let roseA = 0, roseOn = false; // the compass sleeps until you wake it in the satchel
   // reject navigation cells inside water, buildings or solid obstacles
   function nearWater(x, z, r) {
-    for (const [dx, dz] of [
-      [r, 0],
-      [-r, 0],
-      [0, r],
-      [0, -r]
-    ])
-      if (isWater(x + dx, z + dz)) return true;
-    return false;
+    // written out rather than looped over a fresh array of pairs: this sits inside the villager step search, where the
+    // old form allocated five arrays on every one of about a hundred calls per step.
+    return isWater(x + r, z) || isWater(x - r, z) || isWater(x, z + r) || isWater(x, z - r);
   }
   function bridgeAt(x, z, y) {
     for (const br of BRIDGES) {
@@ -8715,6 +8736,9 @@ const __boot = (async () => {
   function anyInteractableNear() {
     if (FAIRY.queen && (FAIRY.queen.pos.distanceTo(P.pos) < 9 || FAIRY.children.some(fairyInReach))) return true;
     if (near(hermitPos, 4.5) || near(king.pos, 5.5) || near(BODY.pos, 4.5)) return true;
+    // the beacon has always had something to say — that the lamp is cold, that you have the flint but not the trick —
+    // but it was never listed here, so no prompt ever appeared and the whole tower read as scenery.
+    if (near(lighthousePos, 11, 40)) return true;
     if (bedHere(2.6)) return true;
     for (const p of pickups)
       if (!p.taken && dist2D(p.mesh.position, P.pos) < 5 && Math.abs(p.mesh.position.y - P.pos.y) < 3.2)
@@ -9073,15 +9097,22 @@ const __boot = (async () => {
       const text = LORE[loreN++ % LORE.length];
       addPickup(V3(p.x, p.y, p.z), "clue", text, () => {}, { noCount: true, shape: "book" });
     }
+    // the evidence used to sit in one heap on the pool shore — cloth, ring and ritual site all inside twenty metres, so
+    // one walk round the water solved the whole murder. only the ring stays here now; the rest is spread along the way
+    // she was actually taken, so the investigation is a route rather than a place.
+    // the cloth snagged on the way: partway up the road between the mill and the water, where he brought her.
+    {
+      const cw = findSpot((POOL.x + houses[5].table.x) / 2, (POOL.z + houses[5].table.z) / 2, 1.6, 120, 6, 2) || V3(POOL.x - 40, POOL.y, POOL.z + 30);
     addPickup(
-      V3(POOL.x - 13, POOL.y, POOL.z + 3),
+      V3(cw.x, cw.y, cw.z),
       "clue",
-      "A scrap of black cloth, torn. Fine wool. Gloved fingers left it",
+      "A scrap of black cloth, torn, caught low on a thorn. Fine wool. Gloved fingers left it",
       () => {
         STORY.clues++; evidence("cloth");
       },
       { shape: "cloth", id: "clue:cloth" }
     );
+    }
     addPickup(
       V3(POOL.x + 9, POOL.y, POOL.z + 9),
       "clue",
@@ -9102,7 +9133,9 @@ const __boot = (async () => {
     );
     // two more pieces of evidence: a ritual site by the reeds, and the inquisitor's own note in the keep. neither is needed; both change what he says
     {
-      const rs = V3(POOL.x - 8, POOL.y, POOL.z - 12);
+      // the ritual site moves well back from the shore: a thing done in private, not on the bank where anyone could see
+      const rsBase = findSpot(POOL.x - 62, POOL.z - 48, 1.6, 140, 6, 2),
+        rs = rsBase ? V3(rsBase.x, rsBase.y, rsBase.z) : V3(POOL.x - 62, POOL.y, POOL.z - 48);
       const site = new THREE.Group();
       for (let k = 0; k < 5; k++) { const a = (k / 5) * 6.28; site.add(cyl(0.06, 0.07, 0.35 + hash(k, 3) * 0.2, lam(0xe8e0c8), Math.cos(a) * 0.9, 0.17, Math.sin(a) * 0.9, 6)); }
       const rune = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.75, 5, 1), new THREE.MeshStandardMaterial({ color: toLin(0x1a1420), emissive: toLin(0x3a2050), emissiveIntensity: 0.6, side: THREE.DoubleSide }));
@@ -9563,6 +9596,11 @@ const __boot = (async () => {
     mesh,
     ox: pos.x - it.cx,
     oz: pos.z - it.cz,
+    // where the room's group stood when the bed was recorded. the great hall shoves nearby houses aside as it grows,
+    // which moves their meshes but not it.cx/cz — so a cached bed position goes stale and the sleeper stays behind
+    // while the bed slides out from under them.
+    gx0: it.group ? it.group.position.x : 0,
+    gz0: it.group ? it.group.position.z : 0,
     owner: null, // whose bed this is, decided once at worldgen
     by: null // and who is lying in it right now, which is what stops the player using it
   });
@@ -9571,6 +9609,13 @@ const __boot = (async () => {
   // a second bed of the same make as the first. it goes in it.group, never it.dec, because dec children are
   // counter-scaled when a room swells and bed 0 is not — put it in the wrong parent and the two beds drift apart as
   // the player walks in.
+  const _bedW = V3();
+  // the bed where it actually is this frame, group displacement included
+  function bedWorld(b) {
+    const g = b.it && b.it.group;
+    if (!g) return b.pos;
+    return _bedW.set(b.pos.x + g.position.x - b.gx0, b.pos.y, b.pos.z + g.position.z - b.gz0);
+  }
   function addSecondBed(it) {
     if (!it.group || it.beds.length !== 1 || it.keep || it.noSleep || it.reserved) return null;
     const gy = it.group.rotation.y,
@@ -10318,7 +10363,8 @@ const __boot = (async () => {
       const nearestD = NET.avatars.size ? Math.min(dist2D(g.pos, P.pos), ...[...NET.avatars.values()].map(a => dist2D(a.state.pos, g.pos))) : dist2D(g.pos, P.pos);
       if (g.gone || (g.mirror && g.hidden && (g.deadReckon = (g.deadReckon || 0) + dt) > 30) || (nearestD > 320 && !g.camp)) { // the camp in the wood waits however far you go
         scene.remove(g.mesh);
-        if (g.bar) scene.remove(g.bar);
+        disposeTree(g.mesh);
+        if (g.bar) { scene.remove(g.bar); disposeTree(g.bar); }
         goblins.splice(i, 1);
       } else if (g.mirror && !g.hidden) g.deadReckon = 0;
     }
@@ -12268,7 +12314,8 @@ const __boot = (async () => {
         const g = goblins[i];
         if (!g.mirror) continue;
         scene.remove(g.mesh);
-        if (g.bar) scene.remove(g.bar);
+        disposeTree(g.mesh);
+        if (g.bar) { scene.remove(g.bar); disposeTree(g.bar); }
         goblins.splice(i, 1);
       }
       for (const sl of slimes) sl.tx = undefined;
@@ -13011,8 +13058,9 @@ const __boot = (async () => {
     let best = null,
       bd = r;
     for (const b of roomNow.beds) {
-      const d = dist2D(b.pos, P.pos);
-      if (d < bd && Math.abs(b.pos.y - P.pos.y) < 2.6) {
+      const w = bedWorld(b),
+        d = dist2D(w, P.pos);
+      if (d < bd && Math.abs(w.y - P.pos.y) < 2.6) {
         bd = d;
         best = b;
       }
@@ -14552,7 +14600,7 @@ const __boot = (async () => {
     if (netGuest()) { for (const e of EXTRA) if (e.tx !== undefined) { const k = Math.min(1, dt * 10); e.pos.x = lerp(e.pos.x, e.tx, k); e.pos.y = lerp(e.pos.y, e.ty, k); e.pos.z = lerp(e.pos.z, e.tz, k); e.heading = e.th; e.mesh.position.copy(e.pos); e.mesh.rotation.y = e.heading; e.mesh.visible = e.alive; if (e.mat) e.mat.opacity = e.state === "recover" ? 1 : 0.55; updateHealthBar(e, e.kind === "wolf" ? 1.8 : 3); } return; }
     for (let i = EXTRA.length - 1; i >= 0; i--) {
       const e = EXTRA[i];
-      if (!e.alive) { e.t += dt; if (e.kind === "wolf") { e.mesh.rotation.z = lerp(e.mesh.rotation.z, 1.5, Math.min(1, dt * 3)); e.mesh.position.y = e.pos.y - Math.max(0, e.t - 6) * 0.3; } else { e.mat.opacity = Math.max(0, 0.55 - e.t * 0.5); } if (e.t > 8 || (e.wraith && e.t > 1.5)) { scene.remove(e.mesh); if (e.bar) scene.remove(e.bar); if (e.den) e.den.wolves = e.den.wolves.filter(w => w !== e); EXTRA.splice(i, 1); } continue; }
+      if (!e.alive) { e.t += dt; if (e.kind === "wolf") { e.mesh.rotation.z = lerp(e.mesh.rotation.z, 1.5, Math.min(1, dt * 3)); e.mesh.position.y = e.pos.y - Math.max(0, e.t - 6) * 0.3; } else { e.mat.opacity = Math.max(0, 0.55 - e.t * 0.5); } if (e.t > 8 || (e.wraith && e.t > 1.5)) { scene.remove(e.mesh); disposeTree(e.mesh); if (e.bar) { scene.remove(e.bar); disposeTree(e.bar); } if (e.den) e.den.wolves = e.den.wolves.filter(w => w !== e); EXTRA.splice(i, 1); } continue; }
       const tgt = nearestPlayerTo(e.pos), dx = tgt.pos.x - e.pos.x, dz = tgt.pos.z - e.pos.z, dist = Math.hypot(dx, dz);
       e.t -= dt; e.flash = Math.max(0, e.flash - dt);
       if (e.wraith) updateWraith(e, tgt, dx, dz, dist, dt); else if (e.kind === "wolf") updateWolf(e, tgt, dx, dz, dist, dt);
@@ -14681,7 +14729,11 @@ const __boot = (async () => {
               const a = Math.random() * 6.28;
               hopTo(s.pos.x + Math.cos(a) * 3, s.pos.z + Math.sin(a) * 3, 2.5, 5);
             }
-            if (dist < 26 && !P.swim && performance.now() - startedAt > 60000) s.state = "chase";
+            // slimes used to sit on a sixty-second wall clock, which meant they woke up on a timer that had nothing to
+            // do with where the player was in the story — and before it expired they ignored you entirely unless you
+            // walked into one. they are tied to the hermit now: the moor is quiet until he tells you about it, and from
+            // then on they hunt on sight. the swim exemption stays, so deep water is still a way out of a fight.
+            if (talkedOnce && dist < 30 && !P.swim) s.state = "chase";
             break;
           case "chase":
             if (dist > 45 || P.swim) {
@@ -16163,7 +16215,9 @@ const __boot = (async () => {
       camera.updateProjectionMatrix();
       camera.layers.set(1);
       renderer.autoClear = false;
+      scene.autoUpdate = false; // the pass above already updated every matrix this frame; this one walked all of them again
       renderer.render(scene, camera);
+      scene.autoUpdate = true;
       renderer.autoClear = true;
       camera.layers.set(0);
       camera.far = farSave;

@@ -751,3 +751,73 @@ The limbs bulged *toward* the archer with the string beyond them. Flipped.
 
 The whole box, not just the letters — a bar that only recolours its text reads as
 a typo.
+
+---
+
+## 2.1.2 — Performance, a likely Safari fix, and behaviour
+
+### Bug 58 — Culled enemies leaked their whole body · FIXED *(likely the Safari crash)*
+
+three.js never frees a geometry or material on its own — `scene.remove` unhooks
+the node and the buffers stay on the card until `dispose()` fires. A grep for
+`.dispose()` across the entire file returned **five hits**, none of them on an
+enemy. Every culled goblin leaked **~54 geometries and ~54 materials**; goblins
+spawn every 4 s at night and cull past 320 m, so a 30-minute session leaks
+roughly **3,300 geometries and 6,600 orphaned WebGL buffers**.
+
+The render profile was crushed to 0.75 pixel ratio and 185 m draw distance
+because Safari was crashing. **This leak is a strong candidate for why.** Added a
+`disposeTree` helper and wired it into all three cull paths. If
+`renderer.info.memory.geometries` now holds flat across a few nights, there may
+be render headroom to give back.
+
+### `terrainH` is a third cheaper
+
+The hottest function in the game: **72 `hash()` evaluations per call**, and every
+spatial predicate bottoms out in it. A villager step samples it up to 190 times.
+Two of its terms are multiplied by a factor that is zero over most of the map,
+and the `fbm` inside each costs 12 hashes. Skipping the multiply-by-zero cases
+cuts **24 of 72** for byte-identical output.
+
+Also: `nearWater` allocated five arrays per call and sits inside that same step
+search (~100 allocations per step); `structsAt` allocated on every miss, which is
+the common path across a mostly-empty map; and the overlay render pass walked all
+~10,000 matrices a second time when the first pass had already updated them.
+
+### Bug 59 — Villagers stranded on peninsulas · FIXED
+
+The step fan reaches ±126°, enough to slide along a wall but **not enough to walk
+back down a spit of land**. Cornered by water on three sides, every heading was
+wet and the villager stood there for good. After 0.8 s blocked the fan opens to a
+full circle — and because the last successful offset is tried first, they keep
+turning the same way and follow the shoreline round instead of dithering.
+
+### Bug 60 — Slimes woke on a wall clock · FIXED
+
+They ignored the player entirely for the first 60 real-time seconds, then aggroed
+on a timer with no relation to the story. Now tied to meeting the hermit: the
+moor is quiet until he tells you about it, then they hunt on sight at 30 m.
+
+### Bug 61 — Sleepers stayed behind when the hall pushed their house · FIXED
+
+The great hall shoves nearby houses aside as it grows, which moves their meshes
+but not `it.cx/cz` — so the cached bed position went stale and the bed slid out
+from under the sleeping villager.
+
+### Bug 62 — The beacon had no prompt · FIXED
+
+It has always had something to say, with or without the flint, but it was never
+listed in `anyInteractableNear`, so no E ever appeared and the tower read as
+scenery.
+
+### The evidence is no longer in one heap
+
+Cloth, ring and the ritual site all sat within ~20 m of the pool, so one walk
+round the water solved the murder. Only the ring stays. The cloth is now snagged
+partway along the road between the mill and the water — the way she was actually
+taken — and the ritual site has moved well back from the shore, because it is a
+thing done in private. The investigation is a route now, not a place.
+
+### Hunter tents, fires, bows, level-up box
+
+See 2.1.1; the tent placement fix landed there.
