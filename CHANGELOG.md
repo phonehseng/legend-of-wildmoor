@@ -821,3 +821,56 @@ thing done in private. The investigation is a route now, not a place.
 ### Hunter tents, fires, bows, level-up box
 
 See 2.1.1; the tent placement fix landed there.
+
+---
+
+## 2.1.3 — One waterline, and a regression of mine
+
+### Bug 63 — The player floated above the bed · FIXED *(my regression)*
+
+A design pass argued that a grown room lifts the mattress by its vertical scale
+and the player was therefore sleeping 20 cm *inside* the bed, so I multiplied the
+lie height by `ky`. In play the unscaled height had been correct all along and
+scaling it left the player hovering. The bed geometry does not take the stretch
+the way that reasoning assumed. Reverted for the player **and** for sleeping
+villagers, which had the same mistake.
+
+### Bug 64 — Land in front of the cave behaved as lake · FIXED
+
+Diagnosed by running the game's own worldgen: the cave sits at
+`(39.13, 297.44)`, and **the rendered water plane was at y = 0.1 while every
+predicate tested 0.3**. Ground between those two numbers draws as sand, sits
+visibly above the water, and is classified as lake by everything.
+
+On a normal steep shore that band is ~2 m wide. In front of the den, where the
+marsh falls at 2-5 cm per metre, it is **10-15 m wide** — **872 m² of visible,
+standable beach in 195 patches**, the largest a 15×13 m sandbar. Villagers,
+hunters, goblins, wraiths and plants all refuse to enter it, so the approach to
+the Old Bear is a permanent dead zone that looks like ordinary ground.
+
+There is now a single `WATER_Y` constant. What you see and what the game tests
+are the same number, everywhere on the map.
+
+*(Root cause noted for later: the cave selector ranks candidates purely on
+flatness with no water test at all, and a lake-edge shelf is the flattest thing
+in the search annulus — so it chose the marsh lip deliberately. Of 34 candidates
+exactly one is fully dry. Worth a scoring penalty rather than a hard reject, or
+the den moves a long way.)*
+
+### Bug 65 — Wraith health bars vanished in the mist · FIXED
+
+Not a contrast problem. The bar is a `MeshBasicMaterial`, which scene fog still
+tints, so at the Black Pool — thickest mist, and where the wraiths live — the red
+was washed toward the fog colour until it disappeared. `fog: false`, plus a
+render order that puts it after the wraith's additive glow. *(I had added a
+backing plate first; removed, on the report that fog was the cause.)*
+
+### The Goblin King waits until you can fight him
+
+He could turn up on your first night, which is an unwinnable fight and a wall
+across the story. He now needs hero level 3 — and when you ask the King for the
+seal before then, he tells you why: *"he will not show himself to a beginner."*
+
+### Nim's mother
+
+The elder tree is where Nim always went, and her mother says so now.

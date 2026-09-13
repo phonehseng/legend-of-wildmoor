@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.1.2</title>
+<title>Legend of Peanits 2.1.3</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -369,7 +369,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.1.2</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.1.3</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -436,7 +436,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.1.2</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.1.3</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -1723,6 +1723,7 @@ const __boot = (async () => {
     SEG = 360,
     HALF = SIZE / 2,
     GRAV = 28,
+    WATER_Y = 0.3, // the surface: what you see and what every predicate tests are now the same number
     DEEP = -2.6,
     MAXSPD = 46,
     PLATEAU = 8,
@@ -1840,7 +1841,7 @@ const __boot = (async () => {
     return r ? r.dist : 1e9;
   }
   function waterSurfaceAt(x, z) {
-    if (terrainH(x, z) < 0.3) return 0;
+    if (terrainH(x, z) < 0.3) return WATER_Y;
     const r = riverAt(x, z);
     return r ? r.surf : -1e9;
   }
@@ -1848,7 +1849,11 @@ const __boot = (async () => {
     const ws = waterSurfaceAt(x, z);
     return ws > -1e8 && gh < ws - 0.25;
   }
-  const isWater = (x, z) => terrainH(x, z) < 0.3 || riverAt(x, z) !== null,
+  // one waterline for the whole game. the rendered plane sat at 0.1 while every predicate used 0.3, so a band of ground
+  // between them drew as dry sand — sand-coloured, above the water, standable — and was classified as lake. in front of
+  // the bear cave, where the shore falls at a couple of centimetres a metre, that band is ten metres wide and covers
+  // nearly nine hundred square metres of visible beach that villagers, goblins, wraiths and plants all refuse to enter.
+  const isWater = (x, z) => terrainH(x, z) < WATER_Y || riverAt(x, z) !== null,
     isDeep = (x, z) => terrainH(x, z) < DEEP,
     inBounds = (x, z) => Math.abs(x) < HALF - 4 && Math.abs(z) < HALF - 4;
   const slopeAt = (x, z) => Math.abs(terrainH(x + 3, z) - terrainH(x - 3, z)) + Math.abs(terrainH(x, z + 3) - terrainH(x, z - 3));
@@ -5628,7 +5633,8 @@ const __boot = (async () => {
             n.pos.set(bw.x, it.y + (it.floorTop || 0) * ky, bw.z);
             n.mesh.position.set(
               bw.x + fx * along,
-              it.y + b.top * ky + TUNE.player.lieHeightOverMattress + Math.sin(time * 0.8) * 0.015,
+              // unscaled, for the same reason the player's is: scaling by the room stretch lifts a sleeper off the blanket
+              it.y + b.top + TUNE.player.lieHeightOverMattress + Math.sin(time * 0.8) * 0.015,
               bw.z + fz * along
             );
             n.mesh.rotation.order = "YXZ";
@@ -9058,7 +9064,7 @@ const __boot = (async () => {
       const defs = [
         { vi: 0, who: "Highreach weaver", title: "Wear something better, for the weaver's sake", ask: () => { STORY.weaver0 = JSON.stringify([CUSTOM.tunic, CUSTOM.cape, CUSTOM.hair, CUSTOM.style]); return "That tunic. Those colours. I weave for a living and it hurts to look at you. Wren in the kingdom keeps a fitting room; go and come back dressed like a person, and I'll give you something worth wearing."; }, nag: "Wren's fitting room, in the kingdom. Any change. Please.", thanks: "Better. Much better. Here, a sash of my own weaving; it keeps the wind out of your lungs.", check: () => STORY.weaver0 !== undefined && JSON.stringify([CUSTOM.tunic, CUSTOM.cape, CUSTOM.hair, CUSTOM.style]) !== STORY.weaver0, progress: () => "change your look at Wren's", reward: () => grant("Highreach Sash: +12 stamina", () => { P.bonus.stam += 12; }) },
         { vi: 1, who: "Stonefold elder", title: "Fetch the violet stone from the black pool", ask: "Our colour comes from the stone under this hill. There's a fist of it lying on the shore of the black pool below the kingdom, and the pool is no place for old bones. Bring it and I'll give you our charm.", nag: "The black pool, below the kingdom. A purple stone on its shore. Don't swim; it's cold and it remembers.", thanks: "That's it. Feel how warm it is. Take this charm; slimes cannot bear the colour.", check: () => pickups.some(p => p.id === "quest:stonefold" && p.taken), progress: () => "the violet stone", reward: () => grant("Stonefold Charm: slimes take a third more from you", () => { P.bonus.slime *= 1.33; }) },
-        { vi: 2, who: "Thornback mother", title: "Find Nim, who ran into the forest", ask: "Traveller children laughed at her ears and she ran. Into the forest under the great tree, toward the wooden stepping stones. Find my Nim and tell her to come home.", nag: "The forest below the elder tree. She'll be near the wooden platforms. She's small and she'll be crying.", thanks: "She's home. She's home and she's told me every word you said. Take this; it was her grandmother's. Blows land softer on whoever wears it.", check: () => !!LOST.found, progress: () => (LOST.found ? "Nim is home" : "find Nim in the forest"), reward: () => grant("Thornback Bracelet: every blow you take hurts a fifth less", () => { P.bonus.guard *= 0.8; }) },
+        { vi: 2, who: "Thornback mother", title: "Find Nim, who ran into the forest", ask: "Traveller children laughed at her ears and she ran. Under the great tree — that spot below it was always her favourite, since she could walk. Find my Nim and tell her to come home.", nag: "Under the elder tree, where the wooden platforms are. It was always her favourite place. She's small and she'll be crying.", thanks: "She's home. She's home and she's told me every word you said. Take this; it was her grandmother's. Blows land softer on whoever wears it.", check: () => !!LOST.found, progress: () => (LOST.found ? "Nim is home" : "find Nim in the forest"), reward: () => grant("Thornback Bracelet: every blow you take hurts a fifth less", () => { P.bonus.guard *= 0.8; }) },
         { vi: 3, who: "Cloudrest healer", title: "Three moor-herbs for the Cloudrest healer", ask: "The fever is back on the mountain and my shelves are bare. Three moor-herbs; they glow green at dusk on the moor below. I'll pay in kind.", nag: "Three moor-herbs. They glow at dusk. The moor below is thick with them.", thanks: "Three. That's a week of fevers seen off. A tonic for you, brewed strong.", check: () => P.herbs >= 3, progress: () => `${Math.min(3, P.herbs)}/3 moor-herbs`, reward: () => { P.herbs = Math.max(0, P.herbs - 3); grant("Cloudrest Tonic: a Heart Piece", () => { P.maxHp++; P.hp = P.maxHp; }); } },
         { vi: 4, who: "Grey Tor widow", title: "Bring back the ring from the Old Beacon", ask: "My husband kept the beacon, when it was kept. He dropped his ring at its foot the day he died and no one has fetched it. It's a long climb and I'm past it. Please.", nag: "At the foot of the Old Beacon, in the grass. A tarnished ring.", thanks: "Forty years I've wanted this in my hand. Take his boots; he ran that hill twice a day.", check: () => pickups.some(p => p.id === "quest:greytor" && p.taken), progress: () => "the ring at the beacon's foot", reward: () => grant("Beacon-keeper's Boots: you run faster", () => { P.bonus.run += 1.5; }) },
         { vi: 5, who: "Ashfall smith", title: "Burst three slimes for the Ashfall smith", ask: () => { STORY.smith0 = P.kills; return "Slimes in the ash pits again. Three of them burst and I'll sharpen whatever you carry properly, on the good stone."; }, nag: () => `Three slimes. ${Math.min(3, P.kills - (STORY.smith0 || 0))} so far.`, thanks: "Three. Good. Give it here. There: that edge will hold now.", check: () => P.kills - (STORY.smith0 || 0) >= 3, progress: () => `${Math.min(3, P.kills - (STORY.smith0 || 0))}/3 slimes`, reward: () => grant("Ashfall Edge: your blows hit a tenth harder", () => { P.bonus.dmg *= 1.1; }) },
@@ -9721,12 +9727,17 @@ const __boot = (async () => {
   // ============================================================ enemies with health bars
   function makeHealthBar() {
     const g = new THREE.Group();
+    // fog: false is the whole fix. the bar is a MeshBasicMaterial, which the scene fog still tints, so at the black pool
+    // — where the mist is thickest and the wraiths live — the red was being washed toward the fog colour until it
+    // vanished. it is not a contrast problem and it does not want a backing plate.
     const fg = new THREE.Mesh(
       new THREE.PlaneGeometry(1.7, 0.16),
-      new THREE.MeshBasicMaterial({ color: 0xff2a1e, depthWrite: false, depthTest: false })
+      new THREE.MeshBasicMaterial({ color: 0xff2a1e, depthWrite: false, depthTest: false, fog: false })
     );
     fg.position.z = 0.01;
     g.add(fg);
+    g.renderOrder = 8; // after the wraith's additive glow, which was also lifting it
+    fg.renderOrder = 8;
     g.visible = false;
     g.userData.fg = fg;
     scene.add(g);
@@ -9743,6 +9754,7 @@ const __boot = (async () => {
     b.userData.fg.scale.x = k;
     b.userData.fg.position.x = -(1 - k) * 0.85;
     b.userData.fg.material.color.setHex(0xe82a1e);
+    b.userData.fg.material.fog = false;
     b.position.set(e.pos.x, e.pos.y + h, e.pos.z);
     b.quaternion.copy(camera.quaternion);
   }
@@ -10404,7 +10416,9 @@ const __boot = (async () => {
           )
             continue;
           // packs: a few goblins together, sometimes led by a king
-          const king = night && !inKingdom && !WORLDSTATE.goblinKingDefeated && Math.random() < 0.3 && !goblins.some(g => g.king && g.alive) && kingLull <= 0,
+          // he used to be able to turn up on your first night, which is a fight you cannot win and a wall across the story.
+          // he waits until you are a match for him — the crown says as much when you ask for the seal.
+          const king = night && !inKingdom && heroLevel() >= 3 && !WORLDSTATE.goblinKingDefeated && Math.random() < 0.3 && !goblins.some(g => g.king && g.alive) && kingLull <= 0,
             lead = spawnGoblin(x, z, king),
             n = king ? 3 + Math.floor(Math.random() * 2) : 1 + Math.floor(Math.random() * 3);
           for (let k = 0; k < n && alive + k + 1 < cap + 3; k++) {
@@ -13118,6 +13132,8 @@ const __boot = (async () => {
       );
     }
     if (WORLDSTATE.hermitWarned && !WORLDSTATE.relics.seal) {
+      if (!WORLDSTATE.goblinKingDefeated && heroLevel() < 3)
+        return speak(king, "The seal, for a fairy tale? Bring me the goblin king's head first — and he will not show himself to a beginner. Go and become someone worth his while, then walk the moor at night.", "King", 7000);
       if (!WORLDSTATE.goblinKingDefeated) return speak(king, "The seal, for a fairy tale? Bring me the goblin king's head first. He comes to my walls every other night and my knights will not go out to him. Kill him, and I'll believe you can kill the other thing too.", "King", 7000);
       if (WORLDSTATE.marenFreed || STORY.solved) {
         WORLDSTATE.relics.seal = true; WORLDSTATE.kingTrusts = true;
@@ -14530,7 +14546,11 @@ const __boot = (async () => {
             P.heading = yaw;
             // the * ky is new, and fixes a long-standing sink: a grown room lifts the mattress by its vertical scale
             // while this put the player at the unscaled height, so you slept about twenty centimetres inside your own bed
-            P.lieY = (bd.top || 0.6) * ky + TUNE.player.lieHeightOverMattress;
+            // NOT scaled by the room's vertical stretch. a design pass argued the mattress rises with the room and the
+            // player was sleeping inside it, but in play the unscaled height was already correct and scaling it left
+            // the player hovering above the blanket. the bed geometry evidently does not take the stretch the way that
+            // reasoning assumed, so this stays as it was.
+            P.lieY = (bd.top || 0.6) + TUNE.player.lieHeightOverMattress;
           }
           if (sleepT <= 0) P.inBed = null;
         } // the model's origin is at its feet: the feet go to the foot of the bed and the body lies back toward the pillow
@@ -15579,7 +15599,7 @@ const __boot = (async () => {
       if (!h.taken) h.glow.intensity = 0.7 + Math.sin(time * 3 + h.pos.x) * 0.4;
     });
     updateVillageFires(dt);
-    water.position.y = 0.1;
+    water.position.y = WATER_Y; // the plane sat at 0.1 while every predicate used 0.3, so the band between them drew as dry sand and behaved as lake
     for (const r of ripples)
       if (r.m.visible) {
         r.t += dt;
