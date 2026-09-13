@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.1.3</title>
+<title>Legend of Peanits 2.1.4</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -369,7 +369,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.1.3</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.1.4</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -436,7 +436,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.1.3</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.1.4</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -5624,7 +5624,8 @@ const __boot = (async () => {
             it = b.it,
             k = it.grow || 1,
             ky = it.group ? it.group.scale.y : 1;
-          if (!dayTime) {
+          // n.stay covers ysolde's father: he is not getting up at dawn, or ever. everyone else rises with the light.
+          if (!dayTime || n.stay) {
             const fx = Math.sin(b.yaw),
               fz = Math.cos(b.yaw),
               len = b.len * k,
@@ -8340,6 +8341,10 @@ const __boot = (async () => {
       const st = stage();
       return st === 0 ? "bang" : st === 7 ? "tick" : null;
     }
+    // nim carries her own mark. her mother cannot ask for help she does not know she needs, and sending the player up
+    // the mountain to be told about it, back down to find her, and up again to report was three trips for one child.
+    // the beacon has to be lit first — that is the light she steers home by, and without it she stays put.
+    if (n.lost) return lit && !n.found ? "bang" : null;
     const q = SIDE.find(q => q.giver === n);
     if (!q || (q.available && !q.available())) return null;
     if (!q.taken) return "bang";
@@ -8777,17 +8782,34 @@ const __boot = (async () => {
               );
               const bx0 = lx < 0 ? lx + 0.35 : lx - 0.35;
               big.position.set(bx0, 0.12, lz);
-              it.dec.add(big);
-              scene.remove(MILLER.mesh);
-              MILLER.mesh.position.set(bx0 - 1.25, 0.72, lz); // feet at the foot of the bed, on the mattress
-              MILLER.mesh.rotation.order = "YXZ";
-              MILLER.mesh.rotation.set(-Math.PI / 2, Math.PI / 2, 0); // lying along the bed toward the pillow
-              it.dec.add(MILLER.mesh);
+              // into the room's group, not its decorations. dec children are counter-scaled when the hall grows but
+              // their positions are not compensated, so his bed used to slide out from under him the moment you
+              // stepped in — and his own mesh, parented there too and rotated on its side, got sheared by a
+              // non-uniform scale as well. everything about him was ad hoc; he is on the real bed system now.
+              it.group.add(big);
               MILLER.furniture = true;
               if (it.bedMesh) it.bedMesh.visible = false;
+              // point bed 0 at his big bed and hand it to him. beds[0].pos IS it.bed, so the respawn search, the lore
+              // books, the E prompt and bedHere all follow him across for free.
+              const b = it.beds && it.beds[0];
+              if (b) {
+                b.ox = bx0;
+                b.oz = lz;
+                b.len = 2.9;
+                b.top = 0.71;
+                b.mesh = big;
+                // his bolster is at +x on this bed, the mirror of the stock one. he kept the stock bed's yaw, which
+                // pointed his head at the far end — out through the back wall, with the pillow behind his feet.
+                b.yaw = -Math.PI / 2;
+                b.pos.set(it.cx + bx0 * k, it.y + b.top, it.cz + lz * k);
+                b.gx0 = it.group ? it.group.position.x : 0;
+                b.gz0 = it.group ? it.group.position.z : 0;
+                b.owner = b.by = MILLER;
+                MILLER.myBed = b;
+                MILLER.inBed = true;
+              }
             }
             MILLER.pos.set(it.bed.x, it.y, it.bed.z);
-            if (it.beds && it.beds[0]) it.beds[0].by = MILLER;
           }
         }
       }
@@ -9064,14 +9086,18 @@ const __boot = (async () => {
       const defs = [
         { vi: 0, who: "Highreach weaver", title: "Wear something better, for the weaver's sake", ask: () => { STORY.weaver0 = JSON.stringify([CUSTOM.tunic, CUSTOM.cape, CUSTOM.hair, CUSTOM.style]); return "That tunic. Those colours. I weave for a living and it hurts to look at you. Wren in the kingdom keeps a fitting room; go and come back dressed like a person, and I'll give you something worth wearing."; }, nag: "Wren's fitting room, in the kingdom. Any change. Please.", thanks: "Better. Much better. Here, a sash of my own weaving; it keeps the wind out of your lungs.", check: () => STORY.weaver0 !== undefined && JSON.stringify([CUSTOM.tunic, CUSTOM.cape, CUSTOM.hair, CUSTOM.style]) !== STORY.weaver0, progress: () => "change your look at Wren's", reward: () => grant("Highreach Sash: +12 stamina", () => { P.bonus.stam += 12; }) },
         { vi: 1, who: "Stonefold elder", title: "Fetch the violet stone from the black pool", ask: "Our colour comes from the stone under this hill. There's a fist of it lying on the shore of the black pool below the kingdom, and the pool is no place for old bones. Bring it and I'll give you our charm.", nag: "The black pool, below the kingdom. A purple stone on its shore. Don't swim; it's cold and it remembers.", thanks: "That's it. Feel how warm it is. Take this charm; slimes cannot bear the colour.", check: () => pickups.some(p => p.id === "quest:stonefold" && p.taken), progress: () => "the violet stone", reward: () => grant("Stonefold Charm: slimes take a third more from you", () => { P.bonus.slime *= 1.33; }) },
-        { vi: 2, who: "Thornback mother", title: "Find Nim, who ran into the forest", ask: "Traveller children laughed at her ears and she ran. Under the great tree — that spot below it was always her favourite, since she could walk. Find my Nim and tell her to come home.", nag: "Under the elder tree, where the wooden platforms are. It was always her favourite place. She's small and she'll be crying.", thanks: "She's home. She's home and she's told me every word you said. Take this; it was her grandmother's. Blows land softer on whoever wears it.", check: () => !!LOST.found, progress: () => (LOST.found ? "Nim is home" : "find Nim in the forest"), reward: () => grant("Thornback Bracelet: every blow you take hurts a fifth less", () => { P.bonus.guard *= 0.8; }) },
+        { vi: 2, who: "Thornback mother", title: "Find Nim, who ran into the forest",
+          // she only has anything to say once nim is on her way: the child is found by finding her, not by being sent.
+          available: () => !!LOST.found,
+          target: () => (LOST.found ? null : LOST.pos),
+          ask: "You found her. She's walking up the path now — I can see her from the door.", nag: "She's on her way up. Stay a moment; I want to give you something.", thanks: "She's home. She's home and she's told me every word you said. Take this; it was her grandmother's. Blows land softer on whoever wears it.", check: () => !!LOST.found, progress: () => (LOST.found ? "Nim is home" : "find Nim in the forest"), reward: () => grant("Thornback Bracelet: every blow you take hurts a fifth less", () => { P.bonus.guard *= 0.8; }) },
         { vi: 3, who: "Cloudrest healer", title: "Three moor-herbs for the Cloudrest healer", ask: "The fever is back on the mountain and my shelves are bare. Three moor-herbs; they glow green at dusk on the moor below. I'll pay in kind.", nag: "Three moor-herbs. They glow at dusk. The moor below is thick with them.", thanks: "Three. That's a week of fevers seen off. A tonic for you, brewed strong.", check: () => P.herbs >= 3, progress: () => `${Math.min(3, P.herbs)}/3 moor-herbs`, reward: () => { P.herbs = Math.max(0, P.herbs - 3); grant("Cloudrest Tonic: a Heart Piece", () => { P.maxHp++; P.hp = P.maxHp; }); } },
         { vi: 4, who: "Grey Tor widow", title: "Bring back the ring from the Old Beacon", ask: "My husband kept the beacon, when it was kept. He dropped his ring at its foot the day he died and no one has fetched it. It's a long climb and I'm past it. Please.", nag: "At the foot of the Old Beacon, in the grass. A tarnished ring.", thanks: "Forty years I've wanted this in my hand. Take his boots; he ran that hill twice a day.", check: () => pickups.some(p => p.id === "quest:greytor" && p.taken), progress: () => "the ring at the beacon's foot", reward: () => grant("Beacon-keeper's Boots: you run faster", () => { P.bonus.run += 1.5; }) },
         { vi: 5, who: "Ashfall smith", title: "Burst three slimes for the Ashfall smith", ask: () => { STORY.smith0 = P.kills; return "Slimes in the ash pits again. Three of them burst and I'll sharpen whatever you carry properly, on the good stone."; }, nag: () => `Three slimes. ${Math.min(3, P.kills - (STORY.smith0 || 0))} so far.`, thanks: "Three. Good. Give it here. There: that edge will hold now.", check: () => P.kills - (STORY.smith0 || 0) >= 3, progress: () => `${Math.min(3, P.kills - (STORY.smith0 || 0))}/3 slimes`, reward: () => grant("Ashfall Edge: your blows hit a tenth harder", () => { P.bonus.dmg *= 1.1; }) },
         { vi: 6, who: "Kestrel Rest potter", title: "Two pale trees for the Kestrel Rest kiln", ask: () => { STORY.potter0 = P.logs; return "The kiln eats pale wood, nothing else burns hot enough. Two pale trees felled and I'll fire something for you."; }, nag: () => `Two pale trees. Only the pale-barked ones take an axe. ${Math.min(2, P.logs - (STORY.potter0 || 0))} so far.`, thanks: "Two. That's a firing. Here, a glazed charm, hot from the kiln.", check: () => P.logs - (STORY.potter0 || 0) >= 2, progress: () => `${Math.min(2, P.logs - (STORY.potter0 || 0))}/2 pale trees`, reward: () => grant("Kestrel Charm: +8 stamina", () => { P.bonus.stam += 8; }) },
         { vi: 7, who: "Hollowmere ferryman", title: "Bring two of the queen's children home for Hollowmere", ask: () => { STORY.ferry0 = ferryBase(FAIRY.found); return "The pink fairies keep the mere sweet, and two too many have gone missing lately. Find two of the little ones and I'll give you my lantern."; }, nag: () => `Two of the queen's children. ${ferryDone()} so far.`, thanks: "Two home. The water already tastes better. My lantern; it's lit with the mere's own light.", check: () => ferryDone() >= 2, progress: () => `${ferryDone()}/2 children`, reward: () => grant("Hollowmere Lantern: a Heart Piece", () => { P.maxHp++; P.hp = P.maxHp; }) }
       ];
-      for (const d of defs) { const g = giverOf(d.vi); if (!g) continue; g.name = d.who; g.quester = true; g.post = true; g.stay = true; g.job = "idle"; g.home.copy(g.pos); addSideQuest({ giver: g, who: d.who, title: d.title, ask: d.ask, nag: d.nag, thanks: d.thanks, check: d.check, progress: d.progress, reward: d.reward, available: () => WORLDSTATE.hermitWarned, notYet: ["Hmph. No trouble here a stranger can fix. Come back when the valley needs you.", "We manage. Come back when you're stronger, or when things are worse.", "I've no errand for you. Not yet. Ask me again when the pool has shown its face."][d.vi % 3] }); if (d.vi === 2) { const m2 = makePerson({ robe: 0x6a8a6a, hair: 0xe8d8a0, skin: 0xf0e0d0, elf: true, seed: 914, female: true, style: "braid", shawl: 0x8aa88a, pitch: 1.2 }); scene.remove(g.mesh); g.mesh = m2; scene.add(m2); g.worried = true; g.job = "idle"; g.post = true; g.stay = true; g.allowInside = true; g.paceT = 0; g.pos.set(g.hut.cx, g.hut.y, g.hut.cz); g.home.copy(g.pos); g.throughDoor = g.hut; } } // nim's mother does not leave the hut; she paces it
+      for (const d of defs) { const g = giverOf(d.vi); if (!g) continue; g.name = d.who; g.quester = true; g.post = true; g.stay = true; g.job = "idle"; g.home.copy(g.pos); addSideQuest({ giver: g, who: d.who, title: d.title, ask: d.ask, nag: d.nag, thanks: d.thanks, check: d.check, progress: d.progress, reward: d.reward, available: d.available || (() => WORLDSTATE.hermitWarned), target: d.target, notYet: ["Hmph. No trouble here a stranger can fix. Come back when the valley needs you.", "We manage. Come back when you're stronger, or when things are worse.", "I've no errand for you. Not yet. Ask me again when the pool has shown its face."][d.vi % 3] }); if (d.vi === 2) { const m2 = makePerson({ robe: 0x6a8a6a, hair: 0xe8d8a0, skin: 0xf0e0d0, elf: true, seed: 914, female: true, style: "braid", shawl: 0x8aa88a, pitch: 1.2 }); scene.remove(g.mesh); g.mesh = m2; scene.add(m2); g.worried = true; g.job = "idle"; g.post = true; g.stay = true; g.allowInside = true; g.paceT = 0; g.pos.set(g.hut.cx, g.hut.y, g.hut.cz); g.home.copy(g.pos); g.throughDoor = g.hut; } } // nim's mother does not leave the hut; she paces it
       const canopyFolk = npcs.find(n => n.canopy && !n.kid);
       if (canopyFolk) { canopyFolk.name = "Elder-tree lookout"; addSideQuest({ giver: canopyFolk, who: "Elder-tree lookout", title: "Bring the three children lost on the lookouts home", ask: "Three of the queen's little ones are stuck on our lookout platforms, and none of us can fly. Bring them down and I'll give you the feather that lets a person climb the air.", nag: "The three lookout platforms on the tree. The little pink ones. Bring them home.", thanks: "All three. Take the skyfeather, then; hold it and the air will bear you a third time.", check: () => FAIRY.children.filter(c => (c.clue || "").startsWith("Elder") && c.found).length >= 3, progress: () => `${FAIRY.children.filter(c => (c.clue || "").startsWith("Elder") && c.found).length}/3 lookout children`, reward: () => grant("Skyfeather: a third jump in the air", () => { P.bonus.jumps = 3; }) }); }
     }
@@ -10062,6 +10088,15 @@ const __boot = (async () => {
     let moving = false;
     { const closed = !b.awake || !b.alive, asleep = b.alive && !b.awake; u.eyeL.visible = u.eyeR.visible = !closed; u.lidL.visible = u.lidR.visible = closed; u.zzz.visible = asleep; u.zzz.position.y = 5.2 + Math.sin(time * 0.9) * 0.3; u.zzz.material.opacity = smooth(0.5 + 0.5 * Math.sin(time * 0.9)); } // eyes closed asleep or dead, a zzz only asleep, open eyes awake
     if (!b.alive) {
+      // this branch returns before the flash decays and before the emissive is rewritten, so a bear killed on the frame
+      // it was lit up stayed glowing white for the rest of the game. clear it once, on the first dead tick.
+      if (b.flash > 0 || !b.flashCleared) {
+        b.flash = 0;
+        b.flashCleared = true;
+        b.mesh.traverse(o => {
+          if (o.isMesh && o.material.emissive) o.material.emissive.setHex(0);
+        });
+      }
       b.t += dt;
       b.mesh.rotation.z = lerp(b.mesh.rotation.z, 1.4, Math.min(1, dt * 3));
       const sink = Math.max(0, b.t - 12) * 0.35;
@@ -10679,13 +10714,25 @@ const __boot = (async () => {
   const xpNeed = l => 22 * Math.pow(1.32, l - 1);
   // award practice experience and raise skills up to level 30
   let shownLevel = -1;
+  let heroLvlShown = 0;
   function gainXP(k, amt) {
     const s = SK[k];
     s.xp += amt;
+    const heroBefore = heroLevel();
     while (s.lvl < 30 && s.xp >= xpNeed(s.lvl)) {
       s.xp -= xpNeed(s.lvl);
       s.lvl++;
       say(`${s.name} ${s.lvl}`, TUNE.ui.levelSubtitle, false, "level");
+      SFX.levelUp();
+    }
+    // the hero level is the lowest of the six skills, so it only moves when your weakest one does. that is the real
+    // milestone — it is what the goblin king waits for — and it used to pass in silence while a single skill got all
+    // the noise.
+    const heroNow = heroLevel();
+    if (heroNow > heroBefore && heroNow > heroLvlShown) {
+      heroLvlShown = heroNow;
+      flashText(`Level ${heroNow}`);
+      say(`You are Level ${heroNow}`, TUNE.ui.levelSubtitle, false, "level");
       SFX.levelUp();
     }
   }
@@ -13326,7 +13373,7 @@ const __boot = (async () => {
     if ((P.interactCd || 0) > 0) return; // a moment between pickups: items and fairies are taken one by one
     if (POOL_STONE && WORLDSTATE.wardenDead && !WORLDSTATE.ending && dist2D(P.pos, POOL_STONE) < 3.2) { chooseEnding(); return; }
     { const nim = npcs.find(n => n.lost && !n.found && dist2D(n.pos, P.pos) < 3.6);
-      if (nim) { const q = SIDE.find(q => q.who === "Thornback mother"); if (q && q.taken) { nim.found = true; speak(nim, "They said my ears were wrong. They're not wrong, they're Thornback ears. I'll go home. Tell Mother I'm coming.", "Nim", 5000); nim.stay = false; nim.post = false; nim.running = true; nim.runT = 0; nim.runTo = V3(villages[2].center.x + 3, villages[2].center.y, villages[2].center.z + 2); } else speak(nim, "I'm Nim, from Thornback, up the mountain. My mother's there and she'll be sick with worry, but I'm not going back while the traveller children are about. If you pass her, tell her I'm alive.", "Nim", 6000); return; } }
+      if (nim) { if (lit) { nim.found = true; speak(nim, "You lit it. I can see the light through the trees — I know the way from that. I'm going home. Tell Mother I'm coming.", "Nim", 5500); nim.stay = false; nim.post = false; nim.running = true; nim.runT = 0; nim.runTo = V3(villages[2].center.x + 3, villages[2].center.y, villages[2].center.z + 2); } else speak(nim, "I'm Nim, from Thornback. I came down here because I like it, and now it's all trees and I can't tell which way is up the mountain. If the old beacon were lit I could see it from here.", "Nim", 6500); return; } }
     // rescue takes priority over nearby furniture; vertical and room checks prevent remote pickups
     const child = FAIRY.children.find(fairyInReach);
     if (child) {
@@ -14603,7 +14650,7 @@ const __boot = (async () => {
   }
   function spawnWolf(x, z, den) {
     const g = new THREE.Group(), fur = lam(0x5a5048), dark = lam(0x2a241e);
-    g.add(sphere(0.42, fur, 0, 0.75, 0, 2.2, 0.9, 0.9), sphere(0.3, fur, 0, 0.95, 0.9), cone(0.1, 0.25, dark, -0.12, 1.25, 0.9, 4), cone(0.1, 0.25, dark, 0.12, 1.25, 0.9, 4), cyl(0.06, 0.05, 0.6, dark, 0, 0.3, -0.8, 5), sphere(0.05, new THREE.MeshBasicMaterial({ color: 0xffd040 }), -0.11, 1.0, 1.15), sphere(0.05, new THREE.MeshBasicMaterial({ color: 0xffd040 }), 0.11, 1.0, 1.15));
+    g.add(sphere(0.42, fur, 0, 0.75, 0, 0.9, 0.9, 2.2), sphere(0.3, fur, 0, 0.95, 0.9), cone(0.1, 0.25, dark, -0.12, 1.25, 0.9, 4), cone(0.1, 0.25, dark, 0.12, 1.25, 0.9, 4), cyl(0.06, 0.05, 0.6, dark, 0, 0.3, -0.8, 5), sphere(0.05, new THREE.MeshBasicMaterial({ color: 0xffd040 }), -0.11, 1.0, 1.15), sphere(0.05, new THREE.MeshBasicMaterial({ color: 0xffd040 }), 0.11, 1.0, 1.15));
     for (const [lx, lz] of [[-0.25, 0.55], [0.25, 0.55], [-0.25, -0.5], [0.25, -0.5]]) g.add(cyl(0.07, 0.06, 0.55, fur, lx, 0.3, lz, 5));
     const y = groundAt(x, z, 1e9); g.position.set(x, y, z); scene.add(g);
     const e = { nid: ++ENEMY_NID, kind: "wolf", mesh: g, pos: V3(x, y, z), vel: V3(), hp: 4, maxHp: 4, r: 0.8, state: "idle", t: 0, alive: true, heading: 0, flash: 0, bar: makeHealthBar(), big: false, name: "Wolf", den, orbit: Math.random() * 6.28, lungeT: 2 + Math.random() * 3, anim: 0 };

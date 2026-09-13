@@ -874,3 +874,58 @@ seal before then, he tells you why: *"he will not show himself to a beginner."*
 ### Nim's mother
 
 The elder tree is where Nim always went, and her mother says so now.
+
+---
+
+## 2.1.4 — Nim's quest, the miller, and three long-standing oddities
+
+### The Nim quest is two conversations, not three
+
+It used to be: climb the mountain, be told your daughter is missing, walk down to
+find her, walk back up to report. **The marker is on Nim now**, and it only
+appears once the beacon is lit — because the beacon is the light she steers home
+by, and without it she genuinely cannot find her way. Talk to her, she goes home,
+and only then does her mother have anything to say. The guide arrow points at Nim
+while she is lost and at her mother afterwards.
+
+Her line before the beacon is the hint: *"If the old beacon were lit I could see
+it from here."*
+
+### Bug 66 — Ysolde's father slept through his own house · FIXED
+
+Two independent faults, both predating the bed system, which merely left him as
+the last NPC on the ad-hoc path.
+
+**His yaw was inverted.** His bespoke bed's bolster is at local **+1.1** — the
+mirror of the stock house bed's −0.8 — but he kept the stock bed's `yaw = +π/2`,
+which points his head at **−X**. Head centre landed ~2.4 m *outside the house*,
+with the pillow behind his feet. Hence "sleeping through the house" and "his
+pillow is facing away from the door".
+
+**His mesh was parented into `it.dec`.** Those children are counter-scaled when
+the room grows but their *positions* are not compensated, so when you step in and
+the hall swells to 1.75 he slid 0.74 m off the foot of the bed, floated 0.28 m
+above the blanket, and — being a 90°-rotated child under a non-uniform scale —
+was stretched 1.21× along his length and squashed 0.82× through his depth.
+
+He is on the real bed system now: the bed goes into `it.group` like every other
+bed, bed 0 is retargeted onto it, and he uses the same lie-down maths as everyone
+else. At full growth the head lands on the bolster exactly. He does not get up at
+dawn, because he is not getting up.
+
+### Bug 67 — The Old Bear could freeze mid-flash · FIXED
+
+The dead branch `return`s before the hit-flash decays and before the emissive is
+rewritten, so a bear killed on the frame it lit up stayed glowing white for the
+rest of the game. Cleared once, on the first dead tick.
+
+### Bug 68 — Wolves were built sideways · FIXED
+
+The body sphere was scaled 2.2× along **X** while the head, tail and all four
+legs run along **Z**. The wolf was as wide as it was meant to be long.
+
+### Levelling up is announced
+
+The hero level is the lowest of your six skills — it is what the Goblin King now
+waits for — and it used to pass in complete silence while a single skill got all
+the fanfare.
