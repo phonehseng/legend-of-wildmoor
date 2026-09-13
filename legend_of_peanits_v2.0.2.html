@@ -5667,9 +5667,14 @@ const __boot = (async () => {
               n.atkT = 1.4;
               shootArrow(n, gob);
             }
+            // this was a break, and there is no switch or inner loop around it — it broke out of "for (const n of npcs)"
+            // itself. one hunter with a goblin in sight stopped the entire villager update for that tick: everyone
+            // later in the array got no movement, no timers, no animation and no mesh write. goblins come every night
+            // and the hunters sit early in the array, so most of the town locked up after dark. this is the freeze.
+            n.pos.y = groundAt(n.pos.x, n.pos.z, n.pos.y);
             n.mesh.position.copy(n.pos);
             n.mesh.rotation.y = n.heading;
-            break;
+            continue;
           }
         }
         switch (n.phase) {
@@ -5722,13 +5727,20 @@ const __boot = (async () => {
               else if (n.target) n.target = null;
               break;
             }
+            // the wander used to be the else of "is it daytime", so it could only ever run at night. anyone whose job
+            // found nothing to do in daylight — a woodcutter with no tree in range, a washer with no reachable shore,
+            // or any of the jobs that have no pickWork case at all — stood rooted to the spot for eight seconds, tried
+            // again, and stood rooted again, all day. they wander while they wait now.
             if (dayTime && n.t <= 0) {
               n.work = pickWork(n);
               if (n.work) {
                 n.phase = "go";
                 n.helixT = 0;
-              } else n.t = 8;
-            } else if (n.t <= 0 && n.radius > 0) {
+              } else {
+                n.t = 8;
+                if (!n.stay && n.radius > 0) n.target = wanderTarget();
+              }
+            } else if (n.t <= 0 && n.radius > 0 && !n.stay) {
               n.target = wanderTarget();
               n.t = 3 + Math.random() * 4;
             }
@@ -5938,10 +5950,15 @@ const __boot = (async () => {
         }
       } else if (!n.fight) {
         n.t -= dt;
-        if (!n.target && n.radius > 0 && n.t <= 0) {
+        // stay was read in only two places, neither of which gated movement, so the eight village quest givers — all
+        // marked stay with a radius of 8 — wandered off their spot day and night. anyone told to stay now stays, and
+        // this branch also skips the water-and-slope check that wanderTarget does, so it picks through that instead.
+        if (!n.target && n.radius > 0 && n.t <= 0 && !n.stay) {
           const a = Math.random() * 6.28,
             r = Math.random() * n.radius;
-          n.target = V3(n.home.x + Math.cos(a) * r, 0, n.home.z + Math.sin(a) * r);
+          const tx = n.home.x + Math.cos(a) * r,
+            tz = n.home.z + Math.sin(a) * r;
+          n.target = reachable(tx, tz) ? V3(tx, 0, tz) : null;
           n.t = 2 + Math.random() * 4;
         }
         if (n.target) {
@@ -6179,7 +6196,10 @@ const __boot = (async () => {
           n.pos.z = br.pz;
         }
       }
-      n.wantedMove = n.wantMove;
+      // this used to reassign wantedMove here, after wantMove had already been cleared further up, so it was always
+      // false by the time a neighbour read it. that made the whole right-of-way rule inert — whoever was walking and
+      // whoever was standing still always tied, split the shove evenly, and the bonus for someone stepping into their
+      // own doorway never applied. it is why villagers barge each other in doorways.
       n.mesh.position.copy(n.pos);
       if (n.sit) n.mesh.position.y += 0.06;
       if (n.trainY) n.mesh.position.y += n.trainY;
@@ -7119,6 +7139,22 @@ const __boot = (async () => {
       job
     );
     if (job === "climber") n.helixTarget = 0.48 + (i % 2) * 0.26;
+    // the town's working adults were the only villagers never given a room to sleep in, so every night-home branch
+    // was unreachable for them and they milled about in the street until dawn. give them the nearest house with a
+    // door and a bed, the same search the town children already use.
+    {
+      let best = null,
+        bd = 60;
+      for (const it of interiors) {
+        if (!it.door || it.noSleep || it.keep) continue;
+        const d = Math.hypot(it.cx - SPOTS[i][0], it.cz - SPOTS[i][1]);
+        if (d < bd) {
+          bd = d;
+          best = it;
+        }
+      }
+      if (best) n.hut = best;
+    }
   }
   const KID_SPOTS = [
     [4, 33],
