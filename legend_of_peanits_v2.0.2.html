@@ -5218,11 +5218,25 @@ const __boot = (async () => {
   function shoveNPC(e, dx, dz) {
     const sx = e.pos.x + dx,
       sz = e.pos.z + dz;
-    if (wetBlockAt(sx, sz, groundAt(sx, sz, e.pos.y))) return;
+    // refuse only a shove that makes things worse. an unconditional water test deadlocked anyone already standing in
+    // the shallows — bathers and water carriers at the same spot — because their own position fails it too, so every
+    // shove was dropped and they interpenetrated forever.
+    if (wetBlockAt(sx, sz, groundAt(sx, sz, e.pos.y)) && !wetBlockAt(e.pos.x, e.pos.z, e.pos.y)) return;
     const room = insideInterior(sx, sz, 0.4);
     if (room && room !== insideInterior(e.pos.x, e.pos.z, 0.4) && room !== e.homeInterior && room !== e.hut && !(e.allowInside === true || e.allowInside === room)) return;
     e.pos.x = sx;
     e.pos.z = sz;
+  }
+  // a few branches finish a villager's tick early and used to write straight to the mesh, skipping both the ground snap
+  // and the facing smoothing the normal path gives everyone else. the result was villagers sinking into slopes while
+  // sprinting for a door, and snapping round on the spot instead of turning. this ends the tick the same way the main
+  // path does, so an early exit looks identical to a normal one.
+  function poseNPCEarly(n, dt, moving) {
+    n.pos.y = groundAt(n.pos.x, n.pos.z, n.pos.y);
+    n.mesh.position.copy(n.pos);
+    n.visH = turnToward(n.visH === undefined ? n.heading : n.visH, n.heading, dt * 6);
+    n.mesh.rotation.y = n.visH + (n.spin || 0);
+    if (moving) n.anim = (n.anim || 0) + dt * 8;
   }
   function updateNPCs(dtFrame) {
     const dayTime = dayElev > 0.02,
@@ -5325,7 +5339,10 @@ const __boot = (async () => {
           // depends on where they are heading. and whenever they are already standing somewhere wet, a step onto
           // drier ground is always allowed, so there is never a position with no way out of the water.
           const wetHere = !deckHere && (wetBlockAt(n.pos.x, n.pos.z, n.pos.y) || (n.pos.y < 0.8 && nearWater(n.pos.x, n.pos.z, 1.6))),
-            escaping = wetHere && lg >= gh && !wetBlockAt(lx, lz, lg);
+            // the look-ahead has to be real dry land, not merely "not deep enough to block". without isWater the hatch
+            // was satisfied by flat sideways steps across shallows and mudflats, so instead of being pushed inland the
+            // villager paddled about in the shallows indefinitely.
+            escaping = wetHere && lg >= gh && !wetBlockAt(lx, lz, lg) && !isWater(lx, lz);
           if (
             !wetOK &&
             !escaping &&
@@ -5457,7 +5474,11 @@ const __boot = (async () => {
             let best = null,
               bd = 60;
             for (const it of interiors) {
-              if (!it.door) continue;
+              // the keep used to be excluded from panic shelters only by accident — it was the one interior with no
+              // door recorded. now that it has one, exclude it on purpose, or a goblin raid sends half the town
+              // sprinting into the king's hall, where nothing can evict them because hiding exempts them from the
+              // interior guards. the sleeping search already excludes it the same way.
+              if (!it.door || it.keep) continue;
               const d = dist2D(it.door, n.pos);
               if (d < bd) {
                 bd = d;
@@ -13819,6 +13840,13 @@ const __boot = (async () => {
           if (it.door && it.doorA !== undefined)
             it.door.set(it.cx + Math.sin(it.doorA) * (it.doorDist * k), it.door.y, it.cz + Math.cos(it.doorA) * (it.doorDist * k));
         }
+        // the rectangular keep has a door too, and the rescale above only covers round huts. left unscaled, the keep's
+        // door stays put while the hall swells past it, so while grown it sits well inside the room — and "walk the
+        // stray villager to the door" then walked them into the middle of the throne room, in front of the player.
+        if (it.keep && it.door) {
+          if (it.doorOz === undefined) it.doorOz = it.door.z - it.cz;
+          it.door.z = it.cz + it.doorOz * k;
+        }
         if (it.bed)
           it.bed.set(
             it.cx + (it.bedOx = it.bedOx === undefined ? it.bed.x - it.cx : it.bedOx) * k,
@@ -15448,7 +15476,15 @@ const __boot = (async () => {
       frameErrors++;
       console.error("frame", frameErrors, e);
       if (now - frameErrorAt > 5000) frameErrors = 1; frameErrorAt = now;
-      if (frameErrors >= 30) { if (!loopFaulted) { loopFaulted = true; showFault(e, "frame"); } return; } // a storm of errors: stop and show it
+      // a storm of errors: show it, then back off and try again rather than stopping for good. the old code returned
+      // without rescheduling, and nothing ever re-armed the loop — the overlay covered the pause menu, so the player
+      // could not even reach "Save key" and everything since their last manual save was gone. worse, showFault stays
+      // silent for pointer-lock-shaped messages, so an unlucky storm froze the screen with no explanation at all.
+      if (frameErrors >= 30) {
+        if (!loopFaulted) { loopFaulted = true; showFault(e, "frame"); }
+        setTimeout(() => { loopFaulted = false; frameErrors = 0; frameErrorAt = 0; last = performance.now(); requestAnimationFrame(loop); }, 2000);
+        return;
+      }
       try { guardPlayerPosition(); } catch (_) {} last = now; // otherwise: recover what can be recovered and carry on with the next frame
     }
     requestAnimationFrame(loop); // the next frame is always scheduled here, and only here

@@ -294,3 +294,56 @@ with WebGL activity confirming the world actually rendered.
 fixes over a full day/night cycle, a save key made before these changes still
 loading, Safari's terrain fallback, and the Drowned Warden's difficulty (which
 is deliberately untouched and still unvalidated).
+
+---
+
+## Regressions caught by the standing reviewer, and fixed
+
+Four of these were introduced by the NPC fixes above. Catching them is exactly
+what the reviewer is for.
+
+### Bug 17 — The keep's door sat inside the grown hall · FIXED
+
+Giving `KEEP_ROOM` a door (Bug 7) fixed eviction at rest but broke it while the
+hall is grown. The door is at `z = -0.4`; at rest the room spans
+`z ∈ [-25.2, -2.8]`, so the door is 2.4 m outside — correct. Grown by `keepGrow`
+1.6 the room spans `z ∈ [-31.9, +3.9]`, putting the door **13.5 m inside the
+room**. The round-hut door rescale only runs for `it.baseRound`, and the keep is
+rectangular, so its door never moved. "Walk the stray villager to the door" then
+walked them into the middle of the throne room, in front of the player.
+
+**Fix.** The keep's door now scales with `grow` alongside the round-hut case.
+
+### Bug 18 — The throne room became a goblin-panic shelter · FIXED
+
+`if (!it.door) continue;` in the hide-target search was the *only* thing
+excluding the keep — by accident, because it had no door. Once it had one, the
+keep became the nearest door in the world for most of the town, so a goblin raid
+sent villagers sprinting into the king's hall. Hiding exempts them from both
+interior guards, so nothing could evict them. The sleeping search already
+excluded the keep explicitly; the hide search now does too.
+
+### Bug 19 — `shoveNPC` deadlocked NPCs already in water · FIXED
+
+The new water test was unconditional, so an NPC already standing in the shallows
+failed it at their own position too — every shove was dropped and they
+interpenetrated forever. Affects bathers, washers and water carriers sharing a
+waterside work spot. It now refuses only a shove that makes things *worse*.
+
+### Bug 20 — The `escaping` hatch let NPCs paddle about the shallows · FIXED
+
+`escaping` suppressed all three water clauses in *every* direction, and its only
+constraint was `!wetBlockAt`, which ignores water shallower than 0.25 m. Flat
+sideways steps across shallows and mudflats therefore qualified, so instead of
+being pushed inland the villager wandered the shallows indefinitely. The
+look-ahead must now be real dry land (`!isWater`). Deep water was never
+reachable either way — that gate is separate.
+
+### Bug 21 — A frame-error storm killed the game permanently · FIXED
+
+After 30 errors the loop returned **without rescheduling**, and nothing ever
+re-armed it. The fault overlay covers the pause menu, so the player could not
+reach "Save key" — everything since their last manual save was lost. Worse,
+`showFault` stays silent for pointer-lock-shaped messages, so an unlucky storm
+froze the screen with no explanation at all. The loop now backs off for two
+seconds and resumes.
