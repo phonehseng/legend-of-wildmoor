@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.1.4</title>
+<title>Legend of Peanits 2.1.5</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -369,7 +369,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.1.4</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.1.5</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -436,7 +436,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.1.4</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.1.5</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -567,6 +567,7 @@ const __boot = (async () => {
   //   loop_bases: where the ring road meets each village spur; frameNo: frames since load; graded/road_samples: the road profile used to shape the ground; bridge_log/bridges/ladders: crossings and climbs
   //   bear_hoard: where the bear's treasure sits; canopy: the elder tree's crown; houseLamps: every window light; houses/interiors: the town's houses and every enterable room; nohelix: debug switch for the tree stair
   var HERMIT_FIRE = null, ENEMY_NID = 0, EXTRA = [], GOB_ARROWS = [], POOL_WATER_MESH = null, POOL_HOLLOW = null, BEACON_THREAD = null, PYRE_GROUP = null, POOL_DARK = null, POOL_RUNE = null, POOL_STONE = null, WARDEN = null, WOLF_DENS = [], HALL_GUARD = null, CAVE_GROUP = null, caveK = 0, CAVE_LIGHTS = [], CAVE_TUNNEL = null, BERRIES = [],
+    WREN_POS = null,
     KEEP_ROOM = null,
     keepDark = null,
     keepPush = [],
@@ -4993,7 +4994,6 @@ const __boot = (async () => {
     "The hill folk pay in cheese. I take it. What am I going to do, refuse cheese?"
   ];
   const JOB_LINES = {
-    wagoner: TRADER_LINES,
     washer: [
       "The river's cold but the linen won't wash itself.",
       "Ysolde used to help me with the washing. Sang while she did it.",
@@ -5014,11 +5014,12 @@ const __boot = (async () => {
       "Every tree out here is older than the kingdom. Feels wrong to cut them.",
       "Hear that creak? That's the elder tree talking."
     ],
-    wagoner: [
+    // merged: this key was declared twice and the second won, so every line in TRADER_LINES was unreachable
+    wagoner: TRADER_LINES.concat([
       "Wool up, salt down. Same road every week.",
       "Mind the wheel, it's loose.",
       "The roads are quiet since the trial. Nobody's travelling."
-    ],
+    ]),
     climber: [
       "Errand for the lookouts. Lamp oil and bread.",
       "Two hundred and fifty planks to the top. I've counted.",
@@ -5188,11 +5189,11 @@ const __boot = (async () => {
     }
     return null;
   }
-  const nearestEnemy = (p, r, skipKing = false) => {
+  const nearestEnemy = (p, r, skipKing = false, skipWraith = false) => {
     let best = null,
       bd = r;
     for (const e of allEnemies()) {
-      if (!e.alive || (skipKing && e.king)) continue;
+      if (!e.alive || (skipKing && e.king) || (skipWraith && (e.wraith || e.kind === "wraith" || e.kind === "warden"))) continue;
       const d = dist2D(e.pos, p);
       if (d < bd) {
         bd = d;
@@ -5594,7 +5595,10 @@ const __boot = (async () => {
       };
       const arrive = (p, r) => dist2D(p, n.pos) < r;
       if (n.kind === "knight") {
-        const e = nearestEnemy(n.pos, 24, true); // never the king: he is yours
+        // never the king — he is yours — and never a wraith. a knight charging a ghost reads as a bug, and losing to one
+        // every night would read as worse. they hold their ground and let the thing drift past.
+        if (n.fight && (n.fight.wraith || n.fight.kind === "wraith" || n.fight.kind === "warden")) n.fight = null; // drop a ghost he had already latched onto
+        const e = nearestEnemy(n.pos, 24, true, true);
         if (e) {
           n.fight = e;
           const d = dist2D(e.pos, n.pos);
@@ -7917,6 +7921,7 @@ const __boot = (async () => {
     WREN.allowInside = true;
     WREN.stay = true;
     WREN.wren = true;
+    WREN_POS = WREN.pos; // the highreach weaver sends you here, so her quest arrow needs to know where here is
     const closet = new THREE.Group();
     closet.add(
       boxM(1.6, 2.6, 0.8, plankM, 0, 1.3, 0),
@@ -9084,7 +9089,9 @@ const __boot = (async () => {
       const ferryBase = n => Math.min(Math.max(0, n | 0), FAIRY.total - 2);
       const ferryDone = () => Math.max(0, Math.min(2, FAIRY.found - ferryBase(STORY.ferry0 || 0)));
       const defs = [
-        { vi: 0, who: "Highreach weaver", title: "Wear something better, for the weaver's sake", ask: () => { STORY.weaver0 = JSON.stringify([CUSTOM.tunic, CUSTOM.cape, CUSTOM.hair, CUSTOM.style]); return "That tunic. Those colours. I weave for a living and it hurts to look at you. Wren in the kingdom keeps a fitting room; go and come back dressed like a person, and I'll give you something worth wearing."; }, nag: "Wren's fitting room, in the kingdom. Any change. Please.", thanks: "Better. Much better. Here, a sash of my own weaving; it keeps the wind out of your lungs.", check: () => STORY.weaver0 !== undefined && JSON.stringify([CUSTOM.tunic, CUSTOM.cape, CUSTOM.hair, CUSTOM.style]) !== STORY.weaver0, progress: () => "change your look at Wren's", reward: () => grant("Highreach Sash: +12 stamina", () => { P.bonus.stam += 12; }) },
+        { vi: 0, who: "Highreach weaver", title: "Wear something better, for the weaver's sake",
+          // she sends you to wren's fitting room, so the arrow points there rather than back at the woman who asked
+          target: () => (STORY.weaver0 !== undefined && JSON.stringify([CUSTOM.tunic, CUSTOM.cape, CUSTOM.hair, CUSTOM.style]) !== STORY.weaver0 ? null : WREN_POS), ask: () => { STORY.weaver0 = JSON.stringify([CUSTOM.tunic, CUSTOM.cape, CUSTOM.hair, CUSTOM.style]); return "That tunic. Those colours. I weave for a living and it hurts to look at you. Wren in the kingdom keeps a fitting room; go and come back dressed like a person, and I'll give you something worth wearing."; }, nag: "Wren's fitting room, in the kingdom. Any change. Please.", thanks: "Better. Much better. Here, a sash of my own weaving; it keeps the wind out of your lungs.", check: () => STORY.weaver0 !== undefined && JSON.stringify([CUSTOM.tunic, CUSTOM.cape, CUSTOM.hair, CUSTOM.style]) !== STORY.weaver0, progress: () => "change your look at Wren's", reward: () => grant("Highreach Sash: +12 stamina", () => { P.bonus.stam += 12; }) },
         { vi: 1, who: "Stonefold elder", title: "Fetch the violet stone from the black pool", ask: "Our colour comes from the stone under this hill. There's a fist of it lying on the shore of the black pool below the kingdom, and the pool is no place for old bones. Bring it and I'll give you our charm.", nag: "The black pool, below the kingdom. A purple stone on its shore. Don't swim; it's cold and it remembers.", thanks: "That's it. Feel how warm it is. Take this charm; slimes cannot bear the colour.", check: () => pickups.some(p => p.id === "quest:stonefold" && p.taken), progress: () => "the violet stone", reward: () => grant("Stonefold Charm: slimes take a third more from you", () => { P.bonus.slime *= 1.33; }) },
         { vi: 2, who: "Thornback mother", title: "Find Nim, who ran into the forest",
           // she only has anything to say once nim is on her way: the child is found by finding her, not by being sent.
@@ -11428,7 +11435,7 @@ const __boot = (async () => {
     // browser shortcuts (ctrl+a select-all, ctrl+s, ctrl+p…) get swallowed while playing; ctrl+w can only be stopped in fullscreen
     if ((e.ctrlKey || e.metaKey) && started && !paused && "asdfwprnt123 ".includes(e.key.toLowerCase())) e.preventDefault();
     const k = e.key.toLowerCase();
-    if (CHOICE) { const n = parseInt(e.key, 10); if (n >= 1 && n <= 3) { e.preventDefault(); answerChoice(n - 1); } return; } // a decision is open: only its number keys answer
+    if (CHOICE) { const n = parseInt(e.key, 10); if (n >= 1 && n <= (CHOICE.opts ? CHOICE.opts.length : 3)) { e.preventDefault(); answerChoice(n - 1); } return; } // a decision is open: only its number keys answer — as many as it actually offers
     const typing = document.activeElement && (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "TEXTAREA" || document.activeElement.tagName === "SELECT");
     if (typing && k !== "escape") return; // letters typed into a name or key field are text, never pause, satchel or map
     if (k === "escape" && custOpen) {
@@ -12783,11 +12790,12 @@ const __boot = (async () => {
   }
   // the champion's house: the empty house nearest the gate becomes yours; a shelf inside shows what you have done
   let HOME_SHELF = null;
-  function grantHome() {
-    if (WORLDSTATE.home) return; WORLDSTATE.home = true; buildHomeShelf();
-    say("The king has given you the house by the south gate. There is a shelf in it that will hold what the valley gives you.", 6000, true);
-  }
-  function buildHomeShelf() {
+  // the champion gets no house. it was a shelf in a borrowed room with a sign nailed to it, and the valley is not the
+  // kind of place that hands you somewhere to put your trophies. the WORLDSTATE.home flag is left in place so old save
+  // keys still validate against the whitelist; nothing reads it now.
+  function grantHome() {}
+  function buildHomeShelf() {}
+  function buildHomeShelfUnused() {
     if (HOME_SHELF) return;
     const it = interiors.filter(i => !i.round && !i.keep && i.bed).sort((a, b) => dist2D(a, { x: 0, z: TOWN_R }) - dist2D(b, { x: 0, z: TOWN_R }))[0];
     if (!it) return;
@@ -12852,7 +12860,7 @@ const __boot = (async () => {
       POOL_DARK.light.intensity = k * (1.6 + Math.sin(time * 2.1) * 0.5 + (dayElev < 0.05 ? 1.2 : 0));
       POOL_DARK.fog.forEach((m, i) => { m.position.y = POOL.y + 0.6 + i * 0.35 + Math.sin(time * 0.4 + i) * 0.25; m.material.opacity = 0.12 + Math.sin(time * 0.3 + i * 2) * 0.05; });
       POOL_DARK.fish.forEach((f, i) => { f.position.y = POOL.y + 0.05 + Math.sin(time * 1.3 + i) * 0.04; });
-      if (lit && lighthouse && lighthouse.userData.light && dayElev < 0.05 && !WORLDSTATE.ending) lighthouse.userData.light.intensity = 2.6 * (Math.random() < 0.02 ? 0.3 : 1); // the beacon flickers while the pool is awake
+      if (lit && lighthouse && lighthouse.userData.light && dayElev < 0.05 && !WORLDSTATE.ending) lighthouse.userData.light.intensity = 2.6 * (0.92 + Math.sin(time * 2.3) * 0.05 + Math.sin(time * 0.7) * 0.03); // the beacon breathes. it used to have a two-per-cent-per-frame chance of dropping to a third brightness, which is a hard random strobe sixty times a second and genuinely unpleasant to look at; it sways like a real lamp now. the beacon flickers while the pool is awake
       if (WORLDSTATE.ending) POOL_DARK.visible = false;
     }
     // the warden's stone shows once the bear no longer lies on it

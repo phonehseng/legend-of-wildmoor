@@ -929,3 +929,45 @@ legs run along **Z**. The wolf was as wide as it was meant to be long.
 The hero level is the lowest of your six skills — it is what the Goblin King now
 waits for — and it used to pass in complete silence while a single skill got all
 the fanfare.
+
+---
+
+## 2.1.5 — Top of the backlog
+
+A `BACKLOG.md` now holds every outstanding request, ordered most to least
+important, maintained by a standing agent.
+
+### The champion's house is gone
+
+Removed by request — the shelf, the sign, the grant and the announcement. The
+`WORLDSTATE.home` flag stays in place so existing save keys still validate
+against the whitelist; nothing reads it.
+
+### Bug 69 — Four-option menus ignored the fourth key · FIXED
+
+The choice handler capped at `n <= 3` while the panel told you to press the
+number. Any menu with a fourth option was mouse-only. **Four separate reviewers
+found this independently.** Now bounded by the menu's actual length.
+
+### Bug 70 — A whole pool of wagoner lines was unreachable · FIXED
+
+`JOB_LINES.wagoner` was declared twice; the second won, so every line in
+`TRADER_LINES` was dead content nobody could hear. Merged.
+
+### Bug 71 — The beacon strobed · FIXED
+
+**Reported as physically unpleasant.** It had a 2%-per-frame chance of dropping
+to a third brightness — a hard random flash, sixty times a second. It breathes on
+two slow sine waves now, like a lamp.
+
+### Bug 72 — Knights charged ghosts · FIXED
+
+A knight drawing on a wraith reads as a bug, and losing to one nightly reads as
+worse. `nearestEnemy` takes a `skipWraith` flag, and any knight already latched
+onto one drops it. Hunters only ever targeted goblins, so knights were the only
+ones — nobody but the player fights the dead now.
+
+### The weaver's arrow points at Wren
+
+She sends you to the fitting room, so the arrow goes there rather than back at
+the woman who asked.
