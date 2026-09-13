@@ -1023,3 +1023,117 @@ just cannot hold the story hostage.
 compared `terrainH(x, z) < 0.3` directly. Same value today, so no behaviour
 change — but it was one edit away from disagreeing with the rendered plane
 again, which is exactly the bug 2.1.3 existed to kill.
+
+---
+
+## 2.1.7 — Trees that keep their bark, ghosts that do not give up, and a warden with a name
+
+### Bug 76 — Every felled tree turned bone white · FIXED
+
+**Reported:** "the pale trees cut just turn white when fell."
+
+**Cause.** A standing trunk is the bark texture tinted by a per-instance colour
+(`2.1, 2.0, 1.85` for a pale tree, plain white for the rest) and its leaves
+carry the tree's own hue. The falling copy built in `fellTree` was a flat
+`0xe2d8c6` `MeshStandardMaterial` with **no map at all**, plus three flat
+`0x9aa07a` blobs — identical for every tree in the world. So a pale tree went
+white, an oak went white, and both lost their leaf colour on the way down.
+
+**Fix.** The copy clones `TREEMESH.trunkM.material` and the tree's own leaf
+material and multiplies the same instance colours into them. Cloning the *live*
+material also means the copy follows the floor-texture setting: with textures
+off it comes out flattened to its average colour, exactly like the trunk it
+replaces. The stump gets its own clone, because the falling trunk's material is
+faded to nothing and then disposed — a shared one would have taken the stump
+with it.
+
+**A leak found on the way.** `updateFalling` did `scene.remove(f.g)` and nothing
+else. Four geometries and two materials per felled tree, never freed, on a tree
+that regrows every six minutes. It routes through `disposeTree` now.
+
+### Chopping feedback
+
+**Reported:** "give some feedback so the player knows they are cutting the right
+tree, like some noise or cracks."
+
+A pale tree takes three swings and each one gave the same small tick, so there
+was no way to tell a landed chop from a whiffed one or to know how close the
+tree was to going. The axe bites deeper each time — more chips, a lower crack, a
+harder screen shake — and the swing that leaves one hit in it groans, which is
+the cue to step back.
+
+### Bug 77 — There was no grass footstep, and the town lawns sounded like flagstones · FIXED
+
+**Reported:** "i dont hear grass footsteps either, and sometimes i hear stone
+footsteps when on grass in the village."
+
+Two separate faults.
+
+*No grass.* `footingAt` returned only `"stone"`, `"wood"` or `"earth"`, and
+`SFX.footstep` had a case for the first two and one `else` for everything else.
+So the surface the player spends nearly the entire game on played the same
+muffled scuff as bare dirt, quiet enough to vanish under the wind. There are
+`"grass"` and `"sand"` footings now, banded off the terrain's own thresholds
+(sand at the waterline and along rivers, rock above 60 m or on anything steeper
+than 0.75), each with its own sound.
+
+*Stone on the lawn.* The stone test was `Math.hypot(p.x, p.z) < TOWN_R + 2` —
+the **whole town disc**, gardens and grass verges included. Every cobbled slab
+and the plaza now register their own footprint in `TOWN_STONE` as they are
+built, and the test is against the stone that is actually there.
+
+### The ghosts do not lose interest
+
+**Asked for:** "the ghosts that follow you from the pool should still keep
+following the player unlimited range, and can go up hills easily, and can move
+through water, go path to the player through anything. the more the player
+ignores them the more they spawn."
+
+- The `dist < 30` gate is gone. A wraith comes at you from wherever it is.
+- `resolveStructs` is gone for wraiths: a wall is not an obstacle to something
+  that is only half here.
+- It used to hover 0.4 m over the **ground**, so one crossing a river walked
+  along the bed with the water over its head. It skims whichever of the ground
+  and the water surface is higher now.
+- The upward height chase went from λ=14 to λ=22, so one coming up a steep bank
+  no longer lags into the slope.
+- `wraithHeat`: every spawn interval you leave one walking, the pool sends
+  another and sends it sooner (9 s down to 2.6 s, cap +1 each time to +6). Every
+  one you put down takes two off the heat. Turn and fight and the night ends
+  with two behind you; keep walking and it ends with eight.
+
+### The Drowned Warden is Ysolde
+
+**Asked for:** the warden rises slowly from the ground; it is made clear in lore
+and voice that she is Ysolde; she has her bob hair; she is angry out loud; her
+attack is longer, hits a player in mid-air, and throws them. And it ties back to
+the attachment theme.
+
+- She surfaces over **6 seconds from 9 m down** on an ease-out, so the slowest
+  part is the last two metres, with the water breaking over her the whole way
+  and three lines landing as she comes up. She used to appear from 2 m down in
+  3 seconds, which read as a spawn.
+- She wears the bob. Ysolde's body at the pool's edge now wears one too, so the
+  two match — nobody has to say why.
+- Seven rage lines on a timer, every one of them a thing she is still holding:
+  the ring, the walk north, her father's sleep, being owed an apology. The fight
+  is not with a monster, it is with a girl who cannot put anything down.
+- Reach 6.2 m (was 2.6) and a vertical tolerance of 11 m (was 4). Jumping over a
+  boss's swing is the oldest escape there is and against her it does not work.
+- `hurtPlayer` takes a `kb` multiplier; she throws at 2.1 and everything else
+  stays at exactly 1. The multiplier crosses the wire on `ehit` and is clamped
+  on receipt like the damage, so a peer cannot ask to launch you into orbit.
+
+### M works while the stats page is up
+
+**Reported:** "M should work regardless of if stats is up, dont make it toggled
+with the regular mini map it feels to the player that it is stuck."
+
+`body.stats-open` hid `#minimap` outright. The stats page takes the map's
+corner, so the *small* map has to step aside — but the big map is drawn in the
+middle of the screen and owes that corner nothing. Pressing M with stats up did
+nothing visible, so the key read as broken. Only `#minimap:not(.big)` hides now.
+
+### The "Found" strip is off the stats page
+
+That list was the satchel's job, and the satchel shows the things themselves.

@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.1.6</title>
+<title>Legend of Peanits 2.1.7</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -138,7 +138,11 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   /* appearance and layout for #minimap.big */
   #minimap.big { width: 520px; height: 520px; right: 50%; top: 50%; transform: translate(50%, -50%); image-rendering: auto; box-shadow: 0 0 0 4000px rgba(13,8,30,.55); }
   /* appearance and layout for #statspanel */
-  body.stats-open #minimap, body.stats-open #clock { visibility: hidden; }
+  /* the stats page takes the map's corner, so the small map and the clock step aside for it — but the big map is
+     drawn in the middle of the screen and owes that corner nothing. hiding it too made M look broken while stats
+     was up: you pressed it, nothing appeared, and the key read as stuck. */
+  body.stats-open #minimap:not(.big), body.stats-open #clock { visibility: hidden; }
+  body.stats-open #minimap.big { z-index: 3; }
   #statsPanel { position: absolute; right: 18px; top: 24px; width: 300px; background: rgba(29,20,51,.86); border-left: 3px solid var(--accent); padding: 12px 16px; font-size: 14px; line-height: 1.5; }
   /* appearance and layout for #statspanel h3 */
   #statsPanel h3 { font-size: 13px; font-weight: normal; font-style: italic; color: var(--accent); margin: 8px 0 4px; }
@@ -369,7 +373,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.1.6</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.1.7</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -436,7 +440,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.1.6</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.1.7</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -1083,11 +1087,21 @@ const __boot = (async () => {
       } else if (kind === "wood") {
         this.tone(150, 75, 0.09, 0.45 * g, "triangle", 0, 900);
         this.noise(0.07, 1000, 600, 0.22 * g, "bandpass", 1, 0);
+      } else if (kind === "grass") {
+        // grass is the surface the player spends nearly the whole game on and it had no sound of its own — it fell
+        // through to the same muffled scuff as bare dirt, quiet enough to be inaudible over the wind. it is a brush
+        // of blades over a soft footfall now, and it carries.
+        this.noise(0.16, 2600, 1500, 0.3 * g, "bandpass", 0.7, 0);
+        this.noise(0.11, 520, 240, 0.34 * g, "lowpass", 1, 0.01);
+        this.tone(95, 70, 0.05, 0.08 * g, "sine", 0, 400);
+      } else if (kind === "sand") {
+        this.noise(0.19, 1300, 700, 0.3 * g, "bandpass", 0.5, 0);
+        this.noise(0.09, 380, 200, 0.22 * g, "lowpass", 1, 0);
       } else {
-        this.noise(0.13, 480, 220, 0.3 * g, "lowpass", 1, 0);
-        this.noise(0.05, 1400, 900, 0.08 * g, "bandpass", 1, 0);
+        this.noise(0.13, 480, 220, 0.34 * g, "lowpass", 1, 0);
+        this.noise(0.05, 1400, 900, 0.12 * g, "bandpass", 1, 0);
       }
-    }, // earth is a soft scuff, wood a hollow knock, stone a hard click
+    }, // grass brushes, sand hisses, earth is a soft scuff, wood a hollow knock, stone a hard click
     growl() {
       this.tone(70, 55, 0.6, 0.22, "sawtooth", 0, 260);
       this.noise(0.5, 180, 60, 0.2, "lowpass", 1, 0.05);
@@ -2155,6 +2169,10 @@ const __boot = (async () => {
     }
     return best;
   }
+  // the cobbled slabs and the plaza of the kingdom, collected as they are built, so what you hear under your boots
+  // is the surface you are actually standing on rather than a guess made from how near the middle of town you are.
+  // declared up here because the streets are laid during worldgen, long before footingAt is ever called.
+  const TOWN_STONE = [];
   // grade every road: sample it, smooth the height profile so no stretch is brutally steep,
   // carve the ground to it, and remember the stretches that cross water so bridges can be built there
   const bridges = [];
@@ -7072,12 +7090,15 @@ const __boot = (async () => {
       scene.add(sign);
     }
     // ---- streets: a cobbled avenue from the gate to the keep, a round plaza, cross streets and side streets ----
+    // every cobbled slab registers its footprint, because the footstep sound used to call the whole town disc stone
+    // — so the grass between the houses clicked like flagstones. now only the stone that is actually there is stone.
     let roadN = 0;
     const road = (x, z, w, d) => {
       const r = new THREE.Mesh(new THREE.BoxGeometry(w, 0.08, d), texMat(cloneTex(TEX.cobble, Math.max(1, w / 4), Math.max(1, d / 4)), 0xd0c8bc));
       r.position.set(x, PLATEAU + 0.04 + (roadN++ % 7) * 0.004, z);
       r.receiveShadow = true;
       scene.add(r);
+      TOWN_STONE.push({ x, z, w: w / 2 + 0.4, d: d / 2 + 0.4 });
     };
     road(0, 54, 12, 18);
     road(0, 6, 12, 22);
@@ -7093,6 +7114,7 @@ const __boot = (async () => {
     road(15, -36, 38, 9);
     road(0, -46, 11, 30);
     const plaza = new THREE.Mesh(new THREE.CylinderGeometry(17, 17, 0.1, 40), texMat(cloneTex(TEX.cobble, 8, 8), 0xd8d0c4));
+    TOWN_STONE.push({ x: 0, z: 30, r: 17.4 });
     plaza.position.set(0, PLATEAU + 0.08, 30);
     plaza.receiveShadow = true;
     scene.add(plaza);
@@ -8020,7 +8042,7 @@ const __boot = (async () => {
   WICK.heading = Math.atan2(POOL.x - WICK.pos.x, POOL.z - WICK.pos.z);
   const BODY = addNPC(
     V3(POOL.x, POOLW, POOL.z),
-    { robe: 0xe0d6c2, hair: 0x2a1a10, skin: 0xd8d8e0, style: "long", female: true, name: "Ysolde" },
+    { robe: 0xe0d6c2, hair: 0x2a1a10, skin: 0xd8d8e0, style: "bob", female: true, name: "Ysolde" }, // the bob is the tell: the warden wears it too, and nobody has to say why
     "body"
   );
   BODY.mesh.rotation.set(Math.PI / 2 - 0.04, 0.6, 0);
@@ -9428,8 +9450,17 @@ const __boot = (async () => {
       }
       return "wood";
     }
-    if (Math.hypot(p.x, p.z) < TOWN_R + 2 && Math.abs(p.y - PLATEAU) < 0.5) return "stone";
-    return "earth";
+    // only the flagstones are flagstones. the old test called the whole town disc stone, so the lawns, the gardens
+    // and the dirt behind the houses all clicked like a cathedral floor.
+    if (Math.abs(p.y - PLATEAU) < 0.6)
+      for (const s of TOWN_STONE)
+        if (s.r !== undefined ? Math.hypot(p.x - s.x, p.z - s.z) < s.r : Math.abs(p.x - s.x) < s.w && Math.abs(p.z - s.z) < s.d) return "stone";
+    // and there was no grass sound at all: every soft surface in the valley, from a river beach to a mountain
+    // scree slope, played the same muffled scuff. the bands are the terrain's own — sand at the waterline, rock on
+    // anything steep or high, grass in between — so what you hear matches what you are looking at.
+    if (th < 1.5 || riverDist(p.x, p.z) < 4) return "sand";
+    if (th > 60 || slopeAt(p.x, p.z) > 0.75) return "earth";
+    return "grass";
   }
   // wildlife killed with the sword is counted, for a certain knight's wager
   function hitWildlife(reach, dir, minDot, vertical) {
@@ -11974,17 +12005,25 @@ const __boot = (async () => {
       for (let k = 0; k < 3; k++) lm.setMatrixAt(t.ix * 3 + k, m);
       lm.instanceMatrix.needsUpdate = true;
     });
+    // the fallen copy has to be the same tree that was standing a moment ago. it used to be a flat bone-white
+    // cylinder with no bark texture and three grey-green blobs, the same for every tree in the world — so a pale
+    // tree went white when it fell and an oak went white with it. the standing trunks are the bark texture tinted
+    // by an instance colour (2.1/2.0/1.85 for pale, plain white otherwise) and the leaves carry the tree's own hue,
+    // so the copy is built from exactly those numbers. the materials are cloned per fall because the fade at the
+    // end of updateFalling writes opacity into them; disposeTree frees them when the group goes.
     const g = new THREE.Group(),
-      paleBark = new THREE.MeshStandardMaterial({ color: toLin(0xe2d8c6), roughness: 1 }),
-      trunk = cyl(0.42 * S * T, 0.82 * S * T, 10 * S, paleBark, 0, 5 * S, 0, 10);
+      bark = TREEMESH.trunkM.material.clone(),
+      leafMat = TREEMESH.leafM[t.ix % TREEMESH.leafM.length].material.clone();
+    // the standing tree is the bark texture multiplied by an instance colour, so the copy multiplies the same
+    // numbers into its own material colour. cloning the live material rather than a stored one also means the
+    // copy follows the floor-texture setting: with textures off the clone comes out already flattened to its
+    // average colour, the same as the trunk it is replacing.
+    if (t.weak) bark.color.multiply(new THREE.Color(2.1, 2.0, 1.85));
+    leafMat.color.multiply(new THREE.Color().setHSL(t.weak ? 0.2 : 0.28 + t.hue, t.weak ? 0.18 : 0.5, t.weak ? 0.5 : 0.35 + t.light * 0.3));
+    const trunk = cyl(0.42 * S * T, 0.82 * S * T, 10 * S, bark, 0, 5 * S, 0, 10);
     g.add(trunk);
     for (let k = 0; k < 3; k++) {
-      const cl = shadowed(
-        new THREE.Mesh(
-          new THREE.SphereGeometry(1, 8, 6),
-          new THREE.MeshStandardMaterial({ color: toLin(0x9aa07a), roughness: 1 })
-        )
-      );
+      const cl = shadowed(new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), leafMat));
       cl.position.set(Math.sin(k * 2) * 2 * S, (9 + k) * S, Math.cos(k * 2) * 2 * S);
       cl.scale.setScalar(3.4 * S);
       g.add(cl);
@@ -11993,7 +12032,9 @@ const __boot = (async () => {
     scene.add(g);
     falling.push({ g, t: 0, dir: P ? Math.atan2(t.x - P.pos.x, t.z - P.pos.z) : 0, tree: t });
     if (t.weak) t.regrowT = TUNE.world.paleTreeRegrowMin + Math.random() * (TUNE.world.paleTreeRegrowMax - TUNE.world.paleTreeRegrowMin); // pale trees grow back, like the deer come back
-    t.stump = cyl(0.62 * S * T, 0.8 * S * T, 0.8, paleBark, t.x, t.y + 0.3, t.z, 10);
+    // the stump keeps its own copy: the falling trunk's material is faded to nothing and then disposed, and a stump
+    // that shared it would fade away with the tree and leave a hole in the ground where the wood should be
+    t.stump = cyl(0.62 * S * T, 0.8 * S * T, 0.8, bark.clone(), t.x, t.y + 0.3, t.z, 10);
     scene.add(t.stump);
     SFX.noise(0.5, 260, 70, 0.5, "lowpass");
     SFX.tone(90, 40, 0.8, 0.2, "sawtooth", 0.25, 400);
@@ -12040,6 +12081,7 @@ const __boot = (async () => {
       }
       if (f.t > 4) {
         scene.remove(f.g);
+        disposeTree(f.g); // four geometries and two cloned materials per tree, and nothing was freeing them
         falling.splice(i, 1);
       }
       if (Math.abs(f.t - 1.6) < dt) {
@@ -12533,7 +12575,7 @@ const __boot = (async () => {
     if (m.t === "bye" && typeof m.id === "string") { netRemoveAvatar(m.id); if (NET.role === "host") netBroadcast(m, peer.id); return; }
     if (m.t === "en" && netGuest()) { if (!NET.mirroring) { NET.mirroring = true; for (const g of goblins) if (!g.mirror) { g.alive = false; g.gone = true; g.mesh.visible = false; if (g.bar) g.bar.visible = false; if (g.tell) g.tell.visible = false; } } netApplyEnemies(m); return; } // the first snapshot as a guest replaces your own goblins with the host's
     if (m.t === "ed" && NET.role === "host") { const a = [...NET.avatars.values()].find(x => x.via === peer.id); const e = m.k === "goblin" ? goblins.find(g => !g.mirror && g.nid === m.id) : m.k === "slime" ? slimes[m.id | 0] : m.k === "bear" ? BEAR : EXTRA.find(o => !o.mirror && o.nid === m.id) || null; if (e && e.alive && a) { const from = V3(+m.fx || e.pos.x + 1, e.pos.y, +m.fz || e.pos.z); from.netFrom = a.id; damageEnemy(e, clamp(+m.dmg || 0, 0, 12), from, clamp(+m.kb || 0, 0, 20), !!m.big); } return; }
-    if (m.t === "ehit" && m.to === NET.myId) { const fromPos = V3(+m.x || P.pos.x + 1, P.pos.y, +m.z || P.pos.z); if (P.block) { P.blocks = (P.blocks || 0) + 1; lowerShield(true); say("Blocked!", 900); SFX.block(); hitstop = 0.06; } else hurtPlayer(clamp(+m.dmg || 1, 0, 6), fromPos); return; }
+    if (m.t === "ehit" && m.to === NET.myId) { const fromPos = V3(+m.x || P.pos.x + 1, P.pos.y, +m.z || P.pos.z); if (P.block) { P.blocks = (P.blocks || 0) + 1; lowerShield(true); say("Blocked!", 900); SFX.block(); hitstop = 0.06; } else hurtPlayer(clamp(+m.dmg || 1, 0, 6), fromPos, clamp(+m.kb || 1, 1, 2.5)); return; } // kb is clamped like the damage: a peer cannot ask to launch you into orbit
     if (m.t === "ek") { netKillCredit(m); return; }
     if (m.t === "mq") { applyMainProgress(m, peer); if (NET.role === "host") netBroadcast(m, peer.id); return; }
     if (m.t === "finale" && NET.role === "host") { if (!WORLDSTATE.finaleStarted) startFinale(); return; } // a friend with the four relics stands at the pool: the host raises the warden
@@ -12673,7 +12715,9 @@ const __boot = (async () => {
       animateHero(st, rdt, time, a.mesh); a.tag.visible = !st.dead && dist2D(st.pos, P.pos) < 60; a.tag.position.set(st.pos.x, st.pos.y + 3.6, st.pos.z);
     }
   }
-  function hurtPlayer(dmg, from) {
+  // kb scales the knockback only. the warden throws at 2.1, which is the one blow in the game that takes a player
+  // off their feet properly — everything else stays at 1 and behaves exactly as it always has.
+  function hurtPlayer(dmg, from, kb = 1) {
     if (P.inv > 0 || death) return;
     dmg *= (1 / (1 + Math.max(0, heroLevel() - 1) * TUNE.combat.damagePerHeroLevel)) * (P.bonus.guard || 1);
     FAIRY.idle = 0;
@@ -12687,9 +12731,11 @@ const __boot = (async () => {
     const dx = P.pos.x - from.x,
       dz = P.pos.z - from.z,
       d = Math.hypot(dx, dz) || 1;
-    P.vel.set((dx / d) * 10, 6, (dz / d) * 10);
+    P.vel.set((dx / d) * 10 * kb, 6 * kb, (dz / d) * 10 * kb);
     P.grounded = false;
-    shake = 0.5;
+    P.sliding = false;
+    P.climb = null;
+    shake = 0.5 * kb;
     hitstop = 0.05;
     document.getElementById("damage").style.opacity = 1;
     SFX.hurt();
@@ -12697,9 +12743,9 @@ const __boot = (async () => {
     else gainXP("endurance", 2);
   }
   // resolve a raised shield or an incoming hit
-  function enemyStrike(e, dmg, tgt) {
+  function enemyStrike(e, dmg, tgt, kb = 1) {
     dmg *= difficulty(); // the valley hits harder the further you have come
-    if (tgt && tgt.id) { const a = NET.avatars.get(tgt.id); const p = a && NET.peers.get(a.via); if (p) netSend(p, { t: "ehit", to: tgt.id, dmg: +dmg.toFixed(2), k: e.kind, x: +e.pos.x.toFixed(1), z: +e.pos.z.toFixed(1), big: !!e.big }); return; }
+    if (tgt && tgt.id) { const a = NET.avatars.get(tgt.id); const p = a && NET.peers.get(a.via); if (p) netSend(p, { t: "ehit", to: tgt.id, dmg: +dmg.toFixed(2), k: e.kind, x: +e.pos.x.toFixed(1), z: +e.pos.z.toFixed(1), big: !!e.big, kb: +kb.toFixed(2) }); return; }
     const dx = P.pos.x - e.pos.x,
       dz = P.pos.z - e.pos.z,
       dist = Math.hypot(dx, dz) || 1,
@@ -14692,9 +14738,37 @@ const __boot = (async () => {
   function spawnWarden() {
     if (WARDEN && WARDEN.alive) return WARDEN;
     const w = spawnWraith(POOL.x, POOL.z, { hp: 120, warden: true });
-    w.kind = "warden"; w.name = "The Drowned Warden"; w.boss = true; w.big = true; w.r = 1.6; w.mesh.scale.setScalar(2.4); w.phase = 1; w.surgeT = 6; w.pos.y = POOL.y; w.state = "rise"; w.t = 3;
+    w.kind = "warden"; w.name = "The Drowned Warden"; w.boss = true; w.big = true; w.r = 1.6; w.mesh.scale.setScalar(2.4); w.phase = 1; w.surgeT = 6;
+    // she comes up out of the water slowly and from a long way down, so the player has six seconds of watching the
+    // shape get bigger before anything happens. WARDEN_RISE seconds, from WARDEN_DEEP metres under the surface.
+    w.pos.y = POOL.y - WARDEN_DEEP; w.state = "rise"; w.t = WARDEN_RISE; w.riseSaid = 0;
+    // the hair is the tell. it is the one thing on her that is not a shape in the water, and it is the same bob the
+    // body at the pool's edge is wearing, because they are the same girl. nobody has to say so for it to land.
+    {
+      const hair = new THREE.MeshStandardMaterial({ color: toLin(0x2a1a10), roughness: 0.95, transparent: true, opacity: 0.72, depthWrite: false, side: THREE.DoubleSide });
+      const bob = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.37, 0.42, 0.46, 16, 1, true, Math.PI * 0.12, Math.PI * 1.76), hair));
+      bob.position.set(0, 2.28, 0);
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.345, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.62), hair);
+      cap.position.set(0, 2.35, 0);
+      w.mesh.add(bob, cap);
+      w.hairMat = hair;
+    }
     w.mat.emissive.copy(toLin(0x5a2a8a)); WARDEN = w; bosses.push(w); return w;
   }
+  // how deep under the pool she starts and how long she takes to come up. long on purpose: a boss that is simply
+  // there is a health bar, and a boss you watch surface is a thing that was always down there.
+  const WARDEN_DEEP = 9, WARDEN_RISE = 6;
+  // she is not a monster with a grudge, she is a sixteen-year-old who cannot put anything down. every line is a
+  // thing she is still holding: the ring, the walk north, her father's sleep, being owed an apology.
+  const WARDEN_RAGE = [
+    "He said it was holy. He said nobody must know.",
+    "I was going to tell the miller. That was all it took.",
+    "Does my father sleep? Does he sleep, while I am in here?",
+    "I kept the ring. I keep everything. That is the whole of what is wrong with me.",
+    "Sixteen. I was sixteen and I am still sixteen and I will always be sixteen.",
+    "You solved it. Good. Nothing came loose.",
+    "I want it back. All of it. I want every hour of it back."
+  ];
   const WOLF_HOME_R = 26;
   function updateExtraEnemies(dt) {
     if (netGuest()) { for (const e of EXTRA) if (e.tx !== undefined) { const k = Math.min(1, dt * 10); e.pos.x = lerp(e.pos.x, e.tx, k); e.pos.y = lerp(e.pos.y, e.ty, k); e.pos.z = lerp(e.pos.z, e.tz, k); e.heading = e.th; e.mesh.position.copy(e.pos); e.mesh.rotation.y = e.heading; e.mesh.visible = e.alive; if (e.mat) e.mat.opacity = e.state === "recover" ? 1 : 0.55; updateHealthBar(e, e.kind === "wolf" ? 1.8 : 3); } return; }
@@ -14715,10 +14789,30 @@ const __boot = (async () => {
     e.blink -= dt; if (e.blink <= 0) { e.blink = 2 + Math.random() * 3; e.mesh.visible = false; setTimeout(() => { if (e.alive) e.mesh.visible = true; }, 220); }
     if (e.warden) wardenPhases(e, tgt, dist, dt);
     switch (e.state) {
-      case "rise": e.pos.y = lerp(POOL.y - 2, POOL.y + 0.2, 1 - e.t / 3); if (e.t <= 0) e.state = "drift"; break;
-      case "drift": if (dist < 30 || e.warden) { if (dist > 2.6 + e.r) { const d = dist || 1; e.pos.x += (dx / d) * speed * dt; e.pos.z += (dz / d) * speed * dt; e.heading = Math.atan2(dx, dz); } else { e.state = "windup"; e.t = e.warden ? 1.1 : 0.8; if (dist < 40) SFX.tone(220, 660, 0.7, 0.14, "sine"); } } break;
+      // the surfacing. it eases out rather than running at a constant rate, so the last two metres are the slowest
+      // part of it, and the water keeps breaking over her the whole way up.
+      case "rise": {
+        const k = 1 - Math.max(0, e.t) / WARDEN_RISE, ease = 1 - Math.pow(1 - k, 2.2);
+        e.pos.y = lerp(POOL.y - WARDEN_DEEP, POOL.y + 0.2, ease);
+        e.mat.opacity = 0.18 + ease * 0.4;
+        if (e.riseSaid === 0) { e.riseSaid = 1; SFX.dread(); say("The pool draws back off something standing in it.", 4200, true, "dark"); }
+        if (e.riseSaid === 1 && k > 0.45) { e.riseSaid = 2; say("A girl's hair, and a girl's height, and nothing else of her that you would know.", 4200, true, "dark"); }
+        if (e.riseSaid === 2 && k > 0.85) { e.riseSaid = 3; say("Ysolde. She never left the water.", 4600, true, "dark"); }
+        if (Math.random() < dt * 14) { const a = Math.random() * 6.28, r = Math.random() * 4; ripple(POOL.x + Math.cos(a) * r, POOL.z + Math.sin(a) * r, 1.6); }
+        if (Math.random() < dt * 6) burst(V3(POOL.x + (Math.random() - 0.5) * 5, POOLW + 0.3, POOL.z + (Math.random() - 0.5) * 5), 0x6a5a8a, 6, 3.2, 0.9, 0.12);
+        if (Math.random() < dt * 2) SFX.tone(50 + k * 60, 30, 1.1, 0.09, "sine", 0.2, 300);
+        if (e.t <= 0) { e.state = "drift"; e.wrath = 6; }
+        break;
+      }
+      // a thing that followed you out of the pool does not lose interest at thirty metres. it comes straight at you
+      // from wherever it is, through walls, over hills and across water, and there is no outrunning it and nowhere to
+      // hide from it — the only ways to be rid of one are to turn and fight it, or to last until dawn.
+      case "drift": if (dist > 2.6 + e.r) { const d = dist || 1; e.pos.x += (dx / d) * speed * dt; e.pos.z += (dz / d) * speed * dt; e.heading = Math.atan2(dx, dz); } else { e.state = "windup"; e.t = e.warden ? 1.1 : 0.8; if (dist < 40) SFX.tone(220, 660, 0.7, 0.14, "sine"); } break;
       case "windup": e.heading = Math.atan2(dx, dz); e.mat.emissiveIntensity = 0.8 + (1 - e.t / 0.8) * 2.4; if (e.t <= 0) { e.state = "strike"; e.t = 0.25; e.hitDone = false; } break;
-      case "strike": if (!e.hitDone && e.t < 0.15 && dist < 2.6 + e.r && Math.abs(tgt.pos.y - e.pos.y) < 4) { e.hitDone = true; enemyStrike(e, e.warden ? 2 : 1.5, tgt); } if (e.t <= 0) { if (e.warden && e.phase === 3 && !e.second) { e.second = true; e.state = "windup"; e.t = 0.5; } else { e.second = false; e.state = "recover"; e.t = e.warden ? 2.6 : 1.5; } } break;
+      // the warden reaches further than she looks and she reaches upward. jumping over a boss's swing is the oldest
+      // way out of a fight in the world, and against her it should not work: she takes you out of the air and throws
+      // you, which is the only thing in the game that does.
+      case "strike": if (!e.hitDone && e.t < 0.15 && dist < (e.warden ? 6.2 : 2.6) + e.r && Math.abs(tgt.pos.y - e.pos.y) < (e.warden ? 11 : 4)) { e.hitDone = true; enemyStrike(e, e.warden ? 2 : 1.5, tgt, e.warden ? 2.1 : 1); if (e.warden) { shake = Math.max(shake, 0.9); SFX.tone(60, 300, 0.6, 0.2, "sawtooth", 0.4, 500); } } if (e.t <= 0) { if (e.warden && e.phase === 3 && !e.second) { e.second = true; e.state = "windup"; e.t = 0.5; } else { e.second = false; e.state = "recover"; e.t = e.warden ? 2.6 : 1.5; } } break;
       case "recover": e.mat.emissiveIntensity = 0.3; if (e.t <= 0) { e.state = "drift"; e.mat.emissiveIntensity = 0.8; } break;
       case "stun": e.pos.x += e.vel.x * dt; e.pos.z += e.vel.z * dt; e.vel.multiplyScalar(Math.pow(0.02, dt)); if (e.t <= 0) e.state = "drift"; break;
     }
@@ -14727,7 +14821,16 @@ const __boot = (async () => {
     e.mat.opacity = damp(e.mat.opacity, e.state === "recover" ? 1 : e.state === "windup" ? 0.85 : 0.55, 12, dt);
     // a wraith drifting over a cliff edge used to lag its target height badly enough to sink through the ground, so the
     // climb is much quicker than the settle
-    if (!e.warden) { resolveStructs(e.pos, 0.5); const gy = groundAt(e.pos.x, e.pos.z, e.pos.y + 2), want = gy + 0.4 + Math.sin(time * 2 + e.nid) * 0.2; e.pos.y = damp(e.pos.y, want, want > e.pos.y ? 14 : 4, dt); }
+    // no resolveStructs: a wall is not an obstacle to something that is only half here. it also used to hover 0.4m
+    // over the *ground*, which meant a wraith crossing a river walked along the bed with the water over its head —
+    // it skims whichever of the ground and the water surface is higher now. the climb is near-instant so a wraith
+    // coming up a steep bank or a cliff face never lags far enough behind the slope to sink into it.
+    if (!e.warden) {
+      const gy = groundAt(e.pos.x, e.pos.z, e.pos.y + 2), rv = riverAt(e.pos.x, e.pos.z),
+        top = Math.max(gy, rv ? rv.surf : gy < WATER_Y ? WATER_Y : -1e9),
+        want = top + 0.4 + Math.sin(time * 2 + e.nid) * 0.2;
+      e.pos.y = damp(e.pos.y, want, want > e.pos.y ? 22 : 4, dt);
+    }
     else if (e.state !== "rise") e.pos.y = damp(e.pos.y, POOL.y + 0.3 + Math.sin(time * 1.5) * 0.3, 3, dt);
     e.mesh.position.copy(e.pos);
     // wraiths and the warden had no heading smoothing either, so a blink or a turn snapped
@@ -14738,8 +14841,17 @@ const __boot = (async () => {
   }
   // the warden's three phases: alone; the pool surges and the wraiths come; and the last desperate pace
   function wardenPhases(e, tgt, dist, dt) {
-    if (e.phase === 1 && e.hp <= e.maxHp * 0.66) { e.phase = 2; SFX.phase(); say("The water heaves. Things that were drowned long ago stand up in it.", 3500, true, "dark"); for (let k = 0; k < 2; k++) spawnWraith(POOL.x + (k ? 6 : -6), POOL.z + 4); }
-    if (e.phase === 2 && e.hp <= e.maxHp * 0.33) { e.phase = 3; SFX.phase(); say("It is spent, and furious, and only a little of it is left.", 3500, true, "dark"); }
+    if (e.phase === 1 && e.hp <= e.maxHp * 0.66) { e.phase = 2; SFX.phase(); say("The water heaves. Everything she would not let go of stands up in it with her.", 3500, true, "dark"); for (let k = 0; k < 2; k++) spawnWraith(POOL.x + (k ? 6 : -6), POOL.z + 4); }
+    if (e.phase === 2 && e.hp <= e.maxHp * 0.33) { e.phase = 3; SFX.phase(); say("She is spent, and furious, and still holding on with both hands.", 3500, true, "dark"); }
+    // she talks while she fights, and what she says is a list of things she is still carrying. the fight is not with
+    // a monster; it is with a girl who cannot put anything down, which is the whole of what the pool does to people.
+    e.wrath = (e.wrath === undefined ? 6 : e.wrath) - dt;
+    if (e.wrath <= 0 && e.state !== "rise" && dist < 46) {
+      e.wrath = e.phase === 3 ? 5.5 : 8.5;
+      e.rageI = (e.rageI === undefined ? Math.floor(Math.random() * WARDEN_RAGE.length) : e.rageI + 1) % WARDEN_RAGE.length;
+      say(`Ysolde: ${WARDEN_RAGE[e.rageI]}`, 4200, true, "dark");
+      SFX.tone(300 + Math.random() * 120, 90, 0.5, 0.08, "sine", 0.3, 900);
+    }
     if (e.phase >= 2) {
       e.callT = (e.callT || 5) - dt; if (e.callT <= 0) { e.callT = e.phase === 3 ? 5 : 7; if (EXTRA.filter(x => x.wraith && !x.warden && x.alive).length < (e.phase === 3 ? 6 : 4)) { const a = Math.random() * 6.28; spawnWraith(POOL.x + Math.cos(a) * 9, POOL.z + Math.sin(a) * 9); } } // it keeps calling the drowned up
       e.blinkT = (e.blinkT || 8) - dt; if (e.blinkT <= 0 && e.state === "drift") { e.blinkT = e.phase === 3 ? 6 : 9; e.blinks = (e.blinks || 0) + 1; const a = Math.random() * 6.28, r = 5 + Math.random() * 4; e.pos.set(tgt.pos.x + Math.cos(a) * r, POOL.y + 0.3, tgt.pos.z + Math.sin(a) * r); burst(e.pos.clone().add(V3(0, 2, 0)), 0x8ca0c8, 20, 5, 0.8, 0.15); SFX.tone(700, 120, 0.4, 0.14, "sine"); } // and steps through the dark to your side
@@ -14783,11 +14895,19 @@ const __boot = (async () => {
     }
   }
   // wraiths haunt the pool at night once it has woken
-  let wraithT = 5;
+  let wraithT = 5, wraithHeat = 0, wraithSeen = 0;
   function updateWraithSpawns(dt) {
     if (netGuest() || !WORLDSTATE.blackPoolAwake || WORLDSTATE.ending || WORLDSTATE.finaleStarted) return;
-    wraithT -= dt; if (wraithT > 0) return; wraithT = 9;
-    const night = dayElev < 0.05, near = dist2D(P.pos, POOL) < 70 || (relicCount() >= 2 && Math.random() < 0.15 * relicCount()), count = EXTRA.filter(e => e.wraith && e.alive).length, cap = 2 + relicCount();
+    // running from them is not an answer. every interval you leave one walking, the pool sends another and sends it
+    // sooner; every one you put down takes the pressure back off. so the player who turns and fights ends the night
+    // with two behind them, and the player who keeps walking ends it with eight.
+    wraithT -= dt; if (wraithT > 0) return;
+    const count = EXTRA.filter(e => e.wraith && e.alive).length;
+    if (count < wraithSeen) wraithHeat = Math.max(0, wraithHeat - 2 * (wraithSeen - count));
+    else if (count > 0) wraithHeat = Math.min(6, wraithHeat + 1);
+    wraithSeen = count;
+    wraithT = Math.max(2.6, 9 - wraithHeat * 1.1);
+    const night = dayElev < 0.05, near = dist2D(P.pos, POOL) < 70 || (relicCount() >= 2 && Math.random() < 0.15 * relicCount()), cap = 2 + relicCount() + wraithHeat;
     if (night && near && count < cap && dist2D(P.pos, POOL) > 12 && !roomNow) { if (dist2D(P.pos, POOL) >= 70) { const a = Math.random() * 6.28, r = 18 + Math.random() * 10; const x = P.pos.x + Math.cos(a) * r, z = P.pos.z + Math.sin(a) * r; if (inBounds(x, z) && !isWater(x, z)) { spawnWraith(x, z); say("Something has followed you from the pool.", 2500, false, "dark"); } return; } const a = Math.random() * 6.28, r = 16 + Math.random() * 10; const x = POOL.x + Math.cos(a) * r, z = POOL.z + Math.sin(a) * r; if (inBounds(x, z) && !isWater(x, z)) { spawnWraith(x, z); if (count === 0) SFX.dread(); } }
   }
   function updateSlimes(dt, rdt) {
@@ -15593,8 +15713,19 @@ const __boot = (async () => {
               d = Math.hypot(dx, dz);
             if (d < 3.4 * attackReachMul() + 0.7 * t.s * t.tk && (dx * f2.x + dz * f2.z) / (d || 1) > 0.3 && Math.abs(t.y - P.pos.y) < 6) {
               t.hp = (t.hp || 3) - 1;
+              // a pale tree takes three swings and used to give the same small tick for each of them, so there was
+              // no way to tell a landed chop from a whiffed one, or to know how close the tree was to going over.
+              // the axe bites deeper each time: more chips, a lower crack, and on the last swing before it falls
+              // the trunk groans, which is the cue to step back.
               SFX.chop(0);
-              burst(V3(t.x, P.pos.y + 1.4, t.z), 0xd8b088, 6, 4, 0.5, 0.1);
+              SFX.tone(150 - t.hp * 22, 70, 0.16, 0.16, "square", 0, 520 - t.hp * 90);
+              SFX.noise(0.16 + (3 - t.hp) * 0.05, 380, 120, 0.22, "bandpass", 1.6);
+              burst(V3(t.x, P.pos.y + 1.4, t.z), 0xd8b088, 8 + (3 - t.hp) * 6, 4 + (3 - t.hp), 0.55, 0.12);
+              shake = Math.max(shake, 0.12 + (3 - t.hp) * 0.06);
+              if (t.hp === 1) {
+                SFX.tone(70, 34, 0.75, 0.16, "sawtooth", 0.3, 340);
+                say("The trunk groans. One more.", 1800);
+              }
               if (t.hp <= 0) {
                 fellTree(t);
                 P.logs = (P.logs || 0) + 1;
@@ -16046,7 +16177,7 @@ const __boot = (async () => {
     const sp0 = document.getElementById("statsPanel");
     if (!sp0.classList.contains("hidden") && statsT <= 0) {
       statsT = 1;
-      sp0.innerHTML = `<h3>${esc(CUSTOM.name)} — hero level ${heroLevel()}</h3><small style="opacity:.75">Your level is the lowest of all six skills, swimming included; each level takes 4.5% off the damage you take.</small><br>Hearts ${P.hp % 1 ? P.hp.toFixed(1) : P.hp} / ${P.maxHp} · Stamina ${Math.round(P.stam)} / ${Math.round(stamMax())} · Air ${Math.round(airMax())}s<br>Weapon: ${WEAPONS[P.weapon].name} · Damage ×${(dmgMul() * WEAPONS[P.weapon].dmg).toFixed(2)} · Reach +${((attackReachMul() - 1) * 100).toFixed(1)}% · Swing ×${(1 / swingMul()).toFixed(2)} · Reach ×${attackReachMul().toFixed(2)}<br>Run ${runSpd().toFixed(1)} · Jump ${jumpV().toFixed(1)} · Air control ${airCtl().toFixed(1)}<h3>Skills</h3>${skillsHTML()}<h3>Tally</h3>${P.kills} slimes · ${P.gkills} goblins · ${P.herbs} herbs · ${Math.round(P.steps / 2)} paces<h3>Found (${FOUND.length})</h3><span style="opacity:.8">${FOUND.length ? FOUND.map(f => f.split(":")[0]).join(" · ") : "Nothing yet."}</span>`;
+      sp0.innerHTML = `<h3>${esc(CUSTOM.name)} — hero level ${heroLevel()}</h3><small style="opacity:.75">Your level is the lowest of all six skills, swimming included; each level takes 4.5% off the damage you take.</small><br>Hearts ${P.hp % 1 ? P.hp.toFixed(1) : P.hp} / ${P.maxHp} · Stamina ${Math.round(P.stam)} / ${Math.round(stamMax())} · Air ${Math.round(airMax())}s<br>Weapon: ${WEAPONS[P.weapon].name} · Damage ×${(dmgMul() * WEAPONS[P.weapon].dmg).toFixed(2)} · Reach +${((attackReachMul() - 1) * 100).toFixed(1)}% · Swing ×${(1 / swingMul()).toFixed(2)} · Reach ×${attackReachMul().toFixed(2)}<br>Run ${runSpd().toFixed(1)} · Jump ${jumpV().toFixed(1)} · Air control ${airCtl().toFixed(1)}<h3>Skills</h3>${skillsHTML()}<h3>Tally</h3>${P.kills} slimes · ${P.gkills} goblins · ${P.herbs} herbs · ${Math.round(P.steps / 2)} paces`; // the "found" strip lived here and was the satchel's job; the satchel shows the things themselves
     }
     const st = stage(),
       target = [king.pos, hermitPos, null, null, hermitPos, flintPos, lighthousePos, king.pos, ELDERSTAIR][st];
