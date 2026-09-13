@@ -504,3 +504,69 @@ Now gated on real motion.
 Cape and hair damping used `8 - i` / `9 - i` as the rate — one segment away from
 zero (frozen) and two from negative, where `e^(-λdt) > 1` and the rotation
 diverges to NaN. Floored at 2.
+
+---
+
+## Hunters keep the night watch
+
+**Requested:** "hunters don't have to necessarily sleep at night but they can
+disappear into their tent to take short naps here and there, but 95% of the time
+they should be out and about, and even come out at night."
+
+Tents already existed for the five forest hunters but were never recorded on the
+NPC. Every other hunter now gets one pitched at worldgen, with a struct probe so
+it is never driven through somebody's wall. The tent is a solid 1.6 m collider,
+so "disappear into the tent" means reaching its mouth and going out of sight —
+and only while the player is far enough away not to watch it happen.
+
+Naps are a countdown, not a per-frame chance, re-rolled every time so they never
+land on the same hour twice: a mean 21 s nap in a mean 420 s cycle, about 5%.
+Three things end one — the timer, which nothing holds up so a nap has a hard
+ceiling; a goblin inside 40 m, which is *wider* than the hunter's own shooting
+range so he is up before it is in his; and failing to reach the tent at all.
+
+**Deliberately not `n.asleep`.** That branch `continue`s before anything can wake
+the sleeper and has no exit written anywhere in the file — the miller has been in
+it since 2.0 and is never getting up.
+
+### Bug 40 — An abandoned deer was removed from the game permanently · FIXED
+
+Worse than a stale claim. An abandoned carcass never gets a `respawnT`, so the
+only thing that could bring it back is `updateDeer`'s `deadT > 180` fallback —
+and `updateDeer` skips any deer more than 170 m from a player *before* `deadT` is
+incremented. A kill dropped out in the wood was gone from the pool for the rest
+of the game. Every path that throws away a fetch or a haul now goes through
+`releasePrey()`, which sets the respawn itself, plus a 90-second watchdog for
+every case the per-branch stuck timers miss.
+
+### Bug 41 — `fetch` and `haul` were missing from the nightfall conversion · FIXED
+
+The dusk "put your work down" list covered `go` and `work` only, so a hunter who
+downed a deer at dusk stayed in fetch or haul all night with the carcass still
+claimed.
+
+### Bug 42 — Hunters fought with their arms swinging idly · FIXED
+
+The bow-draw pose is gated on phase `work`, but a hunter shooting goblins leaves
+the tick through the early-exit branch and never reaches it. He drew no bow all
+night. The pose is now applied at that exit too.
+
+### Bug 43 — Two night-home pulls, and only one was obvious · FIXED
+
+The chain branch catches phase `home` or job `idle`; a hunter back from an errand
+landed in the *other* one inside `case "home"`. Both now exempt hunters.
+
+### Also
+
+`pickWork` gained a night branch — a beat around the hunter's own fire, inside
+the 22 m ring a hearth keeps goblins from spawning in, so nothing erupts under
+him. The daylight-only gate on picking work at all was blocking the one job with
+a night errand. At night he stands watch, facing away from his fire and sweeping
+slowly, half of them each way. Engagement is 34 m / 1.4 s by day and 22 m / 2.6 s
+by night — that split is the whole night balance.
+
+**Balance note:** villagers have no `hp` field at all, and goblins only ever
+target the player, so a night hunter cannot be hurt. The risk is entirely
+one-sided — ten-odd bowmen at two damage a hit against 4 HP goblins and a spawn
+cap of 7 would trivialise the night. Hence the shorter night range and slower
+cadence. Arrow damage is the next lever if it is still too easy.

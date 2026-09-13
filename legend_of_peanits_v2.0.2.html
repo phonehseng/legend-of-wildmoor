@@ -680,6 +680,25 @@ const __boot = (async () => {
       think2: 170,
       think3: 320 // villagers think every frame within thinkFull metres, every 2nd to think2, every 3rd to think3, every 6th beyond
     },
+    hunters: {
+      // a hunter keeps the night watch. he does not sleep it through; he ducks into his tent for a few minutes at a
+      // time and comes back out. a mean 21 s nap in a mean 420 s cycle is about five per cent — roughly one nap a day,
+      // and never at the same hour twice, because the gap is rolled fresh every time rather than run off a clock.
+      napMin: 12,
+      napMax: 30, // also the hard ceiling: n.nap only ever counts down, so a nap cannot become a permanent state
+      napGapMin: 240,
+      napGapMax: 600,
+      napHideRange: 14, // he will not vanish into the tent while you are stood close enough to watch him do it
+      napReach: 90, // further than this from his own tent and he does not bother turning back
+      wakeRange: 40, // a goblin this close ends a nap — wider than his own shooting range, so he is up before it is in his
+      engageDay: 34,
+      engageNight: 22, // by night he lets them come closer: this and the cadence below are the whole night balance
+      shotDay: 1.4,
+      shotNight: 2.6,
+      patrolMin: 10,
+      patrolMax: 20, // his beat stays inside the 22 m ring a hearth keeps goblins from spawning in
+      watchTurn: 0.5 // radians a second he sweeps the dark
+    },
     time: { dayLength: 600, sleepTo: 0.5 }, // seconds per day; sleeping skips to this time of day
     ui: {
       subtitle: 3400,
@@ -5171,6 +5190,20 @@ const __boot = (async () => {
     const h = n.home;
     if (n.job === "washer" || n.job === "water" || n.job === "bather") return shoreNear(h, 180);
     if (n.job === "hunter") {
+      // deer are a daylight errand. after dark he walks a beat round his own fire instead — close enough to it that the
+      // ground he stands on sits inside the ring nearHearth keeps goblins from spawning in, so nothing ever comes up
+      // out of the earth underneath him. he still shoots whatever walks in; he is just not out chasing it.
+      if (dayElev <= 0.02) {
+        const f = n.fireSpot || h;
+        for (let k = 0; k < 6; k++) {
+          const a = Math.random() * 6.28,
+            r = TUNE.hunters.patrolMin + Math.random() * (TUNE.hunters.patrolMax - TUNE.hunters.patrolMin),
+            s = findSpot(f.x + Math.cos(a) * r, f.z + Math.sin(a) * r, 0.6, 300, 4, 2);
+          // findSpot never returns null — it falls back to the point you asked for — so check the distance instead
+          if (s && !isWater(s.x, s.z) && dist2D(s, f) < TUNE.hunters.patrolMax + 8) return s;
+        }
+        return null; // nothing walkable: the caller wanders him, which is fine for a night
+      }
       let best = null,
         bd = 420;
       for (const d of deer) {
@@ -5290,7 +5323,37 @@ const __boot = (async () => {
     u.legs[1].rotation.x = damp(u.legs[1].rotation.x, legT * (1 - n.walkAmp) - sw, 14, dt);
     u.arms[0].rotation.x = damp(u.arms[0].rotation.x, armT, 14, dt);
     u.arms[1].rotation.x = damp(u.arms[1].rotation.x, n.sit ? -0.35 : -sw, 14, dt);
+    // the draw. the full tick raises a hunter's bow arm too, but only in phase "work", and a hunter shooting goblins
+    // leaves the tick here instead — so he fought every night with his arms swinging idly at his sides.
+    if (n.aiming && u.bow) {
+      u.arms[0].rotation.x = damp(u.arms[0].rotation.x, -1.55, 14, dt);
+      u.arms[1].rotation.x = damp(u.arms[1].rotation.x, -1.5, 14, dt);
+    }
     u.body.position.y = damp(u.body.position.y, 0.98 + Math.abs(Math.sin(n.anim)) * 0.06 * n.walkAmp, 14, dt);
+  }
+  // ending a nap, from every direction there is: the timer running out, a goblin arriving, or his never reaching the
+  // tent at all. one function, so no path can leave a hunter hidden, half-napping, or still holding a claim on a deer.
+  // this is deliberately not the asleep the miller is in — that branch continues before anything can wake him, and has
+  // no exit written anywhere in the file.
+  function wakeHunter(n) {
+    n.nap = 0;
+    n.napGo = false;
+    n.napStuck = 0;
+    n.napWait = TUNE.hunters.napGapMin + Math.random() * (TUNE.hunters.napGapMax - TUNE.hunters.napGapMin);
+    if (n.napping && n.tentMouth) {
+      n.pos.x = n.tentMouth.x;
+      n.pos.z = n.tentMouth.z;
+      n.pos.y = groundAt(n.pos.x, n.pos.z, n.pos.y + 2); // out of sight he skipped the ground snap, so put him back on it
+    }
+    n.napping = false;
+    n.mesh.visible = true;
+    n.phase = "home";
+    n.t = 0.5 + Math.random();
+    n.target = null;
+    n.work = null;
+    n.wantMove = false;
+    n.stillT = 0;
+    n.blockedT = 0;
   }
   function updateNPCs(dtFrame) {
     const dayTime = dayElev > 0.02,
@@ -5723,24 +5786,96 @@ const __boot = (async () => {
           n.t = 1.5;
         } else if (n.t > 0) n.t -= dt;
         else step(wp.x, wp.z, 2.2);
-      } else if (!n.fight && n.hut && !n.post && !dayTime && n.kind === "villager" && (n.phase === "home" || n.job === "idle")) {
-        // night: everyone with a hut is in it
+      } else if (!n.fight && n.job === "hunter" && n.tent && (n.nap > 0 || n.napGo)) {
+        // the nap. he is out and about ninety-five per cent of the time; the rest is a few minutes in the tent, taken
+        // whenever it takes him rather than on a clock. three things end it: the timer, which nothing anywhere holds
+        // up so a nap has a hard ceiling; a goblin inside wakeRange, which is wider than his own shooting range so he
+        // is on his feet with the thing still out of reach; and failing to reach his own tent, so he never stands
+        // grinding at a wall with the idea half-formed.
+        const gob = goblins.find(g => g.alive && g.rise <= 0 && dist2D(g.pos, n.pos) < TUNE.hunters.wakeRange);
+        n.nap -= dt;
+        if (gob || n.nap <= 0) {
+          wakeHunter(n);
+          if (gob) n.heading = Math.atan2(gob.pos.x - n.pos.x, gob.pos.z - n.pos.z);
+        } else if (n.napGo) {
+          if (dist2D(n.tentMouth, n.pos) < 1.2) {
+            n.heading = Math.atan2(n.tent.x - n.pos.x, n.tent.z - n.pos.z);
+            // he only goes out of sight while you are far enough off not to watch him dissolve. stood right there, he
+            // waits at the mouth, still burning nap time, and comes back to himself when it runs out.
+            if (distToPlayer > TUNE.hunters.napHideRange) {
+              n.napGo = false;
+              n.napping = true;
+              n.pos.x = n.tentMouth.x;
+              n.pos.z = n.tentMouth.z;
+            }
+          } else if (!step(n.tentMouth.x, n.tentMouth.z, 2.4)) {
+            n.napStuck = (n.napStuck || 0) + dt;
+            if (n.napStuck > 5) wakeHunter(n);
+          }
+        }
+        if (n.napping) {
+          n.mesh.visible = false;
+          if (n.prompt) n.prompt.visible = false;
+          if (n.mark) n.mark.visible = false;
+          continue; // in the tent: not in the world for these seconds
+        }
+      } else if (!n.fight && n.hut && !n.post && !dayTime && n.job !== "hunter" && n.kind === "villager" && (n.phase === "home" || n.job === "idle")) {
+        // night: everyone with a hut is in it — except the hunters, who are the reason the night is survivable. a
+        // hunter keeps the hut he was assigned, so the bed count still includes him; he is just never pulled to it.
         if (insideInterior(n.pos.x, n.pos.z) !== n.hut) goHome(2.4);
         else if (Math.hypot(n.hut.cx - n.pos.x, n.hut.cz - n.pos.z) > 1.6) step(n.hut.cx, n.hut.cz, 1.8);
         else {
           n.target = null;
         }
       } else if (!n.fight && n.job !== "idle" && n.kind === "villager") {
-        if (!dayTime && (n.phase === "go" || n.phase === "work")) n.phase = "back";
+        // dusk puts everyone else's work down. a hunter keeps going — this is his shift — and a kill he is already
+        // walking to or carrying gets finished rather than left out in the dark. fetch and haul were missing from this
+        // list entirely, so anyone who reached them at nightfall had the phase thrown away with the deer still claimed.
+        if (!dayTime && n.job !== "hunter") {
+          if (n.phase === "fetch" || n.phase === "haul") {
+            releasePrey(n);
+            n.phase = "back";
+          } else if (n.phase === "go" || n.phase === "work") n.phase = "back";
+        }
+        // a claim with no timer on it is a deer struck out of the game for good. the per-case stuck timers cover
+        // walking into a wall; this covers everything else — a long fight, the coarse tick a far villager runs on, any
+        // future branch that forgets. ninety seconds is three times the longest honest haul.
+        if (n.prey) {
+          if (n.phase !== "fetch" && n.phase !== "haul") releasePrey(n);
+          else if ((n.preyT = (n.preyT || 0) + dt) > 90) {
+            releasePrey(n);
+            n.phase = "back";
+          }
+        } else n.preyT = 0;
+        // the urge to nap: a countdown, not a per-frame chance, so it cannot bunch up, and re-rolled from scratch every
+        // time so it never lands on the same hour twice. never on a kill, and never with a goblin about.
+        if (n.job === "hunter" && n.tent && !n.napping && !n.napGo && n.nap <= 0) {
+          if (n.napWait === undefined) n.napWait = TUNE.hunters.napGapMin + Math.random() * (TUNE.hunters.napGapMax - TUNE.hunters.napGapMin);
+          else n.napWait -= dt;
+          const busy = n.prey || n.carrying || n.hide > 0 || goblins.some(g => g.alive && g.rise <= 0 && dist2D(g.pos, n.pos) < TUNE.hunters.wakeRange);
+          if (n.napWait <= 0 && !busy && dist2D(n.tent, n.pos) < TUNE.hunters.napReach) {
+            n.nap = TUNE.hunters.napMin + Math.random() * (TUNE.hunters.napMax - TUNE.hunters.napMin);
+            n.napGo = true;
+            n.napStuck = 0;
+            n.target = null;
+            n.work = null;
+            if (n.phase === "go" || n.phase === "work") n.phase = "back"; // nothing may sit waiting on a sleeping man
+          }
+        }
         if (n.job === "hunter" && !n.carrying) {
-          const gob = goblins.find(g => g.alive && g.rise <= 0 && dist2D(g.pos, n.pos) < 34);
+          // by day he shoots anything he can see. by night, alone with a fire behind him, he lets them come closer and
+          // picks his shots. the shorter range and slower cadence are the whole of the night balance: ten-odd bowmen at
+          // 34 m with an arrow every 1.4 s would strip the goblin spawn cap before you ever saw one.
+          const range = dayTime ? TUNE.hunters.engageDay : TUNE.hunters.engageNight;
+          const gob = goblins.find(g => g.alive && g.rise <= 0 && dist2D(g.pos, n.pos) < range);
           if (gob) {
             n.heading = Math.atan2(gob.pos.x - n.pos.x, gob.pos.z - n.pos.z);
             n.atkT -= dt;
             if (n.atkT <= 0) {
-              n.atkT = 1.4;
+              n.atkT = dayTime ? TUNE.hunters.shotDay : TUNE.hunters.shotNight;
               shootArrow(n, gob);
             }
+            n.aiming = true; // the bow-draw pose lives past this exit, gated on phase "work" — it never ran here
             // this was a break, and there is no switch or inner loop around it — it broke out of "for (const n of npcs)"
             // itself. one hunter with a goblin in sight stopped the entire villager update for that tick: everyone
             // later in the array got no movement, no timers, no animation and no mesh write. goblins come every night
@@ -5748,6 +5883,7 @@ const __boot = (async () => {
             poseNPCEarly(n, dt, false); // a hunter loosing arrows stands his ground, so no walk cycle
             continue;
           }
+          n.aiming = false;
         }
         switch (n.phase) {
           case "home":
@@ -5794,7 +5930,9 @@ const __boot = (async () => {
               }
               break;
             }
-            if (!dayTime && n.hut && !n.post) {
+            // the second of the two night-home pulls, and the easy one to miss: the branch above only catches phase
+            // "home" or job "idle", so a hunter back from an errand landed here instead.
+            if (!dayTime && n.hut && !n.post && n.job !== "hunter") {
               if (insideInterior(n.pos.x, n.pos.z) !== n.hut) goHome(2.4);
               else if (n.target) n.target = null;
               break;
@@ -5803,7 +5941,9 @@ const __boot = (async () => {
             // found nothing to do in daylight — a woodcutter with no tree in range, a washer with no reachable shore,
             // or any of the jobs that have no pickWork case at all — stood rooted to the spot for eight seconds, tried
             // again, and stood rooted again, all day. they wander while they wait now.
-            if (dayTime && n.t <= 0) {
+            // the gate was daylight-only, so a hunter — the one job with a night errand — had nothing to want between dusk
+            // and dawn and just ticked wanderTarget in his own yard. he is let through.
+            if ((dayTime || n.job === "hunter") && n.t <= 0) {
               n.work = pickWork(n);
               if (n.work) {
                 n.phase = "go";
@@ -5901,14 +6041,24 @@ const __boot = (async () => {
             if (n.job === "hunter") {
               let best = null,
                 bd = 65;
-              const gob = goblins.find(g => g.alive && g.rise <= 0 && dist2D(g.pos, n.pos) < 34);
+              const range = dayTime ? TUNE.hunters.engageDay : TUNE.hunters.engageNight,
+                gob = goblins.find(g => g.alive && g.rise <= 0 && dist2D(g.pos, n.pos) < range);
               if (gob) {
                 n.heading = Math.atan2(gob.pos.x - n.pos.x, gob.pos.z - n.pos.z);
                 n.atkT -= dt;
                 if (n.atkT <= 0) {
-                  n.atkT = 1.4;
+                  n.atkT = dayTime ? TUNE.hunters.shotDay : TUNE.hunters.shotNight;
                   shootArrow(n, gob);
                 }
+              } else if (!dayTime) {
+                // standing watch, and tending the fire he stands by. he faces away from it — you do not stare into a
+                // flame you mean to see past — and sweeps slowly, half of them each way, so a camp reads as watched
+                // rather than as a man stuck facing a wall. the deer search is skipped: hunting is daywork.
+                const f = n.fireSpot || n.home;
+                if (n.watchA === undefined) n.watchA = Math.atan2(n.pos.x - f.x, n.pos.z - f.z);
+                n.watchA += dt * TUNE.hunters.watchTurn * (n.vi % 2 ? 1 : -1);
+                n.heading = n.watchA;
+                if (n.fireLight) n.fireLight.intensity = 1.2 + Math.sin(time * 3.1 + n.vi) * 0.25;
               } else {
                 for (const d of deer) {
                   if (d.dead || (d.claimed && d.claimed !== n)) continue;
@@ -7572,6 +7722,10 @@ const __boot = (async () => {
     tent.rotation.y = 0.78;
     scene.add(tent);
     addCircle(p.x + 3, p.z + 2, 1.6, p.y + 2.6);
+    // the tent is a solid cylinder 1.6 m across, so nobody walks inside it: the nap spot is its mouth, on the fire side,
+    // far enough out to clear the collider. he steps up to it, goes out of sight, and steps back out of it.
+    n.tent = V3(p.x + 3, p.y, p.z + 2);
+    n.tentMouth = V3(p.x + 0.95, p.y, p.z + 2.4);
     hearths.push(V3(p.x - 2, p.y, p.z + 3));
     const fire = new THREE.Group();
     fire.add(cyl(0.8, 1, 0.3, stoneDarkM, 0, 0.15, 0, 8));
@@ -7584,6 +7738,47 @@ const __boot = (async () => {
     scene.add(fire);
     const fl = vlight(0xff8a3a, 1.2, 12);
     fl.position.set(p.x - 2, p.y + 1, p.z + 3);
+    n.fireSpot = V3(p.x - 2, p.y, p.z + 3); // the anchor of his night beat, and what he tends while on watch
+    n.fireLight = fl;
+  }
+  // the town's hunters and the villages' hunters keep the night watch too, and every one of them needs a tent to duck
+  // into. the five in the forest already have theirs; this pitches the same tent for the rest. it runs here because
+  // this is the first line at which every hunter in the game exists — town, villages and forest are all built above
+  // and nothing below adds another.
+  for (const h of npcs) {
+    if (h.job !== "hunter") continue;
+    // the town walls hold no hearth at all — nothing inside them is ever pushed to hearths — so nearestHearth would
+    // hand a town hunter a fire a hundred metres out and march him to it every night. anything further off than sixty
+    // metres is not his fire, and his own doorstep stands in for it.
+    if (!h.fireSpot) {
+      const f = nearestHearth(h.home);
+      h.fireSpot = f && dist2D(f, h.home) < 60 ? V3(f.x, f.y, f.z) : h.home.clone();
+    }
+    if (h.tent) continue;
+    // findSpot only tests height, slope and trees, so on the town plateau it will happily hand back a point inside a
+    // house. probe the struct grid too, and give up rather than pitch a tent through somebody's wall.
+    let t = null,
+      tyaw = 0;
+    for (let k = 0; k < 10 && !t; k++) {
+      const a = Math.atan2(h.home.x, h.home.z) + 2.2 + k * 0.63,
+        c = findSpot(h.home.x + Math.cos(a) * 5.5, h.home.z + Math.sin(a) * 5.5, 0.6, 300, 4, 2);
+      if (!c || dist2D(c, h.home) > 12 || insideInterior(c.x, c.z, 2.2)) continue;
+      const probe = { x: c.x, y: c.y, z: c.z };
+      resolveStructs(probe, 2);
+      if (Math.hypot(probe.x - c.x, probe.z - c.z) > 0.05) continue; // a wall or a cart already stands there
+      t = c;
+      tyaw = a;
+    }
+    if (!t) continue; // nowhere clear: he simply has no tent, and the nap branch never fires for him
+    const tent = new THREE.Group();
+    tent.add(cone(2.4, 2.6, texMat(TEX.flag, 0x8a7a5a), 0, 1.3, 0, 4));
+    tent.position.copy(t);
+    tent.rotation.y = tyaw;
+    scene.add(tent);
+    addCircle(t.x, t.z, 1.6, t.y + 2.6);
+    const md = dist2D(h.home, t) || 1;
+    h.tent = V3(t.x, t.y, t.z);
+    h.tentMouth = V3(t.x + ((h.home.x - t.x) / md) * 2.1, t.y, t.z + ((h.home.z - t.z) / md) * 2.1); // the mouth faces his own door
   }
   // wren, who never leaves her house and will happily change your look
   {
@@ -8434,7 +8629,7 @@ const __boot = (async () => {
       if (!p.taken && dist2D(p.mesh.position, P.pos) < 5 && Math.abs(p.mesh.position.y - P.pos.y) < 3.2)
         return true;
     for (const h of herbs) if (!h.taken && near(h.pos, 5)) return true;
-    for (const n of npcs) if (n.kind !== "king" && near(n.pos, 4.5)) return true;
+    for (const n of npcs) if (n.kind !== "king" && !n.napping && near(n.pos, 4.5)) return true; // a hunter in his tent is not standing there
     return false;
   }
   // apply a permanent reward, record it, and announce it in the hud
@@ -9093,8 +9288,23 @@ const __boot = (async () => {
     if (by) {
       by.phase = "fetch";
       by.prey = d;
+      by.preyT = 0;
     }
     burst(d.pos.clone().add(V3(0, 1.5, 0)), 0x9a3030, 10, 4, 0.6, 0.1);
+  }
+  // let a kill go, from any direction. an abandoned carcass is not merely claimed — it never gets a respawnT, and the
+  // only thing that could bring it back is updateDeer's deadT fallback, which never ticks for a deer more than 170 m
+  // from a player. a kill dropped out in the wood was gone from the pool for the rest of the game. every path that
+  // throws away a fetch or a haul comes through here now, and it sets the respawn itself.
+  function releasePrey(n) {
+    if (!n.prey) return;
+    n.prey.carried = false;
+    n.prey.claimed = null;
+    n.prey.respawnT = 30;
+    n.prey = null;
+    n.preyT = 0;
+    n.carrying = null;
+    n.hearth = null;
   }
   // advance deer state, animation and related scene objects for this frame
   function updateDeer(dt) {
@@ -12862,7 +13072,7 @@ const __boot = (async () => {
         return;
       }
     for (const n of npcs)
-      if (n.kind !== "king" && n.kind !== "body" && near(n.pos, 3.4)) {
+      if (n.kind !== "king" && n.kind !== "body" && !n.napping && near(n.pos, 3.4)) {
         if (sideTalk(n)) return;
         if (n.kind === "story" || n === MAREN || n === HALE) {
           storyTalk(n);
