@@ -2,7 +2,7 @@
 
 Single ordered list of everything outstanding, most important first. Maintained by the
 standing backlog manager — this file is the source of truth for what is still open.
-File positions refer to `legend_of_peanits_v2.1.7.html` unless noted.
+File positions refer to `legend_of_peanits_v2.2.0.html` unless noted.
 
 ## How this is ordered
 

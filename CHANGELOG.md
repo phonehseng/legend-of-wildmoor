@@ -1137,3 +1137,121 @@ nothing visible, so the key read as broken. Only `#minimap:not(.big)` hides now.
 ### The "Found" strip is off the stats page
 
 That list was the satchel's job, and the satchel shows the things themselves.
+
+---
+
+## 2.2.0 — The seam under the world (3.0 phase 1), and three from play
+
+### The depth seam
+
+The foundation the whole Gehenna update sits on. **Nothing on screen changes.**
+Every routed path below is unreachable while Gehenna does not exist, which is
+the entire point of landing it first and separately.
+
+`DIVIDE = -200` splits the world in two. Above it, the valley, untouched. Below
+it, Gehenna: its own heightfield (`gehH`), its own structure grid
+(`gehStructsAt`), its own ground (`gehGroundAt`).
+
+- **`groundAt(x, z, y)` routes on its `y`.** One comparison at the top. Every
+  existing call site routes itself with no edit — the attack-tell ring already
+  passes the enemy's own height, and every NPC ground snap already passes the
+  villager's own.
+- **`terrainH` is never routed**, and now carries a comment saying so and why.
+  Four systems read it as a fact about x and z alone: the terrain mesh is built
+  from it; `isWater`/`isDeep`/`waterSurfaceAt` gate villager pathing, enemy
+  siting, plants and footstep material; the minimap paints its water band from
+  it; and the boss-relocation routine is harmless underground only because it
+  compares `terrainH` against the player's own y.
+- **`stepH(x, z, y)`** is the cheap heightfield router for the four
+  player-position predicates that genuinely need depth. The most important by
+  far is `okMove`: with `terrainH` there, a player at −280 compares 300 < 1.6
+  against every candidate direction, every one fails, and the movement falls
+  through to a velocity bounce. **Frozen solid, in every direction.**
+- **A boot assertion.** Terrain is bounded below near −26 analytically (`fbm` is
+  a sum of positive amplitudes, flooring the base term at
+  `(0 − 0.42)·40 + (0 − 0.5)·16 = −24.8`, and the deepest carve in the world is
+  the tarn bed 1.2 m under that). The assertion measures the true minimum over
+  all 130,321 vertices the world is drawn from, every boot, and shouts if the
+  margin ever falls under 100 m. The proof is a fact each start, not a memory.
+
+### Bug 78 — Two collision primitives had no lower bound · FIXED
+
+Both are **live overworld bugs**, not just Gehenna preparation.
+
+`pushOutOfTrees` bounded the push above (`p.y < t.y + 10 * t.s`) and not at all
+below, so a trunk shoved anything beneath its own roots — already wrong today
+for a body in the bear cave or inside a house under a canopy tree.
+
+`resolveStructs` skipped a structure you were standing on top of and one you
+were under via `s.bottom`, but had no floor either.
+
+Both are bounded now (3 m under a tree's base, 40 m under a structure's top —
+below every building, wall and bridge in the valley).
+
+### Bug 79 — Nim's mother had a man's voice · FIXED
+
+**Reported:** "nims mother has a male voice for some reason."
+
+The Thornback quest giver is whichever villager `giverOf(2)` happens to pick,
+and for the mother the code swapped her **mesh** for a woman's body and nothing
+else. The voice belongs to the NPC record, not to the mesh, so she kept whatever
+pitch and voice the picked villager had — a man's on most seeds. `female`,
+`pitch`, `rate` and `voice` are rebuilt with the numbers `addNPC` would have
+used for a woman.
+
+She is also called **Nim's mother** now rather than "Thornback mother", in all
+four places the name appears. Safe to rename: `who` is a runtime display string
+and a lookup key, never serialised — only quest `title` is a save key.
+
+### Bug 80 — The berry-pickers came apart · FIXED
+
+**Reported:** "the villagers picking berries at the bushes in the kingdom are
+the only ones glitched, their torso is below their head and their head and legs
+are way too high."
+
+**Cause.** Head, neck, torso and both arms are five **siblings** on the person
+rig, not children of the torso. The kneel pose dropped `u.body.position.y` from
+0.98 to 0.35 and moved nothing else — so the head stayed at 2.6 and the
+shoulders at 2.05, hanging in the air over a torso at ankle height. And folding
+the legs 1.4 radians about a hip at 1.02 swung the feet up off the ground. Both
+halves of the report, from one line each.
+
+**Fix.** A kneel is not a pose this rig can hold honestly, and a bend at the
+waist is what someone picking from a bush actually does anyway. The torso pivots
+at its own origin and the head, neck and both shoulders are swung round that
+same point, so the body stays one body. It eases in and out, and the panic
+path releases it — nobody keeps picking berries while they run.
+
+This was never only the berry-pickers: every washer at the water kneels through
+the same branch.
+
+### Bug 81 — Nim stood on the shore forever after a load · FIXED
+
+**Reported:** "nim respawns at the shore when loading a save, even after her quest
+is done."
+
+**Cause, and it is a class of bug rather than one bug.** `applySave` moved her
+logical `pos` to Thornback correctly — the flag round-trips fine, and `nimHome`
+is a top-level key so `pickObj` never touches it. But **`updateNPCs` is the only
+thing in the game that writes an NPC's `mesh.position` after world build**, and
+it early-outs at `distToPlayer > 420` — measured from her **new** position. So
+her body stayed standing where the world built her, out of the tick's range,
+un-talkable and with no prompt over it, until the player happened to walk within
+420 m of Thornback.
+
+**Fix.** `syncNPCMesh(n)` places the model whenever an NPC's position is changed
+from outside the tick, and Nim's load path calls it — with `groundAt` for her
+height rather than the village pad's, and a heading that faces the village.
+
+The same omission exists at three other relocation sites — `freeMaren`,
+`stockHale` and `guardsOutside` — and is harmless at each, because all three
+move an NPC ten to thirty metres inside the town, where the tick is always
+running. They call the helper anyway: the difference between those and Nim's is
+distance, and distance is exactly the sort of thing that changes later.
+
+### Bug 82 — A latent crash in the corpse fade · FIXED
+
+`updateExtraEnemies` fades a dead enemy with `else { e.mat.opacity = ... }`. Any
+`EXTRA` kind without an `e.mat` would throw a `TypeError` **from inside
+`update()`, on every frame of its own corpse** — which takes the whole game
+down, not the one enemy. No kind hits it today. Guarded before one does.

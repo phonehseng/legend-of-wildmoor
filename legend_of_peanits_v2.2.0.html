@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.1.7</title>
+<title>Legend of Peanits 2.2.0</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -373,7 +373,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.1.7</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.2.0</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -440,7 +440,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.1.7</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.2.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -781,7 +781,7 @@ const __boot = (async () => {
     goblinKingDefeated: false, bearDefeated: false, finaleStarted: false, wardenDead: false, ending: null,
     relics: { seal: false, root: false, warden: false, tear: false }, wolfChoice: null, home: false, guardsOut: false
   };
-  const rootReadable = () => { const q = SIDE.find(q => q.who === "Thornback mother"); return !!(q && q.done); };
+  const rootReadable = () => { const q = SIDE.find(q => q.who === "Nim's mother"); return !!(q && q.done); };
   const villageQuests = () => SIDE.filter(q => q.giver && q.giver.village !== undefined);
   const villagesDone = () => villageQuests().filter(q => q.done).length;
   // the valley's difficulty grows with what you carry: enemies hit harder and last longer the further the story goes
@@ -1744,9 +1744,32 @@ const __boot = (async () => {
     PLATEAU = 8,
     TOWN_R = 62,
     DAY_LEN = TUNE.time.dayLength,
+    // the seam. above it is the valley, below it is gehenna. terrainH is bounded below at about -26 by construction
+    // (fbm is a sum of positive amplitudes so it never goes under zero, which floors the base term at
+    // (0 - 0.42) * 40 + (0 - 0.5) * 16 = -24.8, and the deepest carve in the world is the tarn bed 1.2 under that).
+    // the boot assertion after the terrain mesh is built measures the real minimum over every vertex the world is
+    // drawn from, so the margin is a fact each time the game starts rather than a number somebody once worked out.
+    DIVIDE = -200,
+    GEH_VOID = -1400, // what gehenna's ground reads as before gehenna exists: a floor nothing can fall onto
     ELDER = { x: 0, z: -175, h: 14 };
+  let TERRAIN_MIN = 0;
+  // gehenna, when it exists: one root node, one structure grid, one seed, and the two heights that bound it. while
+  // root is null every depth-routed path below is unreachable, which is why the seam can land with nothing on screen
+  // changing at all.
+  // gehenna sits in a far corner of the coordinate space rather than directly under the valley, and that is a
+  // performance decision rather than a fictional one: every proximity gate in this game is dist2D, so a player
+  // stacked under the town is still at horizontal distance zero from it — forty villagers thinking at full rate,
+  // the goblin cull never firing, and the wraith spawner happily seeding the valley while you are three hundred
+  // metres below it. offsetting takes all of them cold for free, with no per-system gate, and nobody can see the
+  // sideways part of the journey because the screen is full of black water while it happens.
+  const GEH = { root: null, seed: 0, cx: 600, cz: 600, structs: new Map(), enemies: [], ceil: 0, floor: -280, arrive: null, failed: false };
   const peakNoise = (x, z) => Math.pow(Math.max(0, fbm(x / 230 + 7, z / 230 + 7, 4) - 0.58) / 0.3, 1.4);
-  // compute terrain h for the surrounding game system
+  // compute terrain h for the surrounding game system.
+  // DO NOT ROUTE THIS BY DEPTH. terrainH is the valley's 2D heightfield and four separate systems read it as a fact
+  // about x and z alone: the terrain mesh itself is built from it; isWater / isDeep / waterSurfaceAt gate villager
+  // pathing, enemy siting, plants and footstep material; the minimap paints its water band from it; and the boss
+  // relocation routine is harmless with the player underground only because it compares terrainH against the player's
+  // own y and finds nothing within twelve metres. depth routing lives in groundAt and stepH, and nowhere else.
   function terrainH(x, z) {
     let h = (fbm(x / 110 + 100, z / 110 + 100) - 0.42) * 40 + (fbm(x / 42 + 300, z / 42 + 300, 3) - 0.5) * 16;
     const pk = peakNoise(x, z);
@@ -1909,8 +1932,38 @@ const __boot = (async () => {
     const a = Math.atan2(Math.sin(ang - (s.gateA || 0)), Math.cos(ang - (s.gateA || 0)));
     return Math.abs(a) < s.gate;
   };
-  // return the highest walkable terrain or structure surface below the supplied height
+  // gehenna's own heightfield and structure grid. it shares nothing with terrainH, which is exactly why a flat placed
+  // at gehenna's coordinates cannot crater the valley: there are no shared coordinates to crater.
+  function gehH(x, z) {
+    if (!GEH.root) return GEH_VOID;
+    const dx = x - GEH.cx, dz = z - GEH.cz, r = Math.hypot(dx, dz);
+    let h = GEH.floor + (fbm(x / 60 + GEH.seed, z / 60 + GEH.seed, 4) - 0.5) * 9;
+    if (r > 150) h += (r - 150) * 1.4; // the room closes in around you rather than ending at an edge you can walk off
+    return h;
+  }
+  const gehStructsAt = (x, z) => GEH.structs.get(skey(Math.floor(x / SCELL), Math.floor(z / SCELL))) || _nostruct;
+  function gehGroundAt(x, z, y) {
+    if (!GEH.root) return GEH_VOID;
+    let h = gehH(x, z);
+    for (const s of gehStructsAt(x, z)) {
+      if (s.top > y + 1.2) continue;
+      const dx = x - s.cx, dz = z - s.cz;
+      if (Math.abs(dx) > s.b || Math.abs(dz) > s.b) continue;
+      if (s.r !== undefined) { if (dx * dx + dz * dz < s.r * s.r) h = Math.max(h, s.top); }
+      else if (Math.abs(dx) < s.w && Math.abs(dz) < s.d) h = Math.max(h, s.top);
+    }
+    return h;
+  }
+  // the cheap heightfield for whichever world a point is in: groundAt without the structure walk. exactly four
+  // player-position predicates need this. every other terrainH caller is worldgen, npc ai, the minimap or the water
+  // predicates, and every one of those must keep seeing the valley's heightfield and nothing else.
+  const stepH = (x, z, y) => (y < DIVIDE ? gehH(x, z) : terrainH(x, z));
+  // return the highest walkable terrain or structure surface below the supplied height.
+  // one comparison decides which world the point is in, and the test is on y rather than on the caller — so every
+  // existing call site routes itself with no edit at all, including the attack-tell ring (which already passes the
+  // enemy's own height) and every npc ground snap (which already passes the villager's own).
   function groundAt(x, z, y = 1e9) {
+    if (y < DIVIDE) return gehGroundAt(x, z, y);
     let h = terrainH(x, z);
     if (helixGround && !NOHELIX) {
       const hg = helixGround(x, z, y);
@@ -1945,11 +1998,15 @@ const __boot = (async () => {
   }
   // push a moving body out of nearby solid building surfaces
   function resolveStructs(p, rad) {
-    for (const s of structsAt(p.x, p.z)) {
+    // the walls of whichever world the body is in. the structure grid is keyed on x and z alone, so without this a
+    // body under the seam is shoved by the town wall three hundred metres over its head.
+    for (const s of (p.y < DIVIDE ? gehStructsAt(p.x, p.z) : structsAt(p.x, p.z))) {
       const dx = p.x - s.cx,
         dz = p.z - s.cz;
       if (Math.abs(dx) > s.b + rad || Math.abs(dz) > s.b + rad) continue;
-      if (s.floorOnly || p.y >= s.top - 1.0 || (s.bottom !== undefined && p.y + 2.4 <= s.bottom)) continue;
+      // same one-sided bound as the trees: forty metres under a structure's walkable top is below every building,
+      // wall and bridge in the valley, and still a hundred and sixty above the divider.
+      if (s.floorOnly || p.y >= s.top - 1.0 || p.y < s.top - 40 || (s.bottom !== undefined && p.y + 2.4 <= s.bottom)) continue;
       if (s.r1 !== undefined) {
         const d = Math.hypot(dx, dz) || 0.001;
         if (inGate(s, dx, dz) || d < s.r0 - rad || d > s.r1 + rad) continue;
@@ -2723,6 +2780,15 @@ const __boot = (async () => {
       hs[i] = terrainH(pos.getX(i), pos.getZ(i));
       pos.setY(i, hs[i]);
     }
+    {
+      // the divider under the world is only safe if no real ground can reach it. the analytic floor is about -26;
+      // this measures the true minimum over the exact points the world is drawn from, every boot, so the margin is
+      // a fact and not a memory. if a future terrain change ever digs deeper than this allows for, the console says so.
+      let lo = Infinity;
+      for (let i = 0; i < hs.length; i++) if (hs[i] < lo) lo = hs[i];
+      TERRAIN_MIN = lo;
+      if (lo - DIVIDE < 100) console.error("DIVIDE is too close to real ground", { TERRAIN_MIN: lo, DIVIDE });
+    }
     const sand = toLin(0xe8d8a8),
       grass = toLin(0xb0e07a),
       heath = toLin(0x92c866),
@@ -3081,7 +3147,7 @@ const __boot = (async () => {
         this.pos[i3 + 1] += this.vel[i3 + 1] * dt;
         this.pos[i3 + 2] += this.vel[i3 + 2] * dt;
         if (o.ground) {
-          const g = Math.max(groundAt(this.pos[i3], this.pos[i3 + 2], this.pos[i3 + 1]), 0);
+          const g = Math.max(groundAt(this.pos[i3], this.pos[i3 + 2], this.pos[i3 + 1]), this.pos[i3 + 1] < DIVIDE ? GEH.floor - 4 : 0); // the 0 was a waterline clamp so sparks do not sink into a lake; below the divider the floor is gehenna's
           if (this.pos[i3 + 1] < g + 0.08) {
             this.pos[i3 + 1] = g + 0.08;
             this.vel[i3 + 1] *= -0.3;
@@ -3328,8 +3394,13 @@ const __boot = (async () => {
     rootM.instanceColor.needsUpdate = true;
   }
   const pushOutOfTrees = (p, rad) => {
+    if (p.y < DIVIDE) return; // nothing below the seam has roots
     for (const t of nearTrees(p.x, p.z, _nt)) {
       if (t.felled) continue;
+      // a trunk has an upper bound and never had a lower one, so it shoved anything beneath its own roots. that is
+      // already wrong today for a body in the bear cave or an interior under a canopy tree, and it would be fatal
+      // for one under the divider with three hundred metres of rock between them.
+      if (p.y < t.y - 3) continue;
       const k = clamp((p.y - t.y) / (2.5 * t.s), 0, 1),
         cx = lerp(t.bx === undefined ? t.x : t.bx, t.mx === undefined ? t.x : t.mx, k),
         cz = lerp(t.bz === undefined ? t.z : t.bz, t.mz === undefined ? t.z : t.mz, k),
@@ -4265,7 +4336,8 @@ const __boot = (async () => {
       plate.scale.z = 0.8;
       g.add(plate);
     }
-    g.add(cyl(0.11, 0.13, 0.3, skin, 0, 2.15, 0, 10));
+    u.neck = cyl(0.11, 0.13, 0.3, skin, 0, 2.15, 0, 10);
+    g.add(u.neck); // kept on the rig so the stoop can carry it: head, neck and shoulders are siblings of the torso, not children of it
     u.head = makeHead({
       skin: o.skin,
       hair: o.hair,
@@ -5369,6 +5441,17 @@ const __boot = (async () => {
       u.arms[1].rotation.x = damp(u.arms[1].rotation.x, -1.5, 14, dt);
     }
     u.body.position.y = damp(u.body.position.y, 0.98 + Math.abs(Math.sin(n.anim)) * 0.06 * n.walkAmp, 14, dt);
+    // nobody keeps picking berries while they run. this path exits before the main tick's stoop, so a gatherer who
+    // panics would otherwise sprint away still bent double with their head out in front of them.
+    if (n.stoop || n.stooped) {
+      const HIP = 0.98;
+      n.stoop = damp(n.stoop, 0, 9, dt);
+      u.body.rotation.x = n.stoop;
+      const cs = Math.cos(n.stoop), sn = Math.sin(n.stoop),
+        put = (o, baseY) => { if (!o) return; o.position.y = HIP + (baseY - HIP) * cs; o.position.z = (baseY - HIP) * sn; };
+      put(u.head, 2.6); put(u.neck, 2.15); put(u.arms[0], 2.05); put(u.arms[1], 2.05);
+      n.stooped = n.stoop > 0.001;
+    }
   }
   // ending a nap, from every direction there is: the timer running out, a goblin arriving, or his never reaching the
   // tent at all. one function, so no path can leave a hunter hidden, half-napping, or still holding a claim on a deer.
@@ -5832,7 +5915,7 @@ const __boot = (async () => {
         }
       } else if (n.worried) {
         // nim's mother: back and forth across the hut, wringing her hands, until her girl is home; then she stands at the door
-        const it = n.hut, k = it.grow || 1, home = SIDE.find(q => q.who === "Thornback mother"), calm = home && home.done;
+        const it = n.hut, k = it.grow || 1, home = SIDE.find(q => q.who === "Nim's mother"), calm = home && home.done;
         if (!calm) {
           n.paceT += dt; const span = (it.round ? it.round : it.w) * 0.55 * k, ph = Math.sin(n.paceT * 0.9);
           const tx = it.cx + Math.cos(n.paceDir || 0) * span * ph, tz = it.cz + Math.sin(n.paceDir || 0) * span * ph;
@@ -6384,14 +6467,20 @@ const __boot = (async () => {
       n.anim += dt * (moving ? 8 : 1.5);
       const sw = Math.sin(n.anim) * lerp(0.04, 0.5, n.walkAmp),
         kneel = working && (n.job === "gatherer" || (n.job === "washer" && n.atWater));
-      // poses are eased toward rather than assigned, so kneeling, sitting and standing up no longer pop
-      const legT = kneel ? 1.4 : n.sit ? -1.5 : 0;
+      // poses are eased toward rather than assigned, so kneeling, sitting and standing up no longer pop.
+      // the "kneel" was pulling a rig apart. head, neck, torso and arms are four SIBLINGS of the body group, not
+      // children of the torso, so dropping u.body to 0.35 left the head at 2.6 and the shoulders at 2.05 hanging in
+      // the air above a torso at ankle height — and folding the legs 1.4 radians about a hip at 1.02 swung the feet
+      // up off the ground. that is exactly the berry-pickers in the kingdom, and it would have been every washer too.
+      // a bend at the waist is what someone picking from a bush actually does, and it is the one pose this rig can
+      // hold honestly: the torso tips forward and the three pieces above it are carried round the same pivot.
+      const legT = kneel ? 0.28 : n.sit ? -1.5 : 0;
       u.legs[0].rotation.x = damp(u.legs[0].rotation.x, legT * (1 - n.walkAmp) + sw, 14, dt); // kneeling folds the legs under; sitting puts them out in front
       u.legs[1].rotation.x = damp(u.legs[1].rotation.x, legT * (1 - n.walkAmp) - sw, 14, dt);
       // the sit block used to set both arms and then be overwritten on the very next line, so sitting villagers only ever
       // posed one arm. the sit pose is folded into the target chain instead, and both arms ease into it.
       // the bow case used to be written after this and discard it, so a seated or kneeling bow-carrier never posed
-      const armT = n.job === "hunter" && working && u.bow ? -1.55 : n.sit ? -0.35 : kneel ? -1.1 + Math.sin(time * 4) * 0.3 : n.kind === "stocks" ? -1.4 : u.bow ? sw * 0.3 : sw;
+      const armT = n.job === "hunter" && working && u.bow ? -1.55 : n.sit ? -0.35 : kneel ? -0.3 + Math.sin(time * 4) * 0.28 : n.kind === "stocks" ? -1.4 : u.bow ? sw * 0.3 : sw;
       u.arms[0].rotation.x = damp(u.arms[0].rotation.x, armT, 14, dt);
       if (u.spearGrip) {
         const th = n.thrust > 0 ? Math.sin((n.thrust / 0.35) * Math.PI) : 0;
@@ -6409,7 +6498,23 @@ const __boot = (async () => {
                 ? -1.5
                 : -sw, 14, dt);
       if (u.axe) u.axe.rotation.x = n.thrust > 0 ? -Math.sin((n.thrust / 0.35) * Math.PI) * 1.5 : 0; // the axe comes over in the hand as the arm swings, so the head reaches the trunk
-      u.body.position.y = damp(u.body.position.y, (kneel ? 0.35 : 0.98) + Math.abs(Math.sin(n.anim)) * 0.06 * n.walkAmp, 14, dt);
+      u.body.position.y = damp(u.body.position.y, 0.98 + Math.abs(Math.sin(n.anim)) * 0.06 * n.walkAmp, 14, dt);
+      {
+        // the bend, carried by hand. the torso pivots at its own origin and the head, neck and shoulders are swung
+        // round that same point, so the body stays one body. eased, so straightening up is a movement and not a jump.
+        const HIP = 0.98;
+        n.stoop = damp(n.stoop === undefined ? 0 : n.stoop, kneel ? 0.82 : 0, 9, dt);
+        u.body.rotation.x = n.stoop;
+        if (n.stoop > 0.001 || n.stooped) {
+          const cs = Math.cos(n.stoop), sn = Math.sin(n.stoop),
+            put = (o, baseY) => { if (!o) return; o.position.y = HIP + (baseY - HIP) * cs; o.position.z = (baseY - HIP) * sn; };
+          put(u.head, 2.6);
+          put(u.neck, 2.15);
+          put(u.arms[0], 2.05);
+          put(u.arms[1], 2.05);
+          n.stooped = n.stoop > 0.001; // one more frame after it reaches zero, so the pieces are put back exactly where they started
+        }
+      }
       if (n.cart) {
         const hv = n.visH === undefined ? n.heading : n.visH,
           sx = Math.cos(hv) * (n.horse ? 1.7 : 0),
@@ -9138,7 +9243,7 @@ const __boot = (async () => {
           // she sends you to wren's fitting room, so the arrow points there rather than back at the woman who asked
           target: () => (STORY.weaver0 !== undefined && JSON.stringify([CUSTOM.tunic, CUSTOM.cape, CUSTOM.hair, CUSTOM.style]) !== STORY.weaver0 ? null : WREN_POS), ask: () => { STORY.weaver0 = JSON.stringify([CUSTOM.tunic, CUSTOM.cape, CUSTOM.hair, CUSTOM.style]); return "That tunic. Those colours. I weave for a living and it hurts to look at you. Wren in the kingdom keeps a fitting room; go and come back dressed like a person, and I'll give you something worth wearing."; }, nag: "Wren's fitting room, in the kingdom. Any change. Please.", thanks: "Better. Much better. Here, a sash of my own weaving; it keeps the wind out of your lungs.", check: () => STORY.weaver0 !== undefined && JSON.stringify([CUSTOM.tunic, CUSTOM.cape, CUSTOM.hair, CUSTOM.style]) !== STORY.weaver0, progress: () => "change your look at Wren's", reward: () => grant("Highreach Sash: +12 stamina", () => { P.bonus.stam += 12; }) },
         { vi: 1, who: "Stonefold elder", title: "Fetch the violet stone from the black pool", ask: "Our colour comes from the stone under this hill. There's a fist of it lying on the shore of the black pool below the kingdom, and the pool is no place for old bones. Bring it and I'll give you our charm.", nag: "The black pool, below the kingdom. A purple stone on its shore. Don't swim; it's cold and it remembers.", thanks: "That's it. Feel how warm it is. Take this charm; slimes cannot bear the colour.", check: () => pickups.some(p => p.id === "quest:stonefold" && p.taken), progress: () => "the violet stone", reward: () => grant("Stonefold Charm: slimes take a third more from you", () => { P.bonus.slime *= 1.33; }) },
-        { vi: 2, who: "Thornback mother", title: "Find Nim, who ran into the forest",
+        { vi: 2, who: "Nim's mother", title: "Find Nim, who ran into the forest",
           // she only has anything to say once nim is on her way: the child is found by finding her, not by being sent.
           available: () => !!LOST.found,
           target: () => (LOST.found ? null : LOST.pos),
@@ -9149,7 +9254,12 @@ const __boot = (async () => {
         { vi: 6, who: "Kestrel Rest potter", title: "Two pale trees for the Kestrel Rest kiln", ask: () => { STORY.potter0 = P.logs; return "The kiln eats pale wood, nothing else burns hot enough. Two pale trees felled and I'll fire something for you."; }, nag: () => `Two pale trees. Only the pale-barked ones take an axe. ${Math.min(2, P.logs - (STORY.potter0 || 0))} so far.`, thanks: "Two. That's a firing. Here, a glazed charm, hot from the kiln.", check: () => P.logs - (STORY.potter0 || 0) >= 2, progress: () => `${Math.min(2, P.logs - (STORY.potter0 || 0))}/2 pale trees`, reward: () => grant("Kestrel Charm: +8 stamina", () => { P.bonus.stam += 8; }) },
         { vi: 7, who: "Hollowmere ferryman", title: "Bring two of the queen's children home for Hollowmere", ask: () => { STORY.ferry0 = ferryBase(FAIRY.found); return "The pink fairies keep the mere sweet, and two too many have gone missing lately. Find two of the little ones and I'll give you my lantern."; }, nag: () => `Two of the queen's children. ${ferryDone()} so far.`, thanks: "Two home. The water already tastes better. My lantern; it's lit with the mere's own light.", check: () => ferryDone() >= 2, progress: () => `${ferryDone()}/2 children`, reward: () => grant("Hollowmere Lantern: a Heart Piece", () => { P.maxHp++; P.hp = P.maxHp; }) }
       ];
-      for (const d of defs) { const g = giverOf(d.vi); if (!g) continue; g.name = d.who; g.quester = true; g.post = true; g.stay = true; g.job = "idle"; g.home.copy(g.pos); addSideQuest({ giver: g, who: d.who, title: d.title, ask: d.ask, nag: d.nag, thanks: d.thanks, check: d.check, progress: d.progress, reward: d.reward, available: d.available || (() => WORLDSTATE.hermitWarned), target: d.target, notYet: ["Hmph. No trouble here a stranger can fix. Come back when the valley needs you.", "We manage. Come back when you're stronger, or when things are worse.", "I've no errand for you. Not yet. Ask me again when the pool has shown its face."][d.vi % 3] }); if (d.vi === 2) { const m2 = makePerson({ robe: 0x6a8a6a, hair: 0xe8d8a0, skin: 0xf0e0d0, elf: true, seed: 914, female: true, style: "braid", shawl: 0x8aa88a, pitch: 1.2 }); scene.remove(g.mesh); g.mesh = m2; scene.add(m2); g.worried = true; g.job = "idle"; g.post = true; g.stay = true; g.allowInside = true; g.paceT = 0; g.pos.set(g.hut.cx, g.hut.y, g.hut.cz); g.home.copy(g.pos); g.throughDoor = g.hut; } } // nim's mother does not leave the hut; she paces it
+      for (const d of defs) { const g = giverOf(d.vi); if (!g) continue; g.name = d.who; g.quester = true; g.post = true; g.stay = true; g.job = "idle"; g.home.copy(g.pos); addSideQuest({ giver: g, who: d.who, title: d.title, ask: d.ask, nag: d.nag, thanks: d.thanks, check: d.check, progress: d.progress, reward: d.reward, available: d.available || (() => WORLDSTATE.hermitWarned), target: d.target, notYet: ["Hmph. No trouble here a stranger can fix. Come back when the valley needs you.", "We manage. Come back when you're stronger, or when things are worse.", "I've no errand for you. Not yet. Ask me again when the pool has shown its face."][d.vi % 3] }); if (d.vi === 2) { const m2 = makePerson({ robe: 0x6a8a6a, hair: 0xe8d8a0, skin: 0xf0e0d0, elf: true, seed: 914, female: true, style: "braid", shawl: 0x8aa88a, pitch: 1.2 }); scene.remove(g.mesh); g.mesh = m2; scene.add(m2);
+        // the mesh was swapped for a woman's and nothing else was: she kept whatever voice the villager giverOf happened
+        // to pick, which on most seeds is a man's. the voice belongs to the npc, not to the body, so it has to be
+        // rebuilt here with the same numbers addNPC would have used for a woman.
+        g.female = true; g.pitch = 1.2; g.rate = 1; g.voice = 340;
+        g.worried = true; g.job = "idle"; g.post = true; g.stay = true; g.allowInside = true; g.paceT = 0; g.pos.set(g.hut.cx, g.hut.y, g.hut.cz); g.home.copy(g.pos); g.throughDoor = g.hut; } } // nim's mother does not leave the hut; she paces it
       const canopyFolk = npcs.find(n => n.canopy && !n.kid);
       if (canopyFolk) { canopyFolk.name = "Elder-tree lookout"; addSideQuest({ giver: canopyFolk, who: "Elder-tree lookout", title: "Bring the three children lost on the lookouts home", ask: "Three of the queen's little ones are stuck on our lookout platforms, and none of us can fly. Bring them down and I'll give you the feather that lets a person climb the air.", nag: "The three lookout platforms on the tree. The little pink ones. Bring them home.", thanks: "All three. Take the skyfeather, then; hold it and the air will bear you a third time.", check: () => FAIRY.children.filter(c => (c.clue || "").startsWith("Elder") && c.found).length >= 3, progress: () => `${FAIRY.children.filter(c => (c.clue || "").startsWith("Elder") && c.found).length}/3 lookout children`, reward: () => grant("Skyfeather: a third jump in the air", () => { P.bonus.jumps = 3; }) }); }
     }
@@ -10934,7 +11044,7 @@ const __boot = (async () => {
     { text: "Ask the hermit again: how did the old folk shut it?", done: () => WORLDSTATE.hermitWarned, hint: () => `Follow the road ${dirTo(hermitPos)}`, target: () => hermitPos },
     // act iv: the valley
     { text: "The King's Seal: the king wants the Goblin King dead before he'll part with it", done: () => WORLDSTATE.relics.seal, hint: () => (WORLDSTATE.goblinKingDefeated ? `The throne is ${dirTo(king.pos)}` : "The Goblin King comes to the walls at night. Wait for him outside the gate."), target: () => (WORLDSTATE.goblinKingDefeated ? king.pos : V3(0, PLATEAU, TOWN_R + 20)) },
-    { text: "The Root Word: it is cut in the elves' tongue; Thornback's mother will read it once Nim is home", done: () => WORLDSTATE.relics.root, hint: () => (rootReadable() ? `The stairs up the elder tree are ${dirTo(ELDERSTAIR)}; keep climbing past the huts` : `Thornback is ${dirTo(villages[2].center)}`), target: () => (rootReadable() ? RELIC_SPOTS.root || ELDERSTAIR : villages[2].center) },
+    { text: "The Root Word: it is cut in the elves' tongue; Nim's mother will read it once Nim is home", done: () => WORLDSTATE.relics.root, hint: () => (rootReadable() ? `The stairs up the elder tree are ${dirTo(ELDERSTAIR)}; keep climbing past the huts` : `Thornback is ${dirTo(villages[2].center)}`), target: () => (rootReadable() ? RELIC_SPOTS.root || ELDERSTAIR : villages[2].center) },
     { text: "The Warden's Stone: it lies under the Old Bear's hoard, and the bear does not share", done: () => WORLDSTATE.relics.warden, hint: () => `The cave is ${dirTo(CAVE)}`, target: () => (CAVE ? V3(CAVE.x, CAVE.h, CAVE.z) : POOL) },
     { text: "The Queen's Tear: bring ten of the rose court's children home and ask their mother", done: () => WORLDSTATE.relics.tear, hint: () => (FAIRY.found < 10 ? `${FAIRY.found}/10 children home. ${fairyHint()}` : `Queen Rosabel is ${dirTo(FAIRY.queen.pos)}`), target: () => FAIRY.queen.pos },
     // act v: what lies beneath
@@ -11241,7 +11351,10 @@ const __boot = (async () => {
       Object.assign(P.owned, d.owned);
       Object.assign(P.bonus, d.bonus);
       P.herbs = d.herbs;
-      if (d.nimHome) { const nim = npcs.find(n => n.lost); if (nim) { nim.found = true; nim.stay = false; nim.post = false; const v = villages[2]; nim.pos.set(v.center.x + 3, v.center.y, v.center.z + 2); nim.home.copy(nim.pos); nim.job = "explore"; nim.radius = 12; nim.village = 2; } }
+      // her body does not follow her position. the villager tick is the only writer of mesh.position and it gives up past
+      // 420 m — measured from the NEW pos — so nim's model stayed standing in the elder wood where the world built her,
+      // unreachable and with no prompt over it, until the player happened to walk within range of thornback.
+      if (d.nimHome) { const nim = npcs.find(n => n.lost); if (nim) { nim.found = true; nim.stay = false; nim.post = false; const v = villages[2], nx = v.center.x + 3, nz = v.center.z + 2; nim.pos.set(nx, groundAt(nx, nz, v.center.y + 3), nz); nim.home.copy(nim.pos); nim.job = "explore"; nim.radius = 12; nim.village = 2; nim.heading = Math.atan2(v.center.x - nx, v.center.z - nz); syncNPCMesh(nim); } }
       P.swordSheep = d.swordSheep || 0;
       P.swordDeer = d.swordDeer || 0;
       P.flint = d.flint;
@@ -12884,10 +12997,13 @@ const __boot = (async () => {
     if (!HOME_SHELF) return; const i = HOME_SHELF.items;
     i.bear.visible = !!STORY.bearHeart; i.king.visible = !!STORY.kingTooth; i.seal.visible = !!WORLDSTATE.relics.seal; i.root.visible = !!WORLDSTATE.relics.root; i.tear.visible = !!WORLDSTATE.relics.tear;
   }
+  // moving an npc's logical pos is not moving their body: updateNPCs is the only writer of mesh.position and it early-outs
+  // past 420 m, so any relocation done outside the tick has to place the model itself or it stays where it was built
+  const syncNPCMesh = n => { if (n && n.mesh && n.pos && Number.isFinite(n.pos.x) && Number.isFinite(n.pos.z)) { n.mesh.position.copy(n.pos); n.visH = n.heading || 0; n.mesh.rotation.y = n.visH; } };
   function guardsOutside() {
     if (GUARDS_MOVED) return; WORLDSTATE.guardsOut = true; GUARDS_MOVED = true;
     const gate = npcs.filter(n => n.kind === "knight" && !n.hallGuard && n.radius !== 16 && n.pos.z > TOWN_R - 12).slice(0, 2);
-    gate.forEach((n, i) => { n.home = V3(i ? 9 : -9, 0, TOWN_R + 14); n.home.y = terrainH(n.home.x, n.home.z); n.pos.copy(n.home); n.radius = 6; n.allowInside = false; });
+    gate.forEach((n, i) => { n.home = V3(i ? 9 : -9, 0, TOWN_R + 14); n.home.y = terrainH(n.home.x, n.home.z); n.pos.copy(n.home); n.radius = 6; n.allowInside = false; syncNPCMesh(n); });
   }
   let GUARDS_MOVED = false;
   function dismantlePyre() {
@@ -12899,19 +13015,30 @@ const __boot = (async () => {
     discT -= dt; if (discT > 0) return; discT = 0.5;
     for (const id in DISCOVERIES) { const d = DISCOVERIES[id]; if (DISC_FOUND.has(id) || d.x === undefined) continue; if (dist2D(d, P.pos) < d.r && Math.abs((d.y === undefined ? P.pos.y : d.y) - P.pos.y) < 40) discover(id); }
   }
-  // the last place you stood that was sound; if your position ever stops being a number, or falls through the world, you come back here
-  const lastSafePos = V3(0, 8, 40); let safeT = 0;
+  // the last place you stood that was sound, one per world; a recovery returns you to the one for the world you are in
+  const lastSafePos = V3(0, 8, 40), lastSafeGeh = V3(0, 0, 0); let safeT = 0;
   const validPos = v => !!v && Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.z);
+  // what this guards, plainly: a position or velocity that has stopped being a number; the ceiling, because the
+  // movement really can throw you out of the sky; falling through the world, which `under` catches precisely at eight
+  // metres below the local heightfield with the three legitimate below-ground places exempted; and the hard floor,
+  // which is NOT a duplicate of `under` — terrain bottoms out around -26, so anything that genuinely fell through
+  // trips `under` long before -60. the floor is the net for when one of those exemptions is true and you are still
+  // falling, and nothing else would ever stop you. that is why it could not simply be lowered for gehenna: lowering
+  // it would switch the valley's last net off too. each world keeps its own floor and its own safe spot instead, and
+  // gehenna joins the exemption list only while it actually exists — a body under the divider with no gehenna built
+  // is still a bug, and is still caught.
   function guardPlayerPosition() {
-    const under = validPos(P.pos) && !roomNow && !P.climb && typeof insideCave === "function" && !insideCave() && P.pos.y < terrainH(P.pos.x, P.pos.z) - 8;
-    if (!validPos(P.pos) || P.pos.y < -60 || P.pos.y > 900 || !validPos(P.vel) || under) {
+    const geh = !!GEH.root && P.pos.y < DIVIDE, safe = geh ? lastSafeGeh : lastSafePos, floorY = geh ? GEH.floor - 60 : -60;
+    const under = validPos(P.pos) && !roomNow && !P.climb && !P.gehDive && typeof insideCave === "function" && !insideCave() && P.pos.y < stepH(P.pos.x, P.pos.z, P.pos.y) - 8;
+    if (!validPos(P.pos) || (!P.gehDive && P.pos.y < floorY) || P.pos.y > 900 || !validPos(P.vel) || under) {
       console.warn("Recovering the player from an impossible position", P.pos.x, P.pos.y, P.pos.z);
-      P.pos.copy(lastSafePos); P.vel.set(0, 0, 0); visY = P.pos.y; P.sliding = false; P.dive = false; P.airSlash = null; P.climb = null;
+      P.pos.copy(safe); P.vel.set(0, 0, 0); visY = P.pos.y; P.sliding = false; P.dive = false; P.airSlash = null; P.climb = null;
+      if (P.gehDive) { P.gehDive = null; P.swim = false; }
       return;
     }
     P.hp = clamp(P.hp, 0, P.maxHp); P.stam = clamp(P.stam, 0, stamMax());
     safeT -= 1; if (safeT > 0) return; safeT = 30;
-    if (P.grounded && !P.swim && !death && P.pos.y > terrainH(P.pos.x, P.pos.z) - 1 && inBounds(P.pos.x, P.pos.z)) lastSafePos.copy(P.pos);
+    if (P.grounded && !P.swim && !death && P.pos.y > stepH(P.pos.x, P.pos.z, P.pos.y) - 1 && (geh || inBounds(P.pos.x, P.pos.z))) safe.copy(P.pos);
   }
   // the goblin camp in the wood: made from the saved count, so a reload rebuilds exactly what was left of it
   function makeGoblinCamp() {
@@ -13399,11 +13526,13 @@ const __boot = (async () => {
     MAREN.radius = 10;
     MAREN.home = V3(-22, PLATEAU, 30);
     MAREN.pos.copy(MAREN.home);
+    syncNPCMesh(MAREN);
     MAREN.phase = "home";
     MAREN.mesh.userData.arms[0].rotation.x = 0;
     HALE.kind = "stocks";
     HALE.pos.set(-12.45, PLATEAU, 36);
     HALE.heading = Math.PI / 2;
+    syncNPCMesh(HALE);
     HALE.job = "idle";
     P.bonus.herbSight = true;
     herbs.forEach(h => {
@@ -14774,7 +14903,9 @@ const __boot = (async () => {
     if (netGuest()) { for (const e of EXTRA) if (e.tx !== undefined) { const k = Math.min(1, dt * 10); e.pos.x = lerp(e.pos.x, e.tx, k); e.pos.y = lerp(e.pos.y, e.ty, k); e.pos.z = lerp(e.pos.z, e.tz, k); e.heading = e.th; e.mesh.position.copy(e.pos); e.mesh.rotation.y = e.heading; e.mesh.visible = e.alive; if (e.mat) e.mat.opacity = e.state === "recover" ? 1 : 0.55; updateHealthBar(e, e.kind === "wolf" ? 1.8 : 3); } return; }
     for (let i = EXTRA.length - 1; i >= 0; i--) {
       const e = EXTRA[i];
-      if (!e.alive) { e.t += dt; if (e.kind === "wolf") { e.mesh.rotation.z = lerp(e.mesh.rotation.z, 1.5, Math.min(1, dt * 3)); e.mesh.position.y = e.pos.y - Math.max(0, e.t - 6) * 0.3; } else { e.mat.opacity = Math.max(0, 0.55 - e.t * 0.5); } if (e.t > 8 || (e.wraith && e.t > 1.5)) { removeEnemy(e); if (e.den) e.den.wolves = e.den.wolves.filter(w => w !== e); EXTRA.splice(i, 1); } continue; }
+      // the corpse fade is guarded on e.mat now: any EXTRA kind without one threw a TypeError from inside update() on
+      // every frame of its own body, which takes the whole game down rather than the one enemy.
+      if (!e.alive) { e.t += dt; if (e.kind === "wolf") { e.mesh.rotation.z = lerp(e.mesh.rotation.z, 1.5, Math.min(1, dt * 3)); e.mesh.position.y = e.pos.y - Math.max(0, e.t - 6) * 0.3; } else if (e.mat) { e.mat.opacity = Math.max(0, 0.55 - e.t * 0.5); } if (e.t > 8 || (e.wraith && e.t > 1.5)) { removeEnemy(e); if (e.den) e.den.wolves = e.den.wolves.filter(w => w !== e); EXTRA.splice(i, 1); } continue; }
       const tgt = nearestPlayerTo(e.pos), dx = tgt.pos.x - e.pos.x, dz = tgt.pos.z - e.pos.z, dist = Math.hypot(dx, dz);
       e.t -= dt; e.flash = Math.max(0, e.flash - dt);
       if (e.wraith) updateWraith(e, tgt, dx, dz, dist, dt); else if (e.kind === "wolf") updateWolf(e, tgt, dx, dz, dist, dt);
@@ -14898,6 +15029,7 @@ const __boot = (async () => {
   let wraithT = 5, wraithHeat = 0, wraithSeen = 0;
   function updateWraithSpawns(dt) {
     if (netGuest() || !WORLDSTATE.blackPoolAwake || WORLDSTATE.ending || WORLDSTATE.finaleStarted) return;
+    if (P.pos.y < DIVIDE) return; // the drowned belong to the pool, not to what is under it — and every distance test below is 2D
     // running from them is not an answer. every interval you leave one walking, the pool sends another and sends it
     // sooner; every one you put down takes the pressure back off. so the player who turns and fights ends the night
     // with two behind them, and the player who keeps walking ends it with eight.
@@ -15050,7 +15182,7 @@ const __boot = (async () => {
   // extracted from update: one job, run once per frame
   function updateEnemyTells() {
   for (const e of allEnemies()) {
-        if (!e.boss || !e.alive || e.kind === "bear") continue;
+        if (!e.boss || !e.alive || e.kind === "bear" || P.pos.y < DIVIDE) continue; // belt and braces: the terrainH test below already finds nothing, but this stops ten wasted candidate rolls a frame
         const d = dist2D(e.pos, P.pos);
         if (d > 55 && !P.swim) {
           for (let k = 0; k < 10; k++) {
@@ -15479,7 +15611,9 @@ const __boot = (async () => {
     if (!P.swim && !P.climb) P.vel.y -= GRAV * hdt * (P.dive && P.vel.y < 0 ? 1.25 : 1);
     const nx = P.pos.x + P.vel.x * hdt,
       nz = P.pos.z + P.vel.z * hdt;
-    const okMove = (x, z) => inBounds(x, z) && terrainH(x, z) - P.pos.y < 1.6;
+    // routed by depth: with terrainH here the player at -280 compares 300 &lt; 1.6 against every candidate, every one
+    // fails, and the movement falls through to a velocity bounce. frozen solid, in every direction.
+    const okMove = (x, z) => inBounds(x, z) && stepH(x, z, P.pos.y) - P.pos.y < 1.6;
     if (okMove(nx, nz)) {
       const hs = Math.hypot(nx - P.pos.x, nz - P.pos.z),
         n = Math.max(1, Math.ceil(hs / 0.7));
@@ -15572,7 +15706,7 @@ const __boot = (async () => {
       }
       if (P.airSlash.t > 0.45) P.airSlash = null;
     }
-    if (P.dive && !P.grounded && P.vel.y < 0 && P.pos.y > terrainH(P.pos.x, P.pos.z) + 0.3) { hitWildlife(3.4, null, 0, 4.5); if (hitPlayers(2.2, null, 0, 4.5, TUNE.combat.diveDamageMul * dmgMul() * WEAPONS[P.weapon].dmg, 11, true)) P.dive = false; }
+    if (P.dive && !P.grounded && P.vel.y < 0 && P.pos.y > stepH(P.pos.x, P.pos.z, P.pos.y) + 0.3) { hitWildlife(3.4, null, 0, 4.5); if (hitPlayers(2.2, null, 0, 4.5, TUNE.combat.diveDamageMul * dmgMul() * WEAPONS[P.weapon].dmg, 11, true)) P.dive = false; }
     if (P.dive && !P.grounded && P.vel.y < 0)
       for (const e of allEnemies()) {
         if (!e.alive) continue;
