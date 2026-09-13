@@ -4592,9 +4592,15 @@ const __boot = (async () => {
     // almost straight at 0.2, burying half of it half a metre under the terrain for the whole slide. solving the angle
     // against the hip height as it actually is right now — rather than against the constants it is heading toward — keeps
     // the foot planted through the transition too, which is when the old code dug in deepest.
-    // only while they are actually standing on something — swimming and falling have no floor to clip through, and the
-    // dodge roll deliberately spins the whole rig past any sane leg angle.
-    if (!P.swim && !air && !(P.dodge > 0)) {
+    // these used to damp the legs a second time after the write below, which composes two exponential steps in one frame
+    // and lands on a blend of both targets rather than the override. they are targets now, like every other state.
+    if (P.airSlash) { lLegT = -0.7; rLegT = 0.9; }
+    else if (P.dive) { lLegT = rLegT = -0.5; }
+    if (P.climb) { const cc = P.climbAnim || 0; lLegT = -0.6 + Math.sin(cc) * 0.5; rLegT = -0.6 - Math.sin(cc) * 0.5; }
+    // ONLY while sliding. the rest pose already sits about 8 cm of boot below the ground plane by design, so at a normal
+    // hip height of 1.05 against a 1.133 m leg this solve is unsatisfiable at zero and would splay both legs 22 degrees
+    // apart forever just standing still. the slide is the one state that genuinely drops the hip far enough to bury a leg.
+    if (P.sliding && !P.swim && !air && !(P.dodge > 0)) {
       const LEG = 1.133,
         hip = u.rig.position.y - 0.15 * Math.cos(u.rig.rotation.x),
         need = Math.acos(clamp(hip / LEG, -1, 1)); // the shallowest total pitch that still clears the ground
@@ -4602,7 +4608,7 @@ const __boot = (async () => {
         const total = u.rig.rotation.x + leg.v;
         if (hip < LEG && Math.abs(total) < need) {
           // push the leg the short way past the limit, keeping the side it was already leaning toward
-          const fixed = (total < 0 ? -need : need) - u.rig.rotation.x;
+          const fixed = (total < 0 || (total === 0 && leg.t === "l") ? -need : need) - u.rig.rotation.x;
           if (leg.t === "l") lLegT = fixed;
           else rLegT = fixed;
         }
@@ -4627,13 +4633,9 @@ const __boot = (async () => {
     if (P.airSlash) {
       rA = { x: -1.6, y: -0.3 };
       lA = { x: -1.2, y: 0.6 };
-      u.lLeg.rotation.x = damp(u.lLeg.rotation.x, -0.7, 16, dt);
-      u.rLeg.rotation.x = damp(u.rLeg.rotation.x, 0.9, 16, dt);
     } else if (P.dive) {
       rA = { x: -0.15, y: -0.1 };
       lA = { x: -2.6, y: 0.2 };
-      u.lLeg.rotation.x = damp(u.lLeg.rotation.x, -0.5, 16, dt);
-      u.rLeg.rotation.x = damp(u.rLeg.rotation.x, -0.5, 16, dt);
     }
     if (P.atk) {
       const s = P.weapon === "spear" ? SPEAR_THRUST : SWINGS[P.atk.stage],
@@ -4654,8 +4656,6 @@ const __boot = (async () => {
       const c = P.climbAnim || 0;
       rA = { x: -2.3 + Math.sin(c) * 0.5, y: 0.1 };
       lA = { x: -2.3 - Math.sin(c) * 0.5, y: -0.1 };
-      u.lLeg.rotation.x = damp(u.lLeg.rotation.x, -0.6 + Math.sin(c) * 0.5, 18, dt);
-      u.rLeg.rotation.x = damp(u.rLeg.rotation.x, -0.6 - Math.sin(c) * 0.5, 18, dt);
     }
     if (armed && !P.atk && !P.airSlash) {
       rA = { x: -0.55 + Math.sin(P.anim) * 0.04, y: 0, z: -0.28 };
@@ -4671,12 +4671,12 @@ const __boot = (async () => {
     const lift = clamp(sp / 14, 0, 1) + (air ? (P.vel.y > 0 ? 0.5 : 1) : 0) + windStrength * 0.3;
     u.cape.forEach((seg, i) => {
       const target = 0.12 + lift * (i === 0 ? 0.55 : 0.25) + Math.sin(t * 7 - i * 1.1) * (0.05 + lift * 0.1);
-      seg.rotation.x = damp(seg.rotation.x, target, 8 - i, dt);
+      seg.rotation.x = damp(seg.rotation.x, target, Math.max(2, 8 - i), dt);
     });
     if (u.head.userData.tail)
       u.head.userData.tail.forEach((p, i) => {
         const target = 0.25 + lift * (i === 0 ? 0.7 : 0.35) + Math.sin(t * 6 - i * 1.3) * (0.08 + lift * 0.15);
-        p.rotation.x = damp(p.rotation.x, target, 9 - i, dt);
+        p.rotation.x = damp(p.rotation.x, target, Math.max(2, 9 - i), dt);
       });
     if (u.capeSkin) updateCapeSkin(u);
     blinkT -= dt;
@@ -5279,14 +5279,17 @@ const __boot = (async () => {
     // rotations lives further down the tick, past the early exit — so a villager sprinting from goblins ran the whole
     // six seconds with completely rigid legs, frozen in whatever pose the last full tick happened to leave.
     const u = n.mesh.userData;
-    if (!u || !u.legs) return;
+    if (!u || !u.legs || !u.arms || !u.body) return;
     n.walkAmp = damp(n.walkAmp === undefined ? 0 : n.walkAmp, moving ? 1 : 0, 9, dt);
     n.anim = (n.anim || 0) + dt * (moving ? 8 : 1.5);
     const sw = Math.sin(n.anim) * lerp(0.04, 0.5, n.walkAmp);
-    u.legs[0].rotation.x = damp(u.legs[0].rotation.x, sw, 14, dt);
-    u.legs[1].rotation.x = damp(u.legs[1].rotation.x, -sw, 14, dt);
-    u.arms[0].rotation.x = damp(u.arms[0].rotation.x, sw, 14, dt);
-    u.arms[1].rotation.x = damp(u.arms[1].rotation.x, -sw, 14, dt);
+    // honour the same seated and stocks poses the main path uses, or a villager frozen in shock stands their legs up
+    const legT = n.sit ? -1.5 : 0,
+      armT = n.sit ? -0.35 : n.kind === "stocks" ? -1.4 : sw;
+    u.legs[0].rotation.x = damp(u.legs[0].rotation.x, legT * (1 - n.walkAmp) + sw, 14, dt);
+    u.legs[1].rotation.x = damp(u.legs[1].rotation.x, legT * (1 - n.walkAmp) - sw, 14, dt);
+    u.arms[0].rotation.x = damp(u.arms[0].rotation.x, armT, 14, dt);
+    u.arms[1].rotation.x = damp(u.arms[1].rotation.x, n.sit ? -0.35 : -sw, 14, dt);
     u.body.position.y = damp(u.body.position.y, 0.98 + Math.abs(Math.sin(n.anim)) * 0.06 * n.walkAmp, 14, dt);
   }
   function updateNPCs(dtFrame) {
@@ -6123,11 +6126,12 @@ const __boot = (async () => {
         kneel = working && (n.job === "gatherer" || (n.job === "washer" && n.atWater));
       // poses are eased toward rather than assigned, so kneeling, sitting and standing up no longer pop
       const legT = kneel ? 1.4 : n.sit ? -1.5 : 0;
-      u.legs[0].rotation.x = damp(u.legs[0].rotation.x, lerp(legT, sw, n.walkAmp), 14, dt); // kneeling folds the legs under; sitting puts them out in front
-      u.legs[1].rotation.x = damp(u.legs[1].rotation.x, lerp(legT, -sw, n.walkAmp), 14, dt);
+      u.legs[0].rotation.x = damp(u.legs[0].rotation.x, legT * (1 - n.walkAmp) + sw, 14, dt); // kneeling folds the legs under; sitting puts them out in front
+      u.legs[1].rotation.x = damp(u.legs[1].rotation.x, legT * (1 - n.walkAmp) - sw, 14, dt);
       // the sit block used to set both arms and then be overwritten on the very next line, so sitting villagers only ever
       // posed one arm. the sit pose is folded into the target chain instead, and both arms ease into it.
-      const armT = n.sit ? -0.35 : kneel ? -1.1 + Math.sin(time * 4) * 0.3 : n.kind === "stocks" ? -1.4 : sw;
+      // the bow case used to be written after this and discard it, so a seated or kneeling bow-carrier never posed
+      const armT = n.job === "hunter" && working && u.bow ? -1.55 : n.sit ? -0.35 : kneel ? -1.1 + Math.sin(time * 4) * 0.3 : n.kind === "stocks" ? -1.4 : u.bow ? sw * 0.3 : sw;
       u.arms[0].rotation.x = damp(u.arms[0].rotation.x, armT, 14, dt);
       if (u.spearGrip) {
         const th = n.thrust > 0 ? Math.sin((n.thrust / 0.35) * Math.PI) : 0;
@@ -6144,7 +6148,6 @@ const __boot = (async () => {
               : n.job === "hunter" && working
                 ? -1.5
                 : -sw, 14, dt);
-      if (u.bow) u.arms[0].rotation.x = damp(u.arms[0].rotation.x, n.job === "hunter" && working ? -1.55 : sw * 0.3, 14, dt);
       if (u.axe) u.axe.rotation.x = n.thrust > 0 ? -Math.sin((n.thrust / 0.35) * Math.PI) * 1.5 : 0; // the axe comes over in the hand as the arm swings, so the head reaches the trunk
       u.body.position.y = damp(u.body.position.y, (kneel ? 0.35 : 0.98) + Math.abs(Math.sin(n.anim)) * 0.06 * n.walkAmp, 14, dt);
       if (n.cart) {
@@ -14053,12 +14056,12 @@ const __boot = (async () => {
       case "drift": if (dist < 30 || e.warden) { if (dist > 2.6 + e.r) { const d = dist || 1; e.pos.x += (dx / d) * speed * dt; e.pos.z += (dz / d) * speed * dt; e.heading = Math.atan2(dx, dz); } else { e.state = "windup"; e.t = e.warden ? 1.1 : 0.8; if (dist < 40) SFX.tone(220, 660, 0.7, 0.14, "sine"); } } break;
       case "windup": e.heading = Math.atan2(dx, dz); e.mat.emissiveIntensity = 0.8 + (1 - e.t / 0.8) * 2.4; if (e.t <= 0) { e.state = "strike"; e.t = 0.25; e.hitDone = false; } break;
       case "strike": if (!e.hitDone && e.t < 0.15 && dist < 2.6 + e.r && Math.abs(tgt.pos.y - e.pos.y) < 4) { e.hitDone = true; enemyStrike(e, e.warden ? 2 : 1.5, tgt); } if (e.t <= 0) { if (e.warden && e.phase === 3 && !e.second) { e.second = true; e.state = "windup"; e.t = 0.5; } else { e.second = false; e.state = "recover"; e.t = e.warden ? 2.6 : 1.5; } } break;
-      case "recover": e.mat.opacity = 1; e.mat.emissiveIntensity = 0.3; if (e.t <= 0) { e.state = "drift"; e.mat.opacity = 0.55; e.mat.emissiveIntensity = 0.8; } break;
+      case "recover": e.mat.emissiveIntensity = 0.3; if (e.t <= 0) { e.state = "drift"; e.mat.emissiveIntensity = 0.8; } break;
       case "stun": e.pos.x += e.vel.x * dt; e.pos.z += e.vel.z * dt; e.vel.multiplyScalar(Math.pow(0.02, dt)); if (e.t <= 0) e.state = "drift"; break;
     }
     // opacity used to jump between three fixed values, so an attack read as four separate pops. it eases, which keeps
     // the telegraph legible without the flicker.
-    if (e.state !== "recover") e.mat.opacity = damp(e.mat.opacity, e.state === "windup" ? 0.85 : 0.55, 12, dt);
+    e.mat.opacity = damp(e.mat.opacity, e.state === "recover" ? 1 : e.state === "windup" ? 0.85 : 0.55, 12, dt);
     // a wraith drifting over a cliff edge used to lag its target height badly enough to sink through the ground, so the
     // climb is much quicker than the settle
     if (!e.warden) { resolveStructs(e.pos, 0.5); const gy = groundAt(e.pos.x, e.pos.z, e.pos.y + 2), want = gy + 0.4 + Math.sin(time * 2 + e.nid) * 0.2; e.pos.y = damp(e.pos.y, want, want > e.pos.y ? 14 : 4, dt); }
@@ -14084,7 +14087,7 @@ const __boot = (async () => {
   // the wolf: circles at a distance with its pack, lunges one at a time, and backs off after a miss; a wounded wolf makes the others bold
   function updateWolf(e, tgt, dx, dz, dist, dt) {
     const den = e.den, home = den ? den : e.pos, pack = den ? den.wolves.filter(w => w.alive) : [e], hurtPack = pack.some(w => w.hp < w.maxHp * 0.6);
-    const step = (tx, tz, spd) => { const d = Math.hypot(tx - e.pos.x, tz - e.pos.z) || 1; const nx = e.pos.x + ((tx - e.pos.x) / d) * spd * dt, nz = e.pos.z + ((tz - e.pos.z) / d) * spd * dt; if (inBounds(nx, nz) && !isWater(nx, nz) && terrainH(nx, nz) - e.pos.y < 2.2) { e.pos.x = nx; e.pos.z = nz; e.anim += dt * spd * 1.4; } e.heading = Math.atan2(tx - e.pos.x, tz - e.pos.z); };
+    const step = (tx, tz, spd) => { const d = Math.hypot(tx - e.pos.x, tz - e.pos.z) || 1; const nx = e.pos.x + ((tx - e.pos.x) / d) * spd * dt, nz = e.pos.z + ((tz - e.pos.z) / d) * spd * dt; if (inBounds(nx, nz) && !isWater(nx, nz) && terrainH(nx, nz) - e.pos.y < 2.2) { e.pos.x = nx; e.pos.z = nz; e.anim += dt * spd * 1.4; e.moved = true; } e.heading = Math.atan2(tx - e.pos.x, tz - e.pos.z); };
     switch (e.state) {
       case "idle": if (dist < 22 && dist2D(tgt.pos, home) < WOLF_HOME_R + 12) { e.state = "circle"; } else if (den && dist2D(e.pos, den) > 6) step(den.x + Math.cos(e.orbit) * 4, den.z + Math.sin(e.orbit) * 4, 3); break;
       case "circle": {
@@ -14102,7 +14105,8 @@ const __boot = (async () => {
     // round on the spot. they ease like everything else now, and the stride eases out instead of freezing mid-step.
     e.visH = turnToward(e.visH === undefined ? e.heading : e.visH, e.heading, dt * 7);
     e.mesh.rotation.y = e.visH;
-    e.walkAmp = damp(e.walkAmp === undefined ? 0 : e.walkAmp, e.state === "lunge" || e.state === "circle" || e.state === "retreat" ? 1 : 0, 9, dt);
+    e.walkAmp = damp(e.walkAmp === undefined ? 0 : e.walkAmp, e.moved ? 1 : 0, 9, dt); // gated on real motion: a wolf circling against a cliff used to hold a static splay
+    e.moved = false;
     const sw = Math.sin(e.anim) * 0.6 * e.walkAmp;
     // diagonal pairs, so it trots instead of pacing
     e.mesh.children.slice(7, 11).forEach((l, i) => (l.rotation.x = damp(l.rotation.x, i === 0 || i === 3 ? sw : -sw, 15, dt)));
@@ -15567,7 +15571,10 @@ const __boot = (async () => {
       // could not even reach "Save key" and everything since their last manual save was gone. worse, showFault stays
       // silent for pointer-lock-shaped messages, so an unlucky storm froze the screen with no explanation at all.
       if (frameErrors >= 30) {
-        if (!loopFaulted) { loopFaulted = true; showFault(e, "frame"); }
+        // show it every storm, not just the first. latching meant the final give-up happened with the overlay already
+        // hidden and nothing rendered, and a pointer-lock-shaped first error — which showFault ignores — silenced the
+        // whole session. this branch runs at most six times, so it cannot spam.
+        showFault(e, "frame");
         try { guardPlayerPosition(); } catch (_) {} // an impossible player position is the likeliest cause of a per-frame throw
         // give up after a few attempts rather than cycling forever, and take the overlay back down on the way in —
         // leaving it up was why the player still could not reach the pause menu to save, which was the whole point.

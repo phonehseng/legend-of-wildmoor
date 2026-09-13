@@ -449,3 +449,58 @@ shoveNPC refuses a jostle that would put someone out of their depth, and exempts
 an NPC's own shelter during a raid. The kid sleep search excludes the keep
 explicitly rather than relying on noSleep — the same "excluded by accident" shape
 that caused the original castle bug.
+
+### Bug 33 — My own clearance solve splayed the player's legs while standing · FIXED
+
+Caught by the reviewer. The solve ran in every grounded state, not just slides.
+Standing: hip = 1.05, leg = 1.133, so `1.133 · cos(total) <= hip` is
+**unsatisfiable at total = 0** — `need` came out 0.384 rad and both legs were
+forced 22 degrees the *same* way, permanently, with no way to resolve. Walking
+was clamped twice per stride too. The rest pose has always had ~8 cm of boot
+below the ground plane by design; the solve was "correcting" that everywhere.
+Now gated to `P.sliding`, the one state that genuinely drops the hip far enough
+to bury a leg, and ties break per side so legs oppose rather than splay together.
+
+### Bug 34 — Leg overrides damped twice per frame · FIXED
+
+airSlash, dive and climb damped the already-damped leg value toward their own
+target, composing two exponential steps in one frame and landing on a blend
+rather than the override. They are targets now, like every other state, so there
+is exactly one leg write per frame.
+
+### Bug 35 — The pose helper ignored seated and stocks poses · FIXED
+
+A seated villager who saw the body had their legs damped straight over the 2.6 s
+shock, then folded back. The helper now honours the same `sit`/`stocks` targets
+the main path uses.
+
+### Bug 36 — The bow line re-opened the double-write · FIXED
+
+Structurally the same defect the `armT` refactor had just removed: the sit,
+kneel and stocks target was computed, written, then discarded on the next line
+for any bow carrier. Folded into `armT`.
+
+### Bug 37 — The wraith's two largest opacity pops were the ones left · FIXED
+
+`recover` was excluded from the damp *and* hard-set opacity to 1 every frame, so
+strike→recover (0.85→1.0) and recover→drift (1.0→0.55) still jumped in a single
+frame — the biggest two of the four.
+
+### Bug 38 — The fault give-up was silent · FIXED
+
+Latching `loopFaulted` meant the final give-up happened with the overlay already
+hidden and nothing rendered, and a pointer-lock-shaped first error — which
+`showFault` deliberately ignores — silenced the entire session. The branch runs
+at most six times, so it now shows every storm.
+
+### Bug 39 — A blocked wolf held a static splay · FIXED
+
+`walkAmp` was driven by state, but `anim` only advances on a *successful* step.
+A wolf circling against a cliff had full stride amplitude with a frozen phase.
+Now gated on real motion.
+
+### Also hardened
+
+Cape and hair damping used `8 - i` / `9 - i` as the rate — one segment away from
+zero (frozen) and two from negative, where `e^(-λdt) > 1` and the rotation
+diverges to NaN. Floored at 2.
