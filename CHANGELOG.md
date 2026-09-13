@@ -1358,3 +1358,68 @@ time, so **30% of lines are still the ordinary pools**. The jokes survive.
 The connective line is a child's: *"I'm not allowed to look at the big oak. So
 I don't. Mostly."* He tells you what is on the road before you see it, and never
 says what it is.
+
+---
+
+## 2.3.1 — A sprite for everything in the satchel
+
+### Bug 84 — Four routing traps in `itemIcon`, all of them shipped · FIXED
+
+`itemIcon` was a chain of regex tests, and the order was wrong in four
+separate ways. Every one was live.
+
+| Item | Drew | Why |
+|---|---|---|
+| `A fairy: healed` | a **wind feather** | `/feather\|air\|lung/` matched the **"air" inside "f-air-y"**, and it was tested before `/fairy/` |
+| The King's Seal, the Queen's Tear, Goblin King's Tooth, Hunter's Boots, the Root Word, Violet Stone, the Warden's Stone, Tobias's Knife, Milliner's Charm, Windstep, Hunter's Patience, Beacon-keeper's Boots | a **book** | the book rule ends in a bare `'` alternation, which swallows every possessive name |
+| `Woodcutter's Draught: +14 stamina` | a **log** | `/log\|wood\|bundle/` matched "**Wood**cutter". It is a drink |
+| `Rose Rest` | a generic rose | `/heart/` was tested first, which made the `/rose rest/` branch **dead code** |
+| `Burned candle stubs in a ring…` | a **ring** | `/ring/` matched "in a ring" |
+| Rose Compass, and 7 village keepsakes | a **crate** | no rule matched at all |
+
+It is an ordered table now, specific before generic, with both catch-alls
+demoted to the bottom where they belong. The word boundary on `/\bgrave/`
+matters: without it, "engraved H. to Y." draws a headstone.
+
+### Twenty-nine new sprites
+
+Every item that can enter the satchel has its own icon. The Rose Compass is an
+actual rose — petals, a stem and two leaves, not a dial. So is the pink guide
+arrow that floats over your head: the bud is the nose, five petals ring it and
+the stem trails behind, so it still points but it reads as a flower flying
+point-first rather than a dart someone painted pink.
+
+They are **inline SVG, not canvas**. The slots are DOM and the CSS that sizes
+them targets `.slot-item svg`; a canvas texture is a GPU object a DOM node
+cannot sample. Vector also stays crisp under the HUD's 1.15/1.3 zoom and on a
+retina screen, where a 64px bitmap would not. Cost: 29 string literals parsed
+once at boot, against ~475 KB of bitmaps for the canvas route. The per-slot DOM
+is still built lazily, only when the satchel opens.
+
+### Bug 85 — Every clue took two satchel slots · FIXED
+
+`grant()` always pushes to `FOUND`, and the pickup handler **additionally**
+pushes clues into `ITEMS`. `renderInv` loops both. So every clue and every one
+of the fifteen lore books appeared twice. Rendering only — neither array's
+serialisation changes, so old save keys are unaffected.
+
+### Hover reads it
+
+**Reported:** "remove the click this to read what you found just make it hover."
+
+It showed the name and told you to click, which is a step for no reason when
+the pane is already open and already big enough. `pointerenter` rather than
+`mouseenter`, so a tap does it too. The click still works and now means *pin*:
+it holds the text while you look elsewhere, and it is still the Rose Compass's
+wake-and-sleep switch.
+
+### The ✕ is on the panel
+
+**Reported:** "put the red x to leave at the top right of the ui not of the
+screen."
+
+**Cause.** `.xbtn` was `position: fixed`, anchoring it to the viewport — but it
+lives inside `#hud`, which carries `zoom: 1.15` above 1100px and `1.3` above
+1700px. Under `zoom` the used offsets scale, so on a wide monitor it drifted off
+both the true screen corner *and* the panel. It is `absolute` against the
+satchel now. Nothing else moves: `.xbtn` appears exactly once in the file.
