@@ -1423,3 +1423,74 @@ lives inside `#hud`, which carries `zoom: 1.15` above 1100px and `1.3` above
 1700px. Under `zoom` the used offsets scale, so on a wide monitor it drifted off
 both the true screen corner *and* the panel. It is `absolute` against the
 satchel now. Nothing else moves: `.xbtn` appears exactly once in the file.
+
+---
+
+## 2.4.0 — The abandoned church (3.0 phase 6)
+
+### The smoke test was only checking half the file
+
+**This matters more than the church.** The headless check has run
+`--disable-gpu --enable-unsafe-swiftshader` all along, and under SwiftShader
+**worldgen stalls at about line 2,825 and never finishes.** It was proved with
+two probes: an early one fires, a late one never does, on a build with no new
+code in it at all. So every "clean" result this session meant *the file parses
+and boots*, not *the world builds*.
+
+The parse half was always real and always covered the whole file — a stray `//`
+that swallowed a line's closing braces earlier today was caught exactly that
+way. But nothing past the first ~2,800 lines of worldgen had ever been executed.
+
+**Dropping those two flags fixes it.** On the real GPU the world builds to
+completion in about ten seconds. The smoke test now runs the whole of worldgen,
+which is how the church below could be verified at all.
+
+### The church
+
+Outside the walls, on the apron where the plateau has stopped holding the
+ground flat — near enough to see the kingdom's banners from the porch. On the
+default seed it lands at **(101, −12), r = 102**, on ground level to within
+43 cm, with the door turned a quarter-turn toward the kingdom.
+
+**Nothing here was sacked.** Everything portable was carried out carefully by
+people who knew which end was heavy, and then the door was left open. That is
+the whole design: a robbed place looks angry, an abandoned one looks tidy.
+
+- The candle sockets are there and the candles are not. There is **no `lamp`**
+  on the interior record, so the entry-brightening finds nothing and the church
+  never lights, at any hour.
+- The font is dry, with no green ring where water stands. It was *emptied*.
+- The roof is gone over the nave and still on over the altar — the shelter that
+  remains is over the part nobody needs.
+- One window still has glass, four metres up where nobody could reach it. The
+  only warm colour in the building.
+- The slate is dark, not red, so from the wall it is the one black roof.
+- The bell is on the floor and the tower it fell from is not in the scene.
+- Five rooks sit perfectly still in the rafters until you cross the threshold.
+- Hale's name fills the last dozen pages of the visitation ledger, in one hand,
+  for years. He kept the hours in an empty church long after everyone else
+  stopped — which is most of why a man decides something has to be paid.
+
+**It is a place to fight in, deliberately.** The sill walls are cover, the
+fallen rafter is a ramp, the tie beams are high ground, and above 2.2 m the
+walls are porous so anything with air under it comes in through a window. The
+tie beams are `addDeck`, not `addRect` — the one collider you can stand on and
+walk under. Registering them as walls would have put an invisible bar across
+the nave at chest height, which is the single easiest way to get this wrong.
+
+**Where it sits in worldgen is load-bearing.** `addPickup` assigns
+`id = type + ":" + pickups.length`, and the save stores taken pickups by id. So
+inserting a pickup anywhere earlier shifts every later implicit id, and an old
+save marks the **wrong** pickups as taken — which, past Hale's ritual site and
+his private note, would make the murder investigation uncompletable. The church
+goes in after the last implicit id, and its four books carry explicit ids.
+
+Cost: 72 meshes, ~72 draw calls, 26 colliders, one scene child, **zero lights**
+and **zero per-frame cost** — nothing in the update loop touches it.
+
+Seven one-line edits support it, each a strict superset of current behaviour:
+a `DISCOVERIES` entry, a one-shot `onFound` hook, two `footingAt` lines so
+flagstones sound like stone, a `roofless` flag that skips the head-bump clamp
+(a nave with no roof has no ceiling to bump), a camera arm long enough for a
+19 m room, and a per-room `interiorK` — because the full indoor grade blacks out
+the sky, and here you can see it through the rafters.

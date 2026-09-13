@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.3.1</title>
+<title>Legend of Peanits 2.4.0</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -376,7 +376,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.3.1</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.4.0</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -443,7 +443,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.3.1</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.4.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -840,13 +840,15 @@ const __boot = (async () => {
     shepherdsGrave: { name: "Shepherd's Grave", r: 12 },
     drownedChapel: { name: "The Drowned Chapel", r: 22 },
     hollow: { name: "The Hollow", r: 16 },
-    wolfDen: { name: "The Wolf Den", r: 20 }
+    wolfDen: { name: "The Wolf Den", r: 20 },
+    emptyChurch: { name: "The Abandoned Church", r: 26 }
   };
   const DISC_FOUND = new Set();
   const RELIC_SPOTS = {}; // where the relics lie, filled in as the world is built
   function discover(id) {
     const d = DISCOVERIES[id]; if (!d || DISC_FOUND.has(id)) return;
     DISC_FOUND.add(id); say(`Discovered: ${d.name}`, 3200, true, "discover"); SFX.discover(); flashText(d.name);
+    if (d.onFound) { const fn = d.onFound; d.onFound = null; fn(); } // one-shot, and cleared before it runs so a throw inside it cannot re-arm it
   }
   // ============================================================ sound
   const SFX = {
@@ -9455,6 +9457,259 @@ const __boot = (async () => {
       stone.position.set(POOL.x + 11, POOL.y, POOL.z - 10); scene.add(stone); addRect(stone.position.x, stone.position.z, 0.8, 0.25, POOL.y + 1.4); POOL_STONE = stone.position.clone(); POOL_STONE.mark = mark;
     }
   }
+  // ============================================================ the abandoned church
+  // older than the kingdom, emptied on purpose, and still standing. it sits on the apron outside the walls — far
+  // enough out that the plateau has stopped holding the ground flat, near enough that you can see the banners from
+  // its porch. nothing here was sacked. everything portable was carried out carefully by people who knew which end
+  // was heavy, and then the door was left open. that is the difference the whole building is making: a robbed place
+  // looks angry, an abandoned one looks tidy.
+  // it is built HERE, after the last pickup with an implicit id, because addPickup's id is "type:index" — insert a
+  // pickup anywhere earlier and every id after it shifts by one, and an old save restores the wrong things as taken.
+  {
+    const CW = 5.2, // interior half-width  (10.4 m across the nave)
+      CD = 9.6, // interior half-depth  (19.2 m altar to door)
+      CT = 0.55, // half the wall thickness
+      WH = 6.2; // wall head above the floor
+    // the ring scan is the same shape as the pool's and the cave's. the band is 96..122 on purpose: the river tracer's
+    // own reject test refuses to lay a channel inside r = 125, so nothing in this band can be running water, and the
+    // plateau lerp inside terrainH is still damping the ground out here, so gentle sites are plentiful.
+    const site = (() => {
+      let best = null;
+      for (let a = 0; a < 6.283; a += 0.07)
+        for (let r = 96; r <= 122; r += 3) {
+          const x = Math.cos(a) * r,
+            z = Math.sin(a) * r,
+            h = terrainH(x, z);
+          if (!inBounds(x, z) || h < 3.5 || h > 30) continue;
+          if (pathDist(x, z) < 26 || riverDist(x, z) < 26 || isWater(x, z)) continue; // off both roads, off every channel, out of the wet
+          if (slopeAt(x, z) > 1.4) continue; // about twelve centimetres of fall per metre: level enough that the plinth is a plinth and not a cliff
+          if (!treeFree(x, z, 20) || insideInterior(x, z, 4)) continue; // twenty metres clears the eleven-metre plan diagonal twice over
+          if (Math.hypot(x - POOL.x, z - POOL.z) < 45) continue;
+          if (Math.hypot(x - ELDER.x, z - ELDER.z) < 90) continue;
+          if (typeof CAVE !== "undefined" && CAVE && Math.hypot(x - CAVE.x, z - CAVE.z) < 60) continue;
+          if (Math.hypot(x - lighthousePos.x, z - lighthousePos.z) < 45) continue;
+          if (Math.hypot(x - hermitPos.x, z - hermitPos.z) < 45) continue;
+          if (villages.some(v => Math.hypot(v.center.x - x, v.center.z - z) < 90)) continue;
+          // quarter turns only. resolveStructs has no rotation field at all, so any other angle would need its wall
+          // colliders approximated by axis-aligned boxes, and you would feel that walking the length of the nave.
+          const yaw = Math.round(Math.atan2(-x, -z) / (Math.PI / 2)) * (Math.PI / 2),
+            cc = Math.round(Math.cos(yaw)),
+            ss = Math.round(Math.sin(yaw));
+          // measure the footprint that is actually going to be built, not a circle drawn around it
+          let rough = 0,
+            blocked = false;
+          for (const [lx, lz] of [[CW + CT, CD + CT], [-(CW + CT), CD + CT], [CW + CT, -(CD + CT)], [-(CW + CT), -(CD + CT)], [0, CD + CT + 4], [0, -(CD + CT)]]) {
+            const px = x + cc * lx + ss * lz,
+              pz = z - ss * lx + cc * lz;
+            rough = Math.max(rough, Math.abs(terrainH(px, pz) - h));
+            if (isWater(px, pz) || pathDist(px, pz) < 18) blocked = true;
+            // anything already standing out here registered a collider — a hunter's tent, a bridge deck, the beacon
+            // apron — so one sweep of the struct grid is a better clearance test than any list of names
+            else
+              for (const st of structsAt(px, pz)) {
+                if (Math.abs(px - st.cx) > st.b + 3 || Math.abs(pz - st.cz) > st.b + 3) continue;
+                blocked = true;
+                break;
+              }
+            if (blocked) break;
+          }
+          if (blocked || rough > 1) continue;
+          const score = rough + Math.abs(r - 112) * 0.02; // flattest first, then nearest the middle of the band
+          if (!best || score < best.score) best = { x, z, y: h, yaw, cc, ss, r, rough, score };
+        }
+      return best;
+    })();
+    if (!site) console.warn("church: no legal site on the apron this seed; the building is skipped");
+    if (site) {
+      console.info("church at", site.x.toFixed(1), site.z.toFixed(1), "| r", site.r, "yaw", site.yaw.toFixed(2), "rough", site.rough.toFixed(2));
+      const FY = site.y + 0.55, // the plinth top, which is the church's floor level
+        g = new THREE.Group();
+      g.position.set(site.x, FY, site.z);
+      g.rotation.y = site.yaw;
+      // local church axes -> world. cc and ss are exactly 0 or +-1, so every collider below is exactly axis-aligned,
+      // and the half-extents simply swap on a quarter turn.
+      const wX = (lx, lz) => site.x + site.cc * lx + site.ss * lz,
+        wZ = (lx, lz) => site.z - site.ss * lx + site.cc * lz,
+        rect = (lx, lz, hx, hz, top) => addRect(wX(lx, lz), wZ(lx, lz), site.cc ? hx : hz, site.cc ? hz : hx, top),
+        deck = (lx, lz, hx, hz, top) => addDeck(wX(lx, lz), wZ(lx, lz), site.cc ? hx : hz, site.cc ? hz : hx, top),
+        circ = (lx, lz, rr, top) => addCircle(wX(lx, lz), wZ(lx, lz), rr, top);
+      const props = new THREE.Group(); // furniture rather than fabric; none of it casts a shadow
+      g.add(props);
+
+      // ---- fabric ----
+      // the plinth is buried four metres. rough is capped at one metre above, so even the worst corner keeps two and
+      // a half metres of foundation under it and nothing ever floats, on any seed.
+      g.add(boxM((CW + CT + 0.7) * 2, 4, (CD + CT + 0.7) * 2, stoneDarkM, 0, -2, 0));
+      g.add(boxM(CW * 2, 0.14, CD * 2, stoneM, 0, 0.12, 0)); // flagstones; floorTop 0.19, the same as a house floor
+
+      // the long walls are a sill course you cannot walk through and a row of piers you can. above 2.2 m the ruin is
+      // porous on purpose: the windows are holes, and anyone with air under them comes in through one.
+      for (const sx of [-1, 1]) {
+        const cx = sx * (CW + CT);
+        g.add(boxM(CT * 2, 2.2, (CD + CT * 2) * 2, stoneWallM, cx, 1.1, 0));
+        rect(cx, 0, CT, CD + CT * 2, FY + 2.2);
+        for (const pp of [[-9.9, 1.6], [-3.1, 1.4], [3.1, 1.4], [9.9, 1.6]]) g.add(boxM(CT * 2, 3.2, pp[1], stoneWallM, cx, 3.8, pp[0]));
+        g.add(boxM(CT * 2, 0.8, (CD + CT * 2) * 2, stoneWallM, cx, 5.8, 0));
+      }
+
+      // the west front: a doorway with no door in it, a 2.9 m gap the same width as a house's, and a gable over
+      for (const sx of [-1, 1]) {
+        g.add(boxM(2.125 * 2, WH, CT * 2, stoneWallM, sx * 3.625, WH / 2, CD + CT));
+        rect(sx * 3.625, CD + CT, 2.125, CT, FY + WH);
+      }
+      g.add(boxM(3.4, 1, CT * 2 + 0.1, stoneDarkM, 0, 4.3, CD + CT)); // arch head: no collider, exactly like a house lintel
+      g.add(boxM((CW + CT) * 2, 2, CT * 2, stoneWallM, 0, WH + 1, CD + CT));
+
+      // the chancel end: one great window with nothing at all in it
+      g.add(boxM((CW + CT) * 2, 1.2, CT * 2, stoneWallM, 0, 0.6, -(CD + CT)));
+      rect(0, -(CD + CT), CW + CT, CT, FY + 1.2);
+      for (const sx of [-1, 1]) {
+        g.add(boxM(1.975 * 2, 4.4, CT * 2, stoneWallM, sx * 3.775, 3.4, -(CD + CT)));
+        rect(sx * 3.775, -(CD + CT), 1.975, CT, FY + WH);
+      }
+      g.add(boxM((CW + CT) * 2, 0.6, CT * 2, stoneWallM, 0, 5.9, -(CD + CT)));
+      g.add(boxM((CW + CT) * 2, 2.4, CT * 2, stoneWallM, 0, WH + 1.2, -(CD + CT)));
+
+      // slate, not thatch: the church reads dark against the town's red roofs from a long way off. only the chancel
+      // bay is still covered — the nave is open to the sky, which is the entire point of the building.
+      for (const sx of [-1, 1]) {
+        const sl = boxM(6.75, 0.3, 7.4, stoneDarkM, sx * 2.875, 7.97, -(CD - 3.6));
+        sl.rotation.z = -sx * 0.55;
+        g.add(sl);
+      }
+
+      // ---- what came down, and what you can climb on ----
+      // four tie beams still span the nave. they are decks, not walls: addDeck is the one collider you can stand on
+      // and walk under, which is the whole difference between a rafter and an invisible bar across the room.
+      for (const bz of [-4, 0, 4, 8]) {
+        const tb = cyl(0.15, 0.15, (CW + CT) * 2, timber, 0, 5, bz, 6);
+        tb.rotation.z = Math.PI / 2;
+        g.add(tb);
+        deck(0, bz, CW + CT, 0.3, FY + 5.15);
+      }
+      // one principal rafter came down whole and leans from the floor to the top of the west sill. five decks inside
+      // its silhouette make it a ramp you can run up — so it is a route, not a prop.
+      {
+        const rb = cyl(0.19, 0.22, 4.5, timber, -3.2, 1.2, 5.2, 6);
+        rb.rotation.z = 1.107;
+        g.add(rb);
+        for (let k = 0; k < 5; k++) deck(-1.6 - k * 0.9, 5.2, 0.62, 0.55, FY + 0.45 + k * 0.44);
+      }
+      for (const fb0 of [[-1.6, -1.2, 0.4], [2.4, 2.8, 1.9], [0.3, 6.6, 2.7], [-3.1, 8.4, 1.2]]) {
+        const fb = cyl(0.16, 0.18, 5 + hash(fb0[0], fb0[1]) * 3, timber, fb0[0], 0.35, fb0[1], 6);
+        fb.rotation.set(Math.PI / 2, 0, fb0[2]);
+        props.add(fb);
+      }
+
+      // ---- the one window that still has glass ----
+      // everything else was carried out. this pane is four metres up in the middle bay and nobody could reach it,
+      // which is the only reason it is still here. it is the single warm colour in the building.
+      {
+        const glass = new THREE.Mesh(
+          new THREE.PlaneGeometry(4.4, 3),
+          new THREE.MeshStandardMaterial({ color: toLin(0x8a2f3a), emissive: toLin(0x3a0a12), emissiveIntensity: 0.4, roughness: 0.35, transparent: true, opacity: 0.74, side: THREE.DoubleSide, depthWrite: false })
+        );
+        glass.position.set(-(CW + CT), 3.8, 0);
+        glass.rotation.y = Math.PI / 2;
+        glass.castShadow = false; // a transparent caster only smears the shadow map
+        g.add(glass);
+      }
+
+      // ---- what is left inside ----
+      // the altar is a bare slab with two cold sockets in it. there is not a candle anywhere in the building, lit or
+      // unlit: somebody took even those.
+      props.add(boxM(2.2, 0.92, 0.8, stoneDarkM, 0, 0.65, -(CD - 1.8)), boxM(3, 0.28, 1.1, stoneM, 0, 1.25, -(CD - 1.8)));
+      for (const sx of [-1, 1]) props.add(cyl(0.11, 0.11, 0.07, stoneDarkM, sx * 0.95, 1.42, -(CD - 1.8), 8));
+      rect(0, -(CD - 1.8), 1.5, 0.55, FY + 1.39);
+      // the font, dry. dust in the bottom and one feather, and no green ring where water stands — it was emptied,
+      // not left to evaporate.
+      props.add(cyl(0.24, 0.34, 0.86, stoneM, -2.6, 0.62, CD - 2.4, 10), cyl(0.62, 0.5, 0.34, stoneM, -2.6, 1.2, CD - 2.4, 12));
+      circ(-2.6, CD - 2.4, 0.68, FY + 1.37);
+      // pews: four still standing in their rows, two on their faces. a knee-high addRect never blocks a walker —
+      // resolveStructs skips anything whose top is within a metre of your feet — so they only ever read as floor,
+      // which makes them cover you vault and a step toward the beams.
+      for (let k = 0; k < 4; k++) {
+        const pz = 5.6 - k * 2.6;
+        props.add(boxM(6.4, 0.16, 0.5, plankM, 0, 0.62, pz), boxM(6.4, 0.5, 0.14, plankM, 0, 1.05, pz - 0.3));
+        rect(0, pz, 3.2, 0.25, FY + 0.7);
+      }
+      for (const pw0 of [[1.9, -3.4, 0.5], [-2.2, -5.8, 2.3]]) {
+        const pw = boxM(6.4, 0.16, 0.5, plankM, pw0[0], 0.2, pw0[1]);
+        pw.rotation.set(1.5, 0, pw0[2]);
+        props.add(pw);
+      }
+      // the bell came through the roof and stayed where it landed. the tower it fell from is not here any more.
+      {
+        const bronze = lam(0x6a6046),
+          bell = cyl(0.52, 0.92, 1.15, bronze, 2.9, 0.5, 1.2, 12);
+        bell.rotation.set(1.42, 0, 0.4);
+        props.add(bell);
+        for (let k = 0; k < 3; k++) props.add(boxM(0.9 + hash(k, 71) * 0.6, 0.12, 0.8 + hash(k, 72) * 0.5, stoneDarkM, 2.9 + (hash(k, 73) - 0.5) * 2.6, 0.22, 1.2 + (hash(k, 74) - 0.5) * 2.4));
+        circ(2.9, 1.2, 0.85, FY + 0.95);
+      }
+      for (let k = 0; k < 4; k++) props.add(boxM(0.5 + hash(k, 81) * 0.8, 0.3 + hash(k, 82) * 0.4, 0.5 + hash(k, 83) * 0.7, stoneDarkM, (hash(k, 84) - 0.5) * 7, 0.3, (hash(k, 85) - 0.5) * 13));
+      // three steps up to the door, walkable, so the porch is not a fifty-five-centimetre kerb you have to jump
+      for (let k = 0; k < 3; k++) {
+        props.add(boxM(4.4, 0.2, 0.9, stoneM, 0, -0.14 - k * 0.18, CD + CT + 0.6 + k * 0.9));
+        deck(0, CD + CT + 0.6 + k * 0.9, 2.2, 0.45, FY - 0.04 - k * 0.18);
+      }
+      // birds in the rafters. they are the only living things in it, they sit perfectly still, and they go up the
+      // first time you walk in.
+      const rooks = [];
+      {
+        const dk = lam(0x141210);
+        for (const bp of [[-1.9, 5.22, 0], [-1.2, 5.22, 0.3], [2.6, 5.22, 4], [3.1, 5.22, -4], [-3.4, 5.22, 8]]) {
+          const rk = new THREE.Group();
+          rk.add(sphere(0.15, dk, 0, 0, 0, 1.6, 0.75, 0.8), sphere(0.095, dk, 0.2, 0.08, 0));
+          rk.position.set(bp[0], bp[1], bp[2]);
+          rk.rotation.y = hash(bp[0] * 7, bp[2] * 7) * 6.28;
+          rooks.push(rk);
+          props.add(rk);
+        }
+      }
+      // the props are a third of the building's meshes and not one of their shadows would ever be noticed in a
+      // roofless nave; the walls and the slate keep theirs
+      props.traverse(o => { if (o.isMesh) o.castShadow = false; });
+      scene.add(g);
+
+      // enterable, and registered exactly like a house, so footsteps, the camera, the indoor grade and every
+      // villager's "that room is not mine" test read it without one of them being told it exists.
+      //   no door:       every shelter and sleeping search filters on it.door, so leaving it off is what keeps the
+      //                  whole town out of a building an hour's walk outside the walls
+      //   no lamp:       the entry brightening reads roomNow.lamp. there is no lamp. it stays dark, at every hour.
+      //   growTo 1:      the room is already its real size, so the growth tick bails on the first compare
+      //   roofless:      no head-bump clamp; a nave with no roof has no ceiling to bump
+      //   interiorK .45: half indoors. a full 1 blacks out a sky you can plainly see through the rafters.
+      const CHURCH = {
+        cx: site.x, cz: site.z,
+        w: site.cc ? CW : CD, d: site.cc ? CD : CW,
+        y: FY, h: 10, floorTop: 0.19,
+        group: g, structs: [],
+        baseW: site.cc ? CW : CD, baseD: site.cc ? CD : CW,
+        grow: 1, growTo: 1,
+        noSleep: true, roofless: true, floor: "stone", camDist: 7.5, interiorK: 0.45, church: true
+      };
+      interiors.push(CHURCH);
+
+      Object.assign(DISCOVERIES.emptyChurch, {
+        x: site.x, z: site.z, y: FY,
+        onFound: () => {
+          for (const rk of rooks) rk.visible = false;
+          burst(V3(site.x, FY + 5.4, site.z), 0x141210, 26, 5, 1.1, 0.16);
+          SFX.noise(0.5, 900, 200, 0.18, "bandpass", 1.4);
+        }
+      });
+
+      // the reading. four things, and not one of them says what happened — they say what the people who were here
+      // were doing while it happened, which is the only way a building this empty can talk. explicit ids, so that
+      // nothing later in worldgen can ever renumber them.
+      const book = (lx, lz, id, text) => addPickup(V3(wX(lx, lz), FY + 1, wZ(lx, lz)), "clue", text, () => {}, { noCount: true, shape: "book", id });
+      book(0, -(CD - 2.9), "church:altar", "The altar is bare and the sockets are cold. Cut into the edge of the slab, small, by somebody kneeling: WE KEPT THE HOURS. NOBODY CAME.");
+      book(-2.6, CD - 3.6, "church:font", "The font is dry and has been dry a long time. Dust in the bottom of it, one feather, and no green ring where water stands. It was emptied. Nobody empties a font by accident.");
+      book(3.9, CD + CT - 0.9, "church:door", "Scratched into the doorpost at shoulder height, hard enough to skip: IT IS NOT THAT HE CANNOT HEAR. GO HOME.");
+      book(-4.1, -2, "church:ledger", "A visitation ledger, swollen shut and prised open. The last dozen pages are one name in one hand, years of it: Hale. Hale. Hale. He kept the hours here long after everybody else had stopped.");
+    }
+  }
   // the ysolde mystery: logs delivered to the woodcutter, goblin kills when the errand began, clues found at the pool, the lamp wick, whether the case is solved and reported, and the two rewards
   const STORY = { logsGiven: 0, gobKills0: 0, clues: 0, evidence: [], campLeft: -1, wick: false, solved: false, reported: false, spear: false, boots: false, bearHeart: false, kingTooth: false, kingKills: 0 };
 
@@ -9641,11 +9896,11 @@ const __boot = (async () => {
   // a blow that lands on a deer or sheep within reach; used by every attack
   // what is under your feet: wood on decks, floors and platforms, stone on the kingdom's cobbles, earth everywhere else
   function footingAt(p) {
-    if (roomNow) return roomNow.keep ? "stone" : "wood";
+    if (roomNow) return roomNow.floor || (roomNow.keep ? "stone" : "wood");
     const th = terrainH(p.x, p.z);
     {
       const it = insideInterior(p.x, p.z);
-      if (it && p.y < it.y + 2) return it.keep ? "stone" : "wood";
+      if (it && p.y < it.y + 2) return it.floor || (it.keep ? "stone" : "wood");
     }
     if (p.y > th + 0.35) {
       for (const st of structsAt(p.x, p.z)) {
@@ -15581,7 +15836,9 @@ const __boot = (async () => {
     // ---- inside a building: pull the camera in, black out the world, offer the bed ----
     updateCurrentRoom();
     updateHermitMark();
-    interiorK = lerp(interiorK, roomNow ? 1 : 0, Math.min(1, rdt * 4));
+    // interiorK 1 cuts the sun to a seventh, multiplies the sky shader to nothing and pulls fog to 8-30 m. that is right
+    // for a hut and wrong for a roofless ruin, where it would black out a sky you can plainly see through the rafters.
+    interiorK = lerp(interiorK, roomNow ? (roomNow.interiorK === undefined ? 1 : roomNow.interiorK) : 0, Math.min(1, rdt * 4));
     caveK = lerp(caveK, insideCave() ? 1 : 0, Math.min(1, rdt * 3));
     for (const l of CAVE_LIGHTS) l.intensity = 0.25 + caveK * 2.2;
     updateHallGuard();
@@ -15859,7 +16116,8 @@ const __boot = (async () => {
         P.airSlash = null;
       }
     }
-    if (roomNow && P.pos.y > roomNow.y + roomNow.h - 2.7) {
+    // a nave with no roof over it has no ceiling to bump: the head clamp is for rooms with a lid on them
+    if (roomNow && !roomNow.roofless && P.pos.y > roomNow.y + roomNow.h - 2.7) {
       P.pos.y = roomNow.y + roomNow.h - 2.7;
       if (P.vel.y > 0) P.vel.y = 0;
     } // ceilings
@@ -16181,7 +16439,7 @@ const __boot = (async () => {
     hero.scale.set(1 + P.landSquash * 0.25, 1 - P.landSquash * 0.3, 1 + P.landSquash * 0.25);
     animateHero(P, rdt, time);
 
-    let wantDist = roomNow ? (inKeep ? 7 : 4.6) : 12 + clamp(sp / 8, 0, 3);
+    let wantDist = roomNow ? (inKeep ? 7 : roomNow.camDist || 4.6) : 12 + clamp(sp / 8, 0, 3); // 4.6 is a hut arm; a nineteen-metre nave needs more
     wantDist = Math.min(wantDist, clearCameraArm(wantDist), rayCameraArm(wantDist));
     if (caveK > 0.5 && insideCave()) { // shorten the camera arm until its position is still inside the chamber (or the tunnel)
       const c = CAVE, face = Math.atan2(-c.x, -c.z), okAt = d => { const x = P.pos.x + Math.sin(camYaw) * Math.cos(camPitch) * d, z = P.pos.z + Math.cos(camYaw) * Math.cos(camPitch) * d, y = visY + 2.2 + Math.sin(camPitch) * d; const dx = x - c.x, dz = z - c.z, lx = Math.cos(face) * dx - Math.sin(face) * dz, lz = Math.sin(face) * dx + Math.cos(face) * dz, ry = (y - c.h) / TUNE.world.caveHeight; return ((lx / (TUNE.world.caveRadius - 1.5)) ** 2 + (lz / (TUNE.world.caveDepth - 1.5)) ** 2 + Math.max(0, ry) ** 2 < 1 && y > c.h + 0.6) || !!(CAVE_TUNNEL && Math.abs(lx) < CAVE_TUNNEL.r - 1 && lz > CAVE_TUNNEL.z0 && lz < CAVE_TUNNEL.z1 && y > c.h + 0.6 && y < c.h + 8); };
