@@ -971,3 +971,55 @@ ones — nobody but the player fights the dead now.
 
 She sends you to the fitting room, so the arrow goes there rather than back at
 the woman who asked.
+
+---
+
+## 2.1.6 — The leak fix that missed the dominant path
+
+### Bug 73 — My own 2.1.2 leak fix caught only the tail path · FIXED
+
+**How it was found.** Two standing agents converged on it independently: the
+performance guardian said *"a goblin that gets killed never reaches the path you
+fixed — `killEnemy` sets `alive = false` but never sets `gone`"*, and the
+reviewer said *"every new cull path leaks `e.tell`, the one child that is not
+under `e.mesh`."* Both were right.
+
+**Cause.** 2.1.2 added disposal to the branch that clears goblins already flagged
+`gone`. Nothing sets `gone` on death. So the fix covered the rarest exit and
+missed the two that actually run in play: the death path (`g.t > 0.4` after the
+corpse settles) and the 150 m despawn. `e.bar` and `e.tell` are added to the
+scene as siblings of `e.mesh`, not children of it, so disposing the mesh tree
+never reached either of them.
+
+**Fix.** One `removeEnemy(e)` helper handles mesh, bar and tell together, and
+every cull path routes through it — seven sites. `netDrop` gained an `EXTRA`
+sweep that clears `WARDEN` and the `bosses` entry for a departing peer's
+mirrors.
+
+**A footgun found on the way.** `disposeTree` walks materials as well as
+geometries, and twelve module-scope materials (`timber`, `stoneM`, `plankM`,
+`roofRed`, …) are shared by thousands of meshes across the world. Disposing one
+enemy that happened to use `timber` would have blanked every wooden object in
+the game. Those twelve now carry `userData.shared = true` and `disposeTree`
+skips them.
+
+**Honest note on the previous entry.** The 2.1.2 changelog said the enemy leak
+was fixed. It was not — only the tail was. The claim in that entry stands
+corrected here rather than being edited out of it.
+
+### Bug 74 — My `heroLevel() >= 3` gate could hard-block the main quest · FIXED
+
+The Goblin King timer added in 2.1.5 gated on `heroLevel()`, which is the
+**minimum** of five skills — and swimming is one of them. A player who never
+swims sits at swimming 1 forever, so `heroLevel()` never reaches 3, the Goblin
+King never spawns, the seal is never granted, and the main quest stops dead with
+no message explaining why. `heroLevelLand()` takes the minimum of the four
+land skills instead; swimming still counts toward the displayed player level, it
+just cannot hold the story hostage.
+
+### Bug 75 — `waterSurfaceAt` still carried a hardcoded waterline
+
+2.1.3 unified every waterline on `WATER_Y`. One survivor: `waterSurfaceAt`
+compared `terrainH(x, z) < 0.3` directly. Same value today, so no behaviour
+change — but it was one edit away from disagreeing with the rendered plane
+again, which is exactly the bug 2.1.3 existed to kill.

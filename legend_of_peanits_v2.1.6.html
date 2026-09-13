@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.1.5</title>
+<title>Legend of Peanits 2.1.6</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -369,7 +369,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.1.5</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.1.6</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -436,7 +436,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.1.5</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.1.6</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -1842,7 +1842,7 @@ const __boot = (async () => {
     return r ? r.dist : 1e9;
   }
   function waterSurfaceAt(x, z) {
-    if (terrainH(x, z) < 0.3) return WATER_Y;
+    if (terrainH(x, z) < WATER_Y) return WATER_Y; // the literal that used to sit here is exactly how the phantom beach happened
     const r = riverAt(x, z);
     return r ? r.surf : -1e9;
   }
@@ -2949,6 +2949,10 @@ const __boot = (async () => {
     roofRed = keepTex(texMat(TEX.straw, 0xa04a38)),
     roofBlue = keepTex(texMat(TEX.flag, 0x6a8ac0)),
     gold = metal(0xe0b03a);
+  // these are shared by hundreds of meshes across the whole valley. disposeTree tears down a subtree and would happily
+  // destroy one of them from inside a felled tree or a finished roast, blanking every wooden thing in the world at once.
+  // mark them, and the helper steps over them.
+  for (const m of [stoneM, stoneWallM, stoneTowerM, stoneDarkM, plasterM, plankM, strawM, flagM, timber, roofRed, roofBlue, gold]) m.userData.shared = true;
 
   // ============================================================ particle system (instanced)
   class PSys {
@@ -6581,8 +6585,17 @@ const __boot = (async () => {
     root.traverse(o => {
       if (o.geometry) o.geometry.dispose();
       const m = o.material;
-      if (m) (Array.isArray(m) ? m : [m]).forEach(x => x && x.dispose && x.dispose());
+      if (m) (Array.isArray(m) ? m : [m]).forEach(x => x && !(x.userData && x.userData.shared) && x.dispose && x.dispose());
     });
+  }
+  // take an enemy out of the world completely. the attack-tell ring is added straight to the scene rather than to the
+  // body, so disposeTree never reached it: every removal used to leave one behind, and a guest whose connection dropped
+  // mid-swing was left with a red ring lying on the ground that nothing could ever clear.
+  function removeEnemy(e) {
+    if (!e) return;
+    if (e.mesh) { scene.remove(e.mesh); disposeTree(e.mesh); }
+    if (e.bar) { scene.remove(e.bar); disposeTree(e.bar); e.bar = null; }
+    if (e.tell) { scene.remove(e.tell); disposeTree(e.tell); e.tell = null; }
   }
   function nearestHearth(p) {
     let best = null,
@@ -8224,10 +8237,20 @@ const __boot = (async () => {
       g.rotation.z = -0.6;
     } else if (type === "clue") {
       if (opts.shape === "ring") {
-        const r = shadowed(new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.05, 8, 16), metal(0xe8e8f0)));
-        r.rotation.x = Math.PI / 2;
-        r.position.y = 0.25;
-        g.add(r);
+        // a band standing on edge with a raised bezel and a stone, not a flat washer lying in the grass. it leans a
+        // little so you read the circle rather than the rim, and the metal tone is an option because one of these is
+        // silver and engraved and the other is forty years tarnished at the foot of a beacon.
+        const band = shadowed(new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.032, 8, 20), metal(opts.color || 0xe8e8f0)));
+        band.position.y = 0.22;
+        band.rotation.x = 0.34;
+        const bezel = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.052, 0.05, 8), metal(opts.color || 0xe8e8f0)));
+        bezel.position.set(0, 0.385, -0.055);
+        bezel.rotation.x = 0.34;
+        band.add(bezel);
+        const stone = shadowed(new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), lam(opts.stone || 0x2a3a6a)));
+        stone.position.set(0, 0.415, -0.07);
+        band.add(stone);
+        g.add(band);
       } else if (opts.shape === "book") g.add(boxM(0.5, 0.12, 0.7, lam(0x5a2a2a), 0, 0.1, 0), boxM(0.44, 0.13, 0.64, lam(0xe0d6c2), 0, 0.1, 0));
       else g.add(boxM(0.6, 0.04, 0.45, lam(0x141210), 0, 0.06, 0));
       light = vlight(0xffe0a0, 0.8, 5);
@@ -9078,7 +9101,7 @@ const __boot = (async () => {
       const giverOf = vi => npcs.find(n => n.village === vi && !n.kid && n.job !== "wagoner");
       const pool = POOL, ring = findSpot(lighthousePos.x + 9, lighthousePos.z + 6, 2, 300, 8, 1) || V3(lighthousePos.x + 9, terrainH(lighthousePos.x + 9, lighthousePos.z + 6), lighthousePos.z + 6);
       addPickup(V3(pool.x + 9, pool.y, pool.z + 7), "orb", "Violet Stone: a fist of purple rock from the black pool's shore", () => {}, { color: 0x8a5ab8, id: "quest:stonefold" });
-      addPickup(ring, "orb", "A tarnished ring, lost at the foot of the Old Beacon", () => {}, { color: 0xd8c060, id: "quest:greytor" });
+      addPickup(ring, "clue", "A tarnished ring, lost at the foot of the Old Beacon", () => {}, { shape: "ring", color: 0x9a8a52, stone: 0x6a5a3a, id: "quest:greytor" }); // forty years in the grass: dull brass, not silver
       // thornback's lost girl waits in the forest below the elder tree
       const lostSpot = findSpot(ELDER.x + 65, ELDER.z + 35, 2, 200, 5, 2) || V3(ELDER.x + 65, terrainH(ELDER.x + 65, ELDER.z + 35), ELDER.z + 35);
       const LOST = addNPC(lostSpot, { robe: 0x6a8a6a, hair: 0xe8d8a0, skin: 0xf0e0d0, elf: true, seed: 913, kid: true, female: true, style: "braid", name: "Nim" }, "villager", 0, "idle");
@@ -10416,9 +10439,7 @@ const __boot = (async () => {
       const g = goblins[i];
       const nearestD = NET.avatars.size ? Math.min(dist2D(g.pos, P.pos), ...[...NET.avatars.values()].map(a => dist2D(a.state.pos, g.pos))) : dist2D(g.pos, P.pos);
       if (g.gone || (g.mirror && g.hidden && (g.deadReckon = (g.deadReckon || 0) + dt) > 30) || (nearestD > 320 && !g.camp)) { // the camp in the wood waits however far you go
-        scene.remove(g.mesh);
-        disposeTree(g.mesh);
-        if (g.bar) { scene.remove(g.bar); disposeTree(g.bar); }
+        removeEnemy(g);
         goblins.splice(i, 1);
       } else if (g.mirror && !g.hidden) g.deadReckon = 0;
     }
@@ -10460,7 +10481,7 @@ const __boot = (async () => {
           // packs: a few goblins together, sometimes led by a king
           // he used to be able to turn up on your first night, which is a fight you cannot win and a wall across the story.
           // he waits until you are a match for him — the crown says as much when you ask for the seal.
-          const king = night && !inKingdom && heroLevel() >= 3 && !WORLDSTATE.goblinKingDefeated && Math.random() < 0.3 && !goblins.some(g => g.king && g.alive) && kingLull <= 0,
+          const king = night && !inKingdom && heroLevelLand() >= 3 && !WORLDSTATE.goblinKingDefeated && Math.random() < 0.3 && !goblins.some(g => g.king && g.alive) && kingLull <= 0,
             lead = spawnGoblin(x, z, king),
             n = king ? 3 + Math.floor(Math.random() * 2) : 1 + Math.floor(Math.random() * 3);
           for (let k = 0; k < n && alive + k + 1 < cap + 3; k++) {
@@ -10481,13 +10502,8 @@ const __boot = (async () => {
         g.t += dt;
         g.mesh.scale.setScalar(Math.max(0, 0.85 - g.t * 3));
         if (g.t > 0.4) {
-          scene.remove(g.mesh);
-          scene.remove(g.bar);
-          if (g.tell) {
-            scene.remove(g.tell);
-            g.tell.geometry.dispose();
-            g.tell.material.dispose();
-          }
+          // the path every killed goblin takes, and the one the first disposal pass missed entirely
+          removeEnemy(g);
           goblins.splice(i, 1);
         }
         continue;
@@ -10499,13 +10515,7 @@ const __boot = (async () => {
         dz = tgt.pos.z - g.pos.z,
         dist = Math.hypot(dx, dz);
       if (dist > 150 && !g.camp) {
-        scene.remove(g.mesh);
-        scene.remove(g.bar);
-        if (g.tell) {
-          scene.remove(g.tell);
-          g.tell.geometry.dispose();
-          g.tell.material.dispose();
-        }
+        removeEnemy(g);
         goblins.splice(i, 1);
         continue;
       }
@@ -12170,6 +12180,10 @@ const __boot = (async () => {
   function heroLevel() {
     return Math.min(SK.attack.lvl, SK.strength.lvl, SK.agility.lvl, SK.speed.lvl, SK.endurance.lvl, SK.swimming.lvl);
   }
+  // the same reckoning without swimming. hero level is the MINIMUM of six skills, and swimming only rises in water over
+  // your head — so a player who never goes out of their depth is pinned at level one for ever. gating the goblin king
+  // on that would have left the seal ungrantable and the finale unreachable, with nothing in the game saying why.
+  const heroLevelLand = () => Math.min(SK.attack.lvl, SK.strength.lvl, SK.agility.lvl, SK.speed.lvl, SK.endurance.lvl);
   const fwd = () => V3(Math.sin(P.heading), 0, Math.cos(P.heading)),
     hspeed = () => Math.hypot(P.vel.x, P.vel.z);
   // add directional momentum while handling rapid changes of direction
@@ -12381,10 +12395,21 @@ const __boot = (async () => {
       for (let i = goblins.length - 1; i >= 0; i--) {
         const g = goblins[i];
         if (!g.mirror) continue;
-        scene.remove(g.mesh);
-        disposeTree(g.mesh);
-        if (g.bar) { scene.remove(g.bar); disposeTree(g.bar); }
+        removeEnemy(g);
         goblins.splice(i, 1);
+      }
+      // and the same for EXTRA. fixing this for goblins alone left wraiths, wolves and the drowned warden to turn real and
+      // hostile the moment a connection dropped — including a warden at whatever health the host left it, in a finale the
+      // guest never started.
+      for (let i = EXTRA.length - 1; i >= 0; i--) {
+        const e = EXTRA[i];
+        if (!e.mirror) continue;
+        removeEnemy(e);
+        if (e.den) e.den.wolves = e.den.wolves.filter(w => w !== e);
+        if (e === WARDEN) WARDEN = null;
+        const bi = bosses.indexOf(e);
+        if (bi >= 0) bosses.splice(bi, 1);
+        EXTRA.splice(i, 1);
       }
       for (const sl of slimes) sl.tx = undefined;
       if (BEAR) BEAR.tx = undefined;
@@ -13187,7 +13212,7 @@ const __boot = (async () => {
       );
     }
     if (WORLDSTATE.hermitWarned && !WORLDSTATE.relics.seal) {
-      if (!WORLDSTATE.goblinKingDefeated && heroLevel() < 3)
+      if (!WORLDSTATE.goblinKingDefeated && heroLevelLand() < 3)
         return speak(king, "The seal, for a fairy tale? Bring me the goblin king's head first — and he will not show himself to a beginner. Go and become someone worth his while, then walk the moor at night.", "King", 7000);
       if (!WORLDSTATE.goblinKingDefeated) return speak(king, "The seal, for a fairy tale? Bring me the goblin king's head first. He comes to my walls every other night and my knights will not go out to him. Kill him, and I'll believe you can kill the other thing too.", "King", 7000);
       if (WORLDSTATE.marenFreed || STORY.solved) {
@@ -14675,7 +14700,7 @@ const __boot = (async () => {
     if (netGuest()) { for (const e of EXTRA) if (e.tx !== undefined) { const k = Math.min(1, dt * 10); e.pos.x = lerp(e.pos.x, e.tx, k); e.pos.y = lerp(e.pos.y, e.ty, k); e.pos.z = lerp(e.pos.z, e.tz, k); e.heading = e.th; e.mesh.position.copy(e.pos); e.mesh.rotation.y = e.heading; e.mesh.visible = e.alive; if (e.mat) e.mat.opacity = e.state === "recover" ? 1 : 0.55; updateHealthBar(e, e.kind === "wolf" ? 1.8 : 3); } return; }
     for (let i = EXTRA.length - 1; i >= 0; i--) {
       const e = EXTRA[i];
-      if (!e.alive) { e.t += dt; if (e.kind === "wolf") { e.mesh.rotation.z = lerp(e.mesh.rotation.z, 1.5, Math.min(1, dt * 3)); e.mesh.position.y = e.pos.y - Math.max(0, e.t - 6) * 0.3; } else { e.mat.opacity = Math.max(0, 0.55 - e.t * 0.5); } if (e.t > 8 || (e.wraith && e.t > 1.5)) { scene.remove(e.mesh); disposeTree(e.mesh); if (e.bar) { scene.remove(e.bar); disposeTree(e.bar); } if (e.den) e.den.wolves = e.den.wolves.filter(w => w !== e); EXTRA.splice(i, 1); } continue; }
+      if (!e.alive) { e.t += dt; if (e.kind === "wolf") { e.mesh.rotation.z = lerp(e.mesh.rotation.z, 1.5, Math.min(1, dt * 3)); e.mesh.position.y = e.pos.y - Math.max(0, e.t - 6) * 0.3; } else { e.mat.opacity = Math.max(0, 0.55 - e.t * 0.5); } if (e.t > 8 || (e.wraith && e.t > 1.5)) { removeEnemy(e); if (e.den) e.den.wolves = e.den.wolves.filter(w => w !== e); EXTRA.splice(i, 1); } continue; }
       const tgt = nearestPlayerTo(e.pos), dx = tgt.pos.x - e.pos.x, dz = tgt.pos.z - e.pos.z, dist = Math.hypot(dx, dz);
       e.t -= dt; e.flash = Math.max(0, e.flash - dt);
       if (e.wraith) updateWraith(e, tgt, dx, dz, dist, dt); else if (e.kind === "wolf") updateWolf(e, tgt, dx, dz, dist, dt);
