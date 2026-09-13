@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.0.2</title>
+<title>Legend of Peanits 2.1.0</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -368,7 +368,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.0.2</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.1.0</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -435,7 +435,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.0.2</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.1.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -5376,7 +5376,7 @@ const __boot = (async () => {
         skip = distToPlayer > TUNE.people.think3 ? 6 : distToPlayer > TUNE.people.think2 ? 3 : distToPlayer > TUNE.people.thinkFull ? 2 : 1;
       if ((npcTick + n.vi) % skip) continue;
       const dt = Math.min(0.25, dtFrame * skip);
-      if (n.furniture) {
+      if (n.furniture || n.asleep) {
         if (n.prompt) n.prompt.visible = false;
         if (n.mark) n.mark.visible = false;
       } else if (n.prompt || distToPlayer < 5) {
@@ -5525,6 +5525,39 @@ const __boot = (async () => {
         if (n.homeStuck > 4 && n.hut.door) { n.pos.set(n.hut.door.x, groundAt(n.hut.door.x, n.hut.door.z, n.hut.y + 1), n.hut.door.z); n.throughDoor = n.hut; n.homeStuck = 0; n.homeBest = undefined; }
         return ok;
       };
+      // night: into your own room, across to your own bed, and down on it until the sun is up
+      const restAtHome = spd => {
+        if (insideInterior(n.pos.x, n.pos.z) !== n.hut) return goHome(spd);
+        const b = n.myBed;
+        if (!b || b.it !== n.hut) {
+          // no bed of their own: the old behaviour, standing in the middle of the room
+          if (Math.hypot(n.hut.cx - n.pos.x, n.hut.cz - n.pos.z) > 1.6) step(n.hut.cx, n.hut.cz, spd * 0.75);
+          else n.target = null;
+          return true;
+        }
+        n.target = null;
+        const d = Math.hypot(b.pos.x - n.pos.x, b.pos.z - n.pos.z);
+        if (d > 2.6) return step(b.pos.x, b.pos.z, spd * 0.75);
+        // the last stride is a lerp, not a step: step()'s two-and-a-half metre look-ahead is inside the wall this close
+        // to one, so every candidate direction is refused and the villager stalls beside the mattress. the king's
+        // throne is seated the same way.
+        n.wantMove = true;
+        n.pos.x = lerp(n.pos.x, b.pos.x, Math.min(1, dt * 3));
+        n.pos.z = lerp(n.pos.z, b.pos.z, Math.min(1, dt * 3));
+        n.heading = b.yaw;
+        if (d < 0.3 && !b.by) {
+          b.by = n;
+          n.asleep = true;
+          n.inBed = true;
+          n.walkAmp = 0;
+          const u = n.mesh.userData;
+          if (u && u.legs) {
+            u.legs[0].rotation.x = u.legs[1].rotation.x = u.arms[0].rotation.x = u.arms[1].rotation.x = 0;
+            u.body.position.y = 0.98;
+          }
+        }
+        return true;
+      };
       const wanderTarget = () => {
         for (let k = 0; k < 8; k++) {
           const a = Math.random() * 6.28,
@@ -5560,11 +5593,47 @@ const __boot = (async () => {
         }
       }
       if (n.asleep) {
-        if (!n.furniture) {
-          n.mesh.position.copy(n.pos);
-          n.mesh.position.y += 0.55 + Math.sin(time * 0.8) * 0.02;
+        // asleep used to mean "frozen upright, forever": this branch returned early and nothing anywhere woke anyone.
+        // a villager in a bed lies on it and gets up at first light; everyone else (ysolde's father) stays as they were.
+        if (n.inBed && n.myBed && n.myBed.by === n) {
+          const b = n.myBed,
+            it = b.it,
+            k = it.grow || 1,
+            ky = it.group ? it.group.scale.y : 1;
+          if (!dayTime) {
+            const fx = Math.sin(b.yaw),
+              fz = Math.cos(b.yaw),
+              len = b.len * k,
+              along = Math.min(len / 2 - 0.2, -len / 2 + 0.35 * k + 2.6); // feet at the foot, body back toward the pillow
+            n.pos.set(b.pos.x, it.y + (it.floorTop || 0) * ky, b.pos.z);
+            n.mesh.position.set(
+              b.pos.x + fx * along,
+              it.y + b.top * ky + TUNE.player.lieHeightOverMattress + Math.sin(time * 0.8) * 0.015,
+              b.pos.z + fz * along
+            );
+            n.mesh.rotation.order = "YXZ";
+            n.mesh.rotation.y = b.yaw;
+            n.mesh.rotation.x = -Math.PI / 2;
+            n.visH = b.yaw;
+            continue;
+          }
+          b.by = null;
+          n.inBed = n.asleep = false;
+          n.mesh.rotation.x = 0;
+          const ox = it.cx + (b.pos.x - it.cx) * 0.72,
+            oz = it.cz + (b.pos.z - it.cz) * 0.72; // out of bed, onto the floorboards beside it
+          n.pos.set(ox, groundAt(ox, oz, it.y + 1), oz);
+          n.heading = Math.atan2(it.cx - n.pos.x, it.cz - n.pos.z);
+          n.phase = "home";
+          n.t = 0;
+          n.target = null;
+        } else {
+          if (!n.furniture) {
+            n.mesh.position.copy(n.pos);
+            n.mesh.position.y += 0.55 + Math.sin(time * 0.8) * 0.02;
+          }
+          continue;
         }
-        continue;
       }
       if (n.kind === "body") {
         n.mesh.position.copy(n.pos);
@@ -5822,11 +5891,7 @@ const __boot = (async () => {
       } else if (!n.fight && n.hut && !n.post && !dayTime && n.job !== "hunter" && n.kind === "villager" && (n.phase === "home" || n.job === "idle")) {
         // night: everyone with a hut is in it — except the hunters, who are the reason the night is survivable. a
         // hunter keeps the hut he was assigned, so the bed count still includes him; he is just never pulled to it.
-        if (insideInterior(n.pos.x, n.pos.z) !== n.hut) goHome(2.4);
-        else if (Math.hypot(n.hut.cx - n.pos.x, n.hut.cz - n.pos.z) > 1.6) step(n.hut.cx, n.hut.cz, 1.8);
-        else {
-          n.target = null;
-        }
+        restAtHome(2.4);
       } else if (!n.fight && n.job !== "idle" && n.kind === "villager") {
         // dusk puts everyone else's work down. a hunter keeps going — this is his shift — and a kill he is already
         // walking to or carrying gets finished rather than left out in the dark. fetch and haul were missing from this
@@ -5890,8 +5955,7 @@ const __boot = (async () => {
             n.t -= dt;
             if (n.kid && n.job !== "climber") {
               if (!dayTime && n.hut) {
-                if (insideInterior(n.pos.x, n.pos.z) !== n.hut) goHome(2.6);
-                else if (Math.hypot(n.hut.cx - n.pos.x, n.hut.cz - n.pos.z) > 1.4) step(n.hut.cx, n.hut.cz, 1.6);
+                restAtHome(2.6);
                 break;
               }
               if (n.shock > 0) {
@@ -5933,8 +5997,7 @@ const __boot = (async () => {
             // the second of the two night-home pulls, and the easy one to miss: the branch above only catches phase
             // "home" or job "idle", so a hunter back from an errand landed here instead.
             if (!dayTime && n.hut && !n.post && n.job !== "hunter") {
-              if (insideInterior(n.pos.x, n.pos.z) !== n.hut) goHome(2.4);
-              else if (n.target) n.target = null;
+              restAtHome(2.4);
               break;
             }
             // the wander used to be the else of "is it daytime", so it could only ever run at night. anyone whose job
@@ -8615,7 +8678,7 @@ const __boot = (async () => {
   function anyInteractableNear() {
     if (FAIRY.queen && (FAIRY.queen.pos.distanceTo(P.pos) < 9 || FAIRY.children.some(fairyInReach))) return true;
     if (near(hermitPos, 4.5) || near(king.pos, 5.5) || near(BODY.pos, 4.5)) return true;
-    if (roomNow && roomNow.bed && near(roomNow.bed, 2.6)) return true;
+    if (bedHere(2.6)) return true;
     for (const p of pickups)
       if (!p.taken && dist2D(p.mesh.position, P.pos) < 5 && Math.abs(p.mesh.position.y - P.pos.y) < 3.2)
         return true;
@@ -8657,6 +8720,7 @@ const __boot = (async () => {
               if (it.bedMesh) it.bedMesh.visible = false;
             }
             MILLER.pos.set(it.bed.x, it.y, it.bed.z);
+            if (it.beds && it.beds[0]) it.beds[0].by = MILLER;
           }
         }
       }
@@ -9447,6 +9511,128 @@ const __boot = (async () => {
     g.position.copy(p);
     scene.add(g);
     sheep.push({ mesh: g, legs, t: hash(i, 5) * 5, a: hash(i, 6) * 6.28, walk: false });
+  }
+
+  // ============================================================ beds: one for everyone who sleeps
+  // every interior that had a bed starts with one bed record, and bed 0 keeps the SAME Vector3 as it.bed — so the
+  // respawn search, the lore books, the hiding places, millerToBed and the E prompt all keep reading the old field and
+  // none of them had to change. this runs here because this is the first line at which every villager exists.
+  const bedRecord = (it, pos, yaw, len, top, mesh) => ({
+    it,
+    pos,
+    yaw,
+    len,
+    top,
+    mesh,
+    ox: pos.x - it.cx,
+    oz: pos.z - it.cz,
+    owner: null, // whose bed this is, decided once at worldgen
+    by: null // and who is lying in it right now, which is what stops the player using it
+  });
+  for (const it of interiors)
+    it.beds = it.bed ? [bedRecord(it, it.bed, it.bedYaw === undefined ? 0 : it.bedYaw, it.bedLen || 2.2, it.bedTop || 0.6, it.bedMesh || null)] : [];
+  // a second bed of the same make as the first. it goes in it.group, never it.dec, because dec children are
+  // counter-scaled when a room swells and bed 0 is not — put it in the wrong parent and the two beds drift apart as
+  // the player walks in.
+  function addSecondBed(it) {
+    if (!it.group || it.beds.length !== 1 || it.keep || it.noSleep || it.reserved) return null;
+    const gy = it.group.rotation.y,
+      c = Math.cos(gy),
+      s = Math.sin(gy);
+    const toLocal = p => ({ x: (p.x - it.cx) * c - (p.z - it.cz) * s, z: (p.x - it.cx) * s + (p.z - it.cz) * c });
+    const b0 = toLocal(it.beds[0].pos);
+    let lx, lz, ly;
+    if (it.round) {
+      // a round hut's doorway is the gap at local +z, so the second bed takes the half of the wall the first leaves
+      lx = Math.sign(b0.x || -1) * ((it.baseRound || it.round) - 1.35);
+      lz = 0.3;
+      ly = Math.PI / 2;
+    } else {
+      const d0 = toLocal(it.door || { x: it.cx, z: it.cz + it.baseD + 1.6 });
+      if (Math.abs(d0.x) > Math.abs(d0.z)) {
+        lx = -Math.sign(b0.x || 1) * 1.5;
+        lz = -Math.sign(b0.z || -1) * (it.baseD - 0.75);
+        ly = 0;
+      } else {
+        lx = Math.sign(b0.x || -1) * (it.baseW - 0.75);
+        lz = -0.4;
+        ly = Math.PI / 2;
+      }
+    }
+    const len = it.beds[0].len,
+      wid = Math.max(1, len * 0.52),
+      y0 = (it.floorTop || 0.1) + 0.02,
+      top = y0 + 0.59;
+    const g = new THREE.Group();
+    g.add(
+      boxM(len, 0.45, wid, strawM, 0, 0.22, 0),
+      boxM(len - 0.6, 0.18, wid - 0.1, lam(pick([0x8a3b2e, 0x3b5a8a, 0x6a4a6a, 0x4a6a3a], hash(it.cz, it.cx))), 0.3, 0.5, 0),
+      boxM(0.5, 0.22, Math.max(0.6, wid - 0.4), lam(0xe0d6c2), -(len / 2 - 0.35), 0.5, 0)
+    );
+    g.position.set(lx, y0, lz);
+    g.rotation.y = ly;
+    it.group.add(g);
+    const rec = bedRecord(it, V3(it.cx + lx * c + lz * s, it.y + top, it.cz - lx * s + lz * c), gy + ly + Math.PI / 2, len, top, g);
+    it.beds.push(rec);
+    return rec;
+  }
+  // ---- one bed each ----
+  // deterministic: distances and array order only, no Math.random, so the layout is identical on every boot and none
+  // of it has to be saved.
+  {
+    const sleeps = n =>
+      n.kind === "villager" && !n.post && !n.stay && !n.quester && !n.canopy && !n.lost && n.job !== "wagoner" && n.job !== "climber" && !n.furniture && !n.asleep;
+    // ysolde's father moves into his house for good when his errand is done, and takes the whole room with him
+    {
+      const h = houses[5] && interiors.find(i => Math.abs(i.cx - houses[5].x) < 0.1 && Math.abs(i.cz - houses[5].z) < 0.1);
+      if (h) h.reserved = true;
+    }
+    const questerHuts = new Set(npcs.filter(n => n.quester && n.hut).map(n => n.hut)); // a quest giver's roof is their own
+    const rooms = interiors.filter(it => it.beds.length && it.door && !it.keep && !it.noSleep && !it.reserved && !questerHuts.has(it));
+    for (const it of rooms) it.sleepRoom = true;
+    const take = (n, b) => {
+      b.owner = n;
+      n.myBed = b;
+      n.hut = b.it;
+    };
+    // the search is 2d, so without a height test it would happily send a villager forty metres up the elder tree
+    const suits = (it, n) => Math.abs(it.y - n.home.y) < 8 && Math.hypot(it.cx - n.home.x, it.cz - n.home.z) < 60;
+    const nearest = (n, ok) => {
+      let best = null,
+        bd = 60;
+      for (const it of rooms) {
+        if (!ok(it) || !suits(it, n)) continue;
+        const d = Math.hypot(it.cx - n.home.x, it.cz - n.home.z);
+        if (d < bd) {
+          bd = d;
+          best = it;
+        }
+      }
+      return best;
+    };
+    const sleepers = npcs.filter(sleeps);
+    // hill folk keep the hut they were built beside; if their own roof is full, a second bed goes under it
+    for (const n of sleepers) {
+      if (!n.hill || !n.hut || !n.hut.sleepRoom) continue;
+      const b = n.hut.beds.find(x => !x.owner) || addSecondBed(n.hut);
+      if (b) take(n, b);
+    }
+    // everyone else takes the nearest unclaimed bed, which is what spreads the town out: its own nearest-house pass
+    // clustered several adults onto one roof
+    for (const n of sleepers) {
+      if (n.myBed) continue;
+      const it = nearest(n, r => r.beds.some(x => !x.owner));
+      if (it) take(n, it.beds.find(x => !x.owner));
+    }
+    // and where nothing is spare, a second bed goes into the nearest roof that can hold one
+    for (const n of sleepers) {
+      if (n.myBed) continue;
+      const it = nearest(n, r => r.beds.length < 2);
+      const b = it && addSecondBed(it);
+      if (b) take(n, b);
+    }
+    // anyone still without keeps the old behaviour rather than walking to a room that cannot hold them
+    for (const n of sleepers) if (!n.myBed && n.hut && !n.hut.sleepRoom) n.hut = null;
   }
 
   await __stage(95, "Rousing the slimes…");
@@ -12748,6 +12934,21 @@ const __boot = (async () => {
     placeTimer = banner ? 4200 : 2800;
   }
   const near = (p, r = 3.5, dy = 2.6) => dist2D(p, P.pos) < r && (p.y === undefined || Math.abs(p.y - P.pos.y) < dy);
+  // the bed nearest you in the room you are standing in. the room-level noSleep flag was fine when a hut held one bed;
+  // with two it would lock you out of an empty one because somebody was asleep in the other.
+  function bedHere(r = 2.4) {
+    if (!roomNow || !roomNow.beds || !roomNow.beds.length) return null;
+    let best = null,
+      bd = r;
+    for (const b of roomNow.beds) {
+      const d = dist2D(b.pos, P.pos);
+      if (d < bd && Math.abs(b.pos.y - P.pos.y) < 2.6) {
+        bd = d;
+        best = b;
+      }
+    }
+    return best;
+  }
   const hermitVoice = {
     voice: 128,
     pitch: 0.58,
@@ -13043,13 +13244,28 @@ const __boot = (async () => {
       else speak(hermitVoice, "You can see the light from here. Thank you, wanderer.", "Hermit");
       return;
     }
-    if (roomNow && roomNow.bed && near(roomNow.bed, 2.4) && sleepT <= 0) {
-      if (roomNow.noSleep) {
-        say("That's someone's bed. He's in it.", 2500);
+    if (sleepT <= 0) {
+      const b = bedHere(2.4);
+      if (b) {
+        if (roomNow.noSleep) {
+          say("That's someone's bed. He's in it.", 2500); // ysolde's father, who is not getting up again
+          return;
+        }
+        if (b.by) {
+          // the room is not off limits, only the mattress — say which, and whether the other is free
+          const spare = roomNow.beds.some(x => x !== b && !x.by);
+          say(
+            b.by.female
+              ? spare ? "She's asleep in that one. The other's empty." : "She's asleep in that one. Let her be."
+              : spare ? "He's asleep in that one. The other's empty." : "He's asleep in that one. Let him be.",
+            2500
+          );
+          return;
+        }
+        P.inBed = b;
+        sleepT = 3.2;
         return;
       }
-      sleepT = 3.2;
-      return;
     }
     if (near(king.pos, 5)) return kingTalk();
     for (const p of pickups)
@@ -14140,7 +14356,9 @@ const __boot = (async () => {
           if (it.doorOz === undefined) it.doorOz = it.door.z - it.cz;
           it.door.z = it.cz + it.doorOz * k;
         }
-        if (it.bed)
+        // beds[0].pos IS it.bed, so every legacy reader still sees the grown position
+        if (it.beds) for (const b of it.beds) b.pos.set(it.cx + b.ox * k, b.pos.y, it.cz + b.oz * k);
+        else if (it.bed)
           it.bed.set(
             it.cx + (it.bedOx = it.bedOx === undefined ? it.bed.x - it.cx : it.bedOx) * k,
             it.bed.y,
@@ -14178,18 +14396,26 @@ const __boot = (async () => {
           zz.classList.toggle("hidden", !(sleepT > 1.2 && sleepT < 2.5));
         }
         P.lying = sleepT > 1.0;
-        if (roomNow && roomNow.bed && sleepT > 2.4) {
-          const it = roomNow,
-            yaw = it.bedYaw !== undefined ? it.bedYaw : P.heading,
-            fx = Math.sin(yaw),
-            fz = Math.cos(yaw),
-            len = (it.bedLen || 2.2) * (it.grow || 1),
-            along = Math.min(len / 2 - 0.2, -len / 2 + 0.35 * (it.grow || 1) + 2.6);
-          P.pos.x = lerp(P.pos.x, it.bed.x + fx * along, rdt * 6);
-          P.pos.z = lerp(P.pos.z, it.bed.z + fz * along, rdt * 6);
-          P.heading = yaw;
-          P.lieY = (it.bedTop || 0.6) + TUNE.player.lieHeightOverMattress;
-        } // the model's origin is at its feet: the feet go to the foot of the bed and the body lies back toward the pillow // the hips sit a little toward the foot of the bed, so the head lands on the pillow instead of in the wall
+        {
+          const bd = P.inBed || (roomNow && roomNow.beds && roomNow.beds[0]) || null;
+          if (bd && sleepT > 2.4) {
+            const it = bd.it || roomNow,
+              k = it.grow || 1,
+              ky = it.group ? it.group.scale.y : 1,
+              yaw = bd.yaw !== undefined ? bd.yaw : P.heading,
+              fx = Math.sin(yaw),
+              fz = Math.cos(yaw),
+              len = (bd.len || 2.2) * k,
+              along = Math.min(len / 2 - 0.2, -len / 2 + 0.35 * k + 2.6);
+            P.pos.x = lerp(P.pos.x, bd.pos.x + fx * along, rdt * 6);
+            P.pos.z = lerp(P.pos.z, bd.pos.z + fz * along, rdt * 6);
+            P.heading = yaw;
+            // the * ky is new, and fixes a long-standing sink: a grown room lifts the mattress by its vertical scale
+            // while this put the player at the unscaled height, so you slept about twenty centimetres inside your own bed
+            P.lieY = (bd.top || 0.6) * ky + TUNE.player.lieHeightOverMattress;
+          }
+          if (sleepT <= 0) P.inBed = null;
+        } // the model's origin is at its feet: the feet go to the foot of the bed and the body lies back toward the pillow
         if (before > 1.3 && sleepT <= 1.3) {
           const night = dayElev < 0.05;
           dayT = night ? 0.04 : 0.52;
@@ -14684,8 +14910,11 @@ const __boot = (async () => {
     updateHallGuard();
     // a room is roomier once you are in it: while nobody outside can see, the walls slide out
     updateRoomGrowth(rdt);
-    bedPrompt.visible = !!(roomNow && roomNow.bed && near(roomNow.bed, 2.4));
-    if (bedPrompt.visible) bedPrompt.position.copy(roomNow.bed).add(V3(0, 1.6, 0));
+    {
+      const b = bedHere(2.4);
+      bedPrompt.visible = !!b;
+      if (b) bedPrompt.position.copy(b.pos).add(V3(0, 1.6, 0));
+    }
     updateSleeping(rdt);
     const ts = P.flurry > 0 ? 0.18 : 1;
     let dt = rdt * ts;

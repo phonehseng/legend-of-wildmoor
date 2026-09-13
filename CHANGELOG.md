@@ -618,3 +618,55 @@ earlier ladder arm won skipped the reset. Cleared once per tick now.
 The nap clock runs while the hunter walks to his tent, so 30 seconds of nap buys
 at most 72 m of walking. A hunter 72-90 m out would drop his work, walk, time out
 en route, and walk back having gained nothing.
+
+---
+
+## 2.1.0 — Villagers sleep in beds
+
+**Requested:** "at night, the villagers that sleep at night should go to a hut at
+night and sleep in a bed, and the player shouldn't be able to sleep in it. quest
+givers don't sleep. there should be enough beds for each villager in a kingdom or
+town, if not a second bed can be added to a hut."
+
+**The count, before any furniture was placed:** the kingdom had 21 usable beds
+for 26 sleepers; each village was short 3-4; **16 village children had no hut
+assigned at all** and wandered every night; and ~18 huts were already
+double-booked, with a child and an adult sharing one bed. So ~30 second beds, not
+one per hut.
+
+**Quest givers already never slept** — `post: true` excludes them from all three
+night branches. No new flag was needed, only leaving them out of the sleeper pool.
+
+Beds are now records rather than a bare Vector3, and `beds[0].pos` **is** the old
+`it.bed` object, so the respawn search, the lore books, the hiding places and
+`millerToBed` all kept reading the field they always read and needed no changes.
+A second bed goes into `it.group`, never `it.dec`, because `dec` children are
+counter-scaled when a room swells and bed 0 is not — the wrong parent and the two
+beds drift apart as the player walks in.
+
+Assignment is deterministic — distances and array order, no randomness — so the
+layout is identical on every boot and **none of it needs saving**.
+
+### Bug 49 — `asleep` had no exit, anywhere · FIXED
+
+The branch returned early before anything could wake the sleeper. The miller has
+been in it since 2.0 and was never getting up. Villagers in beds now lie down
+properly and get up at first light; the miller keeps the old behaviour, because
+his is intentional.
+
+### Bug 50 — The player slept 20 cm inside their own mattress · FIXED
+
+Pre-existing. A grown room lifts the bed by its vertical scale, but the lie
+height used the unscaled value.
+
+### Also
+
+Occupancy is per bed, not per room — a hut with two beds is two separate offers,
+so you can still sleep in the free one while somebody snores in the other, and
+the refusal line says which. The final stride to a bed is a lerp rather than a
+step, because `step()`'s 2.5 m look-ahead is inside the wall that close to one
+and every direction gets refused. No E prompt over someone face-down on a bed.
+
+**Versioning:** from here the version bumps and the file is renamed on every
+commit. This one takes the accumulated feature work — ground cover removal, NPC
+pathing, animation blending, hunters, beds — to **2.1.0**; patch bumps follow.
