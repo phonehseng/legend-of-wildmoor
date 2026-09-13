@@ -670,3 +670,84 @@ and every direction gets refused. No E prompt over someone face-down on a bed.
 **Versioning:** from here the version bumps and the file is renamed on every
 commit. This one takes the accumulated feature work — ground cover removal, NPC
 pathing, animation blending, hunters, beds — to **2.1.0**; patch bumps follow.
+
+---
+
+## 2.1.1 — Multiplayer holes, exploits, and things that looked wrong
+
+### Bug 51 — Guest hunters locked up shooting phantoms · FIXED *(my regression)*
+
+On a guest every goblin is a mirror of the host's, and one that leaves the
+host's snapshot radius is marked `hidden` but keeps `alive = true` with its
+position frozen at last report. None of the four villager-vs-goblin searches
+checked `hidden`. So a hunter standing near a phantom entered the engage branch
+and **never left it** — firing at empty air forever, never picking work, never
+napping, never going home. Guest arrows are discarded by `damageEnemy` anyway,
+so it could never resolve. Introduced by the night-watch commit; five tokens.
+
+### Bug 52 — A dropped connection resurrected every goblin · FIXED
+
+The cull loop sat *below* the guest early-return, so a guest accumulated one mesh
+per goblin the host had ever spawned and removed none. Then `netDrop` handed them
+all back: `mirror = false, hidden = false, visible = true`. **One wifi blip and a
+whole session's worth of goblins turned real, visible and hostile at full health
+on the guest's screen**, bypassing the spawn cap entirely. The cull now runs for
+everyone, phantoms time out after 30 s, and a disconnect deletes mirrors instead
+of reviving them.
+
+### Bug 53 — Any peer could end everyone's story permanently · FIXED
+
+`{t:"mq"}` was dispatched to `applyMainProgress` with **no authority check**, and
+the host rebroadcast it. `endTheStory` rewrites the pool, sets the flag and
+returns early ever after — there is no way back. A single crafted message ended
+the story for every player in the session, including ones who had not collected a
+relic, and took their choice of ending with it. A guest now only accepts an
+ending from the host.
+
+### Bug 54 — Loading a save silently ejected you from multiplayer · FIXED
+
+`loadSaveKey` calls `location.reload()`, which tears down every peer connection
+with no goodbye; the reloaded page gets a fresh id and has no reconnect path. It
+now asks first.
+
+### Bug 55 — A malicious host could exhaust a guest's memory · FIXED
+
+`netApplyEnemies` iterated the snapshot with no length cap, building a full
+character mesh per unseen id. Bounded to 64 goblins and 32 extras, with finite
+coordinate checks.
+
+### Bug 56 — A crafted save key could reach `Object.prototype` · FIXED
+
+`REWARDS[e[0]]` and `DISCOVERIES[x]` tested membership by truthiness, so
+`"constructor"` and `"__proto__"` passed validation. The reward path then called
+`fn()` unguarded — throwing *after* the pickup had already been consumed.
+Ownership checks on both, and `grant` now checks `fn` is callable.
+
+### Bug 57 — A guest could permanently lose the finale · FIXED
+
+`NET.finaleAsked` latched forever and was never reset. If the single ask went
+unanswered the guest could never raise the Warden again for the rest of the
+session. Now a 20-second cooldown.
+
+### Hunter tents are out of the settlements
+
+Requested. The post-pass searched outward from each hunter's home, which for town
+and village hunters is inside the settlement. It now starts outside and works
+outward, rejecting anything within the town wall or 30 m of a village centre.
+
+### Fires burn
+
+Every hearth in the valley — the elder-tree camps, the villages, the forest
+hunters' camps and the hermit's — now has three tapered tongues that writhe on
+their own phase, with the light breathing in time with them rather than on its
+own clock. They animate only within 90 m, so a valley full of hearths costs
+nothing.
+
+### Hunters were holding their bows backwards
+
+The limbs bulged *toward* the archer with the string beyond them. Flipped.
+
+### The level-up notification is gold
+
+The whole box, not just the letters — a bar that only recolours its text reads as
+a typo.

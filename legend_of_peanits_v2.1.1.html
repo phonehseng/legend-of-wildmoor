@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.1.0</title>
+<title>Legend of Peanits 2.1.1</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -108,8 +108,9 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   .choice-opt small { display: block; opacity: .8; margin-top: 4px; font-size: 12px; }
   #subs .sub.dark { background: linear-gradient(90deg, rgba(40,20,70,.95), rgba(12,8,24,.92)); border-left: 3px solid #8a5ad8; color: #d8ccf0; }
   #subs .sub.discover { background: rgba(20,32,26,.9); border-left: 3px solid #75e5c8; color: #e0fff4; font-style: italic; }
-  #subs .sub.level { color: #ffd23c; border-left: 3px solid #e0a820; font-weight: 700; letter-spacing: .04em; }
-  #subs .sub.level .lvl-tag { display: block; font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: #fff0b0; opacity: .9; font-weight: 600; margin-bottom: 2px; }
+  /* the whole box goes gold on a level, not just the letters: a bar that only recolours its text reads as a typo */
+  #subs .sub.level { color: #2a1d05; background: linear-gradient(90deg, rgba(246,203,74,.97), rgba(212,158,40,.95)); border-left: 3px solid #fff0b0; box-shadow: 0 0 18px rgba(240,190,70,.45); font-weight: 700; letter-spacing: .04em; text-shadow: 0 1px 0 rgba(255,246,214,.55); }
+  #subs .sub.level .lvl-tag { display: block; font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: #5a3f0a; opacity: .95; font-weight: 700; margin-bottom: 2px; }
   /* appearance and layout for #subs .sub.fade */
   #subs .sub { transition: opacity 2s ease !important; }
   #subs .sub.fade { opacity: 0; }
@@ -368,7 +369,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.1.0</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.1.1</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -435,7 +436,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.1.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.1.1</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -3787,6 +3788,8 @@ const __boot = (async () => {
   const elderLamps = [],
     elderLookouts = [],
     hearths = [],
+    FIRES = [], // every fire in the valley, so one loop can flicker all of them
+
     cooking = [];
   let helixPos = null,
     helixAt = null,
@@ -4009,6 +4012,7 @@ const __boot = (async () => {
         const fl = vlight(0xff8a3a, 1.5, 16);
         fl.position.set(x, y + 1.2, z);
         elderLamps.push(fl);
+        addFire(fire, 0, 0.25, 0, fl, 1);
         hearths.push(V3(x, y + 0.2, z));
       }
     });
@@ -4296,8 +4300,10 @@ const __boot = (async () => {
     if (o.staff) g.add(cyl(0.05, 0.05, 3, timber, 0.7, 1.5, 0.2, 8), sphere(0.12, lam(0xd9a441), 0.7, 3.05, 0.2));
     if (o.bow) {
       const bw = new THREE.Group();
+      // the limbs bow AWAY from the archer and the string sits on the near side of the grip. it was the other way
+      // round: the arc bulged back toward the body with the string beyond it, so every hunter held the bow backwards.
       const arc = shadowed(new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.04, 6, 16, 2.6), timber));
-      arc.rotation.z = -1.3;
+      arc.rotation.z = -1.3 + Math.PI;
       bw.add(arc);
       const str = cyl(0.012, 0.012, 1.75, lam(0xe0d6c2), 0, 0, 0, 4);
       str.position.set(0.32, 0, 0);
@@ -5653,7 +5659,7 @@ const __boot = (async () => {
         !n.canopy &&
         slopeAt(n.pos.x, n.pos.z) < 0.8
       ) {
-        const gob = goblins.find(g => g.alive && g.rise <= 0 && dist2D(g.pos, n.pos) < 22);
+        const gob = goblins.find(g => g.alive && !g.hidden && g.rise <= 0 && dist2D(g.pos, n.pos) < 22);
         if (gob) {
           n.hide = 6;
           if (!n.hideTo) {
@@ -5695,7 +5701,7 @@ const __boot = (async () => {
             step(it.cx, it.cz, 5);
           }
         } else {
-          const gob = goblins.find(g => g.alive && dist2D(g.pos, n.pos) < 30);
+          const gob = goblins.find(g => g.alive && !g.hidden && dist2D(g.pos, n.pos) < 30);
           if (gob) {
             const ax = n.pos.x - gob.pos.x,
               az = n.pos.z - gob.pos.z,
@@ -5861,7 +5867,7 @@ const __boot = (async () => {
         // up so a nap has a hard ceiling; a goblin inside wakeRange, which is wider than his own shooting range so he
         // is on his feet with the thing still out of reach; and failing to reach his own tent, so he never stands
         // grinding at a wall with the idea half-formed.
-        const gob = goblins.find(g => g.alive && g.rise <= 0 && dist2D(g.pos, n.pos) < TUNE.hunters.wakeRange);
+        const gob = goblins.find(g => g.alive && !g.hidden && g.rise <= 0 && dist2D(g.pos, n.pos) < TUNE.hunters.wakeRange);
         n.nap -= dt;
         if (gob || n.nap <= 0) {
           wakeHunter(n);
@@ -5917,7 +5923,7 @@ const __boot = (async () => {
         if (n.job === "hunter" && n.tent && !n.napping && !n.napGo && n.nap <= 0) {
           if (n.napWait === undefined) n.napWait = TUNE.hunters.napGapMin + Math.random() * (TUNE.hunters.napGapMax - TUNE.hunters.napGapMin);
           else n.napWait -= dt;
-          const busy = n.prey || n.carrying || n.hide > 0 || goblins.some(g => g.alive && g.rise <= 0 && dist2D(g.pos, n.pos) < TUNE.hunters.wakeRange);
+          const busy = n.prey || n.carrying || n.hide > 0 || goblins.some(g => g.alive && !g.hidden && g.rise <= 0 && dist2D(g.pos, n.pos) < TUNE.hunters.wakeRange);
           if (n.napWait <= 0 && !busy && dist2D(n.tent, n.pos) < TUNE.hunters.napReach) {
             n.nap = TUNE.hunters.napMin + Math.random() * (TUNE.hunters.napMax - TUNE.hunters.napMin);
             n.napGo = true;
@@ -5932,7 +5938,10 @@ const __boot = (async () => {
           // picks his shots. the shorter range and slower cadence are the whole of the night balance: ten-odd bowmen at
           // 34 m with an arrow every 1.4 s would strip the goblin spawn cap before you ever saw one.
           const range = dayTime ? TUNE.hunters.engageDay : TUNE.hunters.engageNight;
-          const gob = goblins.find(g => g.alive && g.rise <= 0 && dist2D(g.pos, n.pos) < range);
+          // !g.hidden matters on a guest: every goblin there is a mirror, and one that has left the host's snapshot radius keeps
+          // alive = true with its position frozen at last report. a hunter beside one used to enter this branch and never
+          // leave it — firing at empty air forever, never picking work, never napping, never going home.
+          const gob = goblins.find(g => g.alive && !g.hidden && g.rise <= 0 && dist2D(g.pos, n.pos) < range);
           if (gob) {
             n.heading = Math.atan2(gob.pos.x - n.pos.x, gob.pos.z - n.pos.z);
             n.atkT -= dt;
@@ -6105,7 +6114,7 @@ const __boot = (async () => {
               let best = null,
                 bd = 65;
               const range = dayTime ? TUNE.hunters.engageDay : TUNE.hunters.engageNight,
-                gob = goblins.find(g => g.alive && g.rise <= 0 && dist2D(g.pos, n.pos) < range);
+                gob = goblins.find(g => g.alive && !g.hidden && g.rise <= 0 && dist2D(g.pos, n.pos) < range);
               if (gob) {
                 n.heading = Math.atan2(gob.pos.x - n.pos.x, gob.pos.z - n.pos.z);
                 n.atkT -= dt;
@@ -6522,6 +6531,22 @@ const __boot = (async () => {
     }
   }
   // find the closest cooking fire, falling back to the supplied position
+  // a fire that actually burns: three tapered tongues that writhe and a light that breathes with them. every hearth in
+  // the valley registers here so one loop drives all of them, and each gets its own phase so no two flicker together.
+  function addFire(group, x, y, z, light, s = 1) {
+    const tongues = [];
+    for (let k = 0; k < 3; k++) {
+      const t = new THREE.Mesh(
+        new THREE.ConeGeometry(0.3 * s, 1.1 * s, 6),
+        new THREE.MeshBasicMaterial({ color: k === 0 ? 0xffd27a : k === 1 ? 0xff8a3a : 0xd6451f, transparent: true, opacity: 0.72, depthWrite: false, blending: THREE.AdditiveBlending, fog: false })
+      );
+      t.position.set(x + (k - 1) * 0.16 * s, y + 0.55 * s, z + (k === 1 ? 0.1 : -0.08) * s);
+      group.add(t);
+      tongues.push(t);
+    }
+    FIRES.push({ tongues, light, base: light ? light.intensity : 0, ph: FIRES.length * 1.7, s });
+    return tongues;
+  }
   function nearestHearth(p) {
     let best = null,
       bd = 1e9;
@@ -7688,6 +7713,7 @@ const __boot = (async () => {
     const flame = vlight(0xff8a3a, 1.6, 16);
     flame.position.set(c.x, c.y + 1, c.z);
     fire.position.copy(c);
+    addFire(fire, 0, 0.3, 0, flame, 1.1);
     scene.add(fire);
     v.flame = flame;
     hearths.push(c.clone());
@@ -7792,6 +7818,7 @@ const __boot = (async () => {
     scene.add(fire);
     const fl = vlight(0xff8a3a, 1.2, 12);
     fl.position.set(p.x - 2, p.y + 1, p.z + 3);
+    addFire(fire, 0, 0.25, 0, fl, 0.9);
     n.fireSpot = V3(p.x - 2, p.y, p.z + 3); // the anchor of his night beat, and what he tends while on watch
     n.fireLight = fl;
   }
@@ -7809,14 +7836,24 @@ const __boot = (async () => {
       h.fireSpot = f && dist2D(f, h.home) < 60 ? V3(f.x, f.y, f.z) : h.home.clone();
     }
     if (h.tent) continue;
-    // findSpot only tests height, slope and trees, so on the town plateau it will happily hand back a point inside a
-    // house. probe the struct grid too, and give up rather than pitch a tent through somebody's wall.
+    // a tent belongs out where the hunting is, not pitched between the houses. so the search starts outside the
+    // settlement and works outward from it: away from the town wall for a kingdom hunter, away from the village centre
+    // for a hill one. findSpot only tests height, slope and trees, so the struct probe below still has to catch walls.
+    const vc = h.village !== undefined && villages[h.village] ? villages[h.village].center : null,
+      inTown = Math.hypot(h.home.x, h.home.z) < TOWN_R + 10,
+      // the direction that leads out of wherever he lives
+      outA = inTown ? Math.atan2(h.home.x, h.home.z) : vc ? Math.atan2(h.home.x - vc.x, h.home.z - vc.z) : Math.atan2(h.home.x, h.home.z),
+      outR = inTown ? TOWN_R + 26 : 34;
     let t = null,
       tyaw = 0;
-    for (let k = 0; k < 10 && !t; k++) {
-      const a = Math.atan2(h.home.x, h.home.z) + 2.2 + k * 0.63,
-        c = findSpot(h.home.x + Math.cos(a) * 5.5, h.home.z + Math.sin(a) * 5.5, 0.6, 300, 4, 2);
-      if (!c || dist2D(c, h.home) > 12 || insideInterior(c.x, c.z, 2.2) || pathDist(c.x, c.z) < 4) continue;
+    for (let k = 0; k < 14 && !t; k++) {
+      const a = outA + (k % 2 ? 1 : -1) * Math.floor(k / 2) * 0.34,
+        base = inTown ? { x: 0, z: 0 } : vc || { x: 0, z: 0 },
+        c = findSpot(base.x + Math.sin(a) * outR, base.z + Math.cos(a) * outR, 0.6, 300, 4, 2);
+      if (!c || insideInterior(c.x, c.z, 2.2) || pathDist(c.x, c.z) < 6) continue;
+      // never inside the walls, and never in anybody's village
+      if (Math.hypot(c.x, c.z) < TOWN_R + 14) continue;
+      if (villages.some(v => dist2D(v.center, c) < 30)) continue;
       const probe = { x: c.x, y: c.y, z: c.z };
       resolveStructs(probe, 2);
       if (Math.hypot(probe.x - c.x, probe.z - c.z) > 0.05) continue; // a wall or a cart already stands there
@@ -7985,7 +8022,7 @@ const __boot = (async () => {
     : V3(ELDER.x, 0, ELDER.z + 20);
   let hermitMark = null;
   const hermitPos = findLand(95, 130);
-  { const c = V3(hermitPos.x + 2.6, terrainH(hermitPos.x + 2.6, hermitPos.z + 1.5), hermitPos.z + 1.5); const fire = new THREE.Group(); fire.add(cyl(1.1, 1.3, 0.35, stoneDarkM, 0, 0.17, 0, 9)); for (let k = 0; k < 3; k++) { const l = cyl(0.1, 0.1, 1.3, timber, 0, 0.5, 0, 6); l.rotation.set(0.9, k * 2.1, 0); fire.add(l); } const flame = vlight(0xff8a3a, 1.5, 14); flame.position.set(c.x, c.y + 0.9, c.z); fire.position.copy(c); scene.add(fire); addCircle(c.x, c.z, 1.1, c.y + 0.4); hearths.push(c.clone()); HERMIT_FIRE = { pos: c, flame }; } // the hermit keeps a fire
+  { const c = V3(hermitPos.x + 2.6, terrainH(hermitPos.x + 2.6, hermitPos.z + 1.5), hermitPos.z + 1.5); const fire = new THREE.Group(); fire.add(cyl(1.1, 1.3, 0.35, stoneDarkM, 0, 0.17, 0, 9)); for (let k = 0; k < 3; k++) { const l = cyl(0.1, 0.1, 1.3, timber, 0, 0.5, 0, 6); l.rotation.set(0.9, k * 2.1, 0); fire.add(l); } const flame = vlight(0xff8a3a, 1.5, 14); flame.position.set(c.x, c.y + 0.9, c.z); fire.position.copy(c); addFire(fire, 0, 0.28, 0, flame, 1); scene.add(fire); addCircle(c.x, c.z, 1.1, c.y + 0.4); hearths.push(c.clone()); HERMIT_FIRE = { pos: c, flame }; } // the hermit keeps a fire
   const hermit = makePerson({ robe: 0x6d5a44, hair: 0xd8d3c8, skin: 0xe0b898, beard: 0xd8d3c8, staff: true, seed: 7, style: "short" });
   hermit.position.copy(hermitPos);
   scene.add(hermit);
@@ -8728,7 +8765,7 @@ const __boot = (async () => {
   const GRANTED = new Set(); // reward ids already given this game (ids, never labels: four pickups share the words 'Heart Piece')
   function grant(label, fn, big = true, quiet = false, id = null) {
     if (id) { if (GRANTED.has(id)) return; GRANTED.add(id); }
-    fn();
+    if (typeof fn === "function") fn(); // a crafted save key could reach here with an inherited property instead of a reward
     FOUND.push(label);
     if (!quiet) say(`Found: ${label}`, 3500);
     if (big) SFX.pickupBig();
@@ -10272,16 +10309,20 @@ const __boot = (async () => {
     return best;
   }
   function updateGoblins(dt) {
-    if (netGuest()) { netMirrorEnemies(dt); return; } // a guest watches the host's goblins
+    // the cull runs for everyone, guests included. it used to sit below the guest return, so a guest accumulated one
+    // group per goblin the host had ever spawned and never removed a single one. worse, a goblin that leaves the host's
+    // snapshot radius is marked hidden but stays alive, so a guest held phantoms indefinitely — and netDrop then made
+    // every one of them real and hostile at full health the moment the connection blipped.
     for (let i = goblins.length - 1; i >= 0; i--) {
       const g = goblins[i];
       const nearestD = NET.avatars.size ? Math.min(dist2D(g.pos, P.pos), ...[...NET.avatars.values()].map(a => dist2D(a.state.pos, g.pos))) : dist2D(g.pos, P.pos);
-      if (g.gone || (nearestD > 320 && !g.camp)) { // the camp in the wood waits however far you go
+      if (g.gone || (g.mirror && g.hidden && (g.deadReckon = (g.deadReckon || 0) + dt) > 30) || (nearestD > 320 && !g.camp)) { // the camp in the wood waits however far you go
         scene.remove(g.mesh);
         if (g.bar) scene.remove(g.bar);
         goblins.splice(i, 1);
-      }
+      } else if (g.mirror && !g.hidden) g.deadReckon = 0;
     }
+    if (netGuest()) { netMirrorEnemies(dt); return; } // a guest watches the host's goblins
     const inKingdom = Math.hypot(P.pos.x, P.pos.z) < TOWN_R + 6;
     if (kingLull > 0 && !inKingdom) kingLull -= dt; // the king's lull only runs down while you are out on the moor
     for (const g of goblins) {
@@ -11021,6 +11062,10 @@ const __boot = (async () => {
   function loadSaveKey(key) {
     const d = parseSaveKey(key);
     if (!d) return false;
+    // loading reloads the page, which tears down every peer connection with no goodbye and no way back — the reloaded
+    // page gets a fresh id and has no reconnect path. it used to do that silently, so a player pressing Load key while
+    // joined simply vanished from their friend's game.
+    if (netOnline() && !confirm("Loading a key rebuilds the world from scratch and will end your multiplayer session. Continue?")) return false;
     try {
       localStorage.setItem("wildmoor.pending", key);
     } catch (_) {
@@ -11205,7 +11250,7 @@ const __boot = (async () => {
       if (!Array.isArray(d.flags) || d.flags.length !== 5 || !d.flags.every(bool) || !strs(d.found) || !strs(d.items, 2000) || !strs(d.picked, 40)) return null;
       if (d.side !== undefined && (!d.side || typeof d.side !== "object" || !Object.values(d.side).every(e => Array.isArray(e) && e.length === 2 && e.every(v => bool(v) || v === null)))) return null;
       if (d.bearDead !== undefined && !bool(d.bearDead)) return null;
-      if (d.owed !== undefined && !(Array.isArray(d.owed) && d.owed.every(e => Array.isArray(e) && typeof e[0] === "string" && REWARDS[e[0]] && num(e[1], -2000, 2000) && num(e[2], -2000, 2000)))) return null;
+      if (d.owed !== undefined && !(Array.isArray(d.owed) && d.owed.every(e => Array.isArray(e) && typeof e[0] === "string" && Object.prototype.hasOwnProperty.call(REWARDS, e[0]) && num(e[1], -2000, 2000) && num(e[2], -2000, 2000)))) return null;
       if (d.herbsTaken !== undefined && !(Array.isArray(d.herbsTaken) && d.herbsTaken.every(i => num(i, 0, 999)))) return null;
       if (!bool(d.flint)) d.flint = !!d.flint;
       for (const k in d.sk) {
@@ -11238,7 +11283,7 @@ const __boot = (async () => {
         spec.relics = v => !!v && typeof v === "object" && ["seal", "root", "warden", "tear"].every(k => v[k] === undefined || typeof v[k] === "boolean");
         d.ws = pickObj(d.ws, spec); if (!d.ws) return null;
       }
-      if (d.disc !== undefined) { if (!Array.isArray(d.disc) || !d.disc.every(x => typeof x === "string" && DISCOVERIES[x])) return null; }
+      if (d.disc !== undefined) { if (!Array.isArray(d.disc) || !d.disc.every(x => typeof x === "string" && Object.prototype.hasOwnProperty.call(DISCOVERIES, x))) return null; }
       return d;
     } catch (e) {
       console.warn("bad save key", e);
@@ -12213,7 +12258,22 @@ const __boot = (async () => {
     if (NET.role === "host") for (const a of gone) netBroadcast({ t: "bye", id: a.id }, peer.id);
     try { peer.pc.close(); } catch (_) {}
     netStatus(NET.peers.size ? `${NET.peers.size + 1} players.` : "The connection ended.");
-    if (!NET.peers.size && NET.role === "guest") { NET.role = null; NET.mirroring = false; for (const g of goblins) { g.mirror = false; g.hidden = false; g.tx = undefined; g.mesh.visible = g.alive || g.rise > 0; } for (const sl of slimes) sl.tx = undefined; if (BEAR) BEAR.tx = undefined; } // on your own again: the enemies are yours to run
+    if (!NET.peers.size && NET.role === "guest") {
+      NET.role = null;
+      NET.mirroring = false;
+      // the host's goblins die with the connection. this used to hand them back instead — every mirror turned real,
+      // visible and hostile at full health, including the phantoms that had left the host's snapshot and were never
+      // reported dead. a blip on the host's wifi dropped a whole session's worth of goblins on the guest at once.
+      for (let i = goblins.length - 1; i >= 0; i--) {
+        const g = goblins[i];
+        if (!g.mirror) continue;
+        scene.remove(g.mesh);
+        if (g.bar) scene.remove(g.bar);
+        goblins.splice(i, 1);
+      }
+      for (const sl of slimes) sl.tx = undefined;
+      if (BEAR) BEAR.tx = undefined;
+    } // on your own again: the enemies are yours to run
   }
   const netLook = () => ({ name: CUSTOM.name, skin: CUSTOM.skin, hair: CUSTOM.hair, style: CUSTOM.style, tunic: CUSTOM.tunic, cape: CUSTOM.cape });
   function netSend(peer, m) { if (peer.ready && peer.ch.readyState === "open") { try { peer.ch.send(JSON.stringify(m)); } catch (_) {} } }
@@ -12335,7 +12395,7 @@ const __boot = (async () => {
     if (m.t === "ed" && NET.role === "host") { const a = [...NET.avatars.values()].find(x => x.via === peer.id); const e = m.k === "goblin" ? goblins.find(g => !g.mirror && g.nid === m.id) : m.k === "slime" ? slimes[m.id | 0] : m.k === "bear" ? BEAR : EXTRA.find(o => !o.mirror && o.nid === m.id) || null; if (e && e.alive && a) { const from = V3(+m.fx || e.pos.x + 1, e.pos.y, +m.fz || e.pos.z); from.netFrom = a.id; damageEnemy(e, clamp(+m.dmg || 0, 0, 12), from, clamp(+m.kb || 0, 0, 20), !!m.big); } return; }
     if (m.t === "ehit" && m.to === NET.myId) { const fromPos = V3(+m.x || P.pos.x + 1, P.pos.y, +m.z || P.pos.z); if (P.block) { P.blocks = (P.blocks || 0) + 1; lowerShield(true); say("Blocked!", 900); SFX.block(); hitstop = 0.06; } else hurtPlayer(clamp(+m.dmg || 1, 0, 6), fromPos); return; }
     if (m.t === "ek") { netKillCredit(m); return; }
-    if (m.t === "mq") { applyMainProgress(m); if (NET.role === "host") netBroadcast(m, peer.id); return; }
+    if (m.t === "mq") { applyMainProgress(m, peer); if (NET.role === "host") netBroadcast(m, peer.id); return; }
     if (m.t === "finale" && NET.role === "host") { if (!WORLDSTATE.finaleStarted) startFinale(); return; } // a friend with the four relics stands at the pool: the host raises the warden
   }
   // another player's body: your hero model with their look, driven by the same animation as yours
@@ -12398,7 +12458,9 @@ const __boot = (async () => {
   }
   function netApplyEnemies(m) {
     const seen = new Set();
-    for (const r of m.g || []) {
+    // bounded on purpose: each unseen id builds a whole character mesh, so an oversized snapshot would allocate
+    // thousands of them inside one message handler. the real snapshot is the spawn cap plus a camp, so this is generous.
+    for (const r of (m.g || []).slice(0, 64)) {
       const [nid, x, y, z, h, hp, king, state, alive, rise] = r; seen.add(nid);
       let g = goblins.find(o => o.mirror && o.nid === nid);
       if (!g) { g = spawnGoblin(x, z, !!king); g.nid = nid; g.rise = rise; g.mirror = true; g.pos.set(x, y, z); }
@@ -12409,7 +12471,7 @@ const __boot = (async () => {
     for (const g of goblins) if (g.mirror && !seen.has(g.nid) && g.alive && !g.hidden) { g.hidden = true; g.mesh.visible = false; if (g.bar) g.bar.visible = false; } // out of every player's view: hidden, not dead
     for (const r of m.sl || []) { const [i, x, y, z, hp, alive, state] = r; const sl = slimes[i]; if (!sl) continue; sl.tx = x; sl.ty = y; sl.tz = z; sl.hp = hp; sl.state = state; if (!alive && sl.alive) killEnemy(sl, false, 0, true); if (alive && !sl.alive) { sl.alive = true; sl.mesh.visible = true; sl.mesh.scale.setScalar(1); sl.respawn = 0; } }
     const seenX = new Set();
-    for (const r of m.x || []) { const [kind, nid, x, y, z, h, hp, alive, state, warden] = r; seenX.add(nid); let e = EXTRA.find(o => o.mirror && o.nid === nid); if (!e) { e = kind === "wolf" ? spawnWolf(x, z, null) : warden ? spawnWarden() : spawnWraith(x, z); e.nid = nid; e.mirror = true; e.pos.set(x, y, z); } e.tx = x; e.ty = y; e.tz = z; e.th = h; e.hp = hp; e.state = state; if (!alive && e.alive) killEnemy(e, false, 0, true); }
+    for (const r of (m.x || []).slice(0, 32)) { const [kind, nid, x, y, z, h, hp, alive, state, warden] = r; if (!Number.isFinite(x) || !Number.isFinite(z) || Math.abs(x) > 3000 || Math.abs(z) > 3000) continue; seenX.add(nid); let e = EXTRA.find(o => o.mirror && o.nid === nid); if (!e) { e = kind === "wolf" ? spawnWolf(x, z, null) : warden ? spawnWarden() : spawnWraith(x, z); e.nid = nid; e.mirror = true; e.pos.set(x, y, z); } e.tx = x; e.ty = y; e.tz = z; e.th = h; e.hp = hp; e.state = state; if (!alive && e.alive) killEnemy(e, false, 0, true); }
     for (const e of EXTRA) if (e.mirror && !seenX.has(e.nid) && e.alive) { e.mesh.visible = false; }
     if (m.b && BEAR) { const [x, y, z, h, hp, alive, awake, state, flash] = m.b; BEAR.tx = x; BEAR.ty = y; BEAR.tz = z; BEAR.th = h; BEAR.hp = hp; BEAR.awake = !!awake; BEAR.state = state; BEAR.flash = flash; if (!alive && BEAR.alive) killEnemy(BEAR, false, 0, true); if (alive && !BEAR.alive) { BEAR.alive = true; BEAR.t = 0; BEAR.mesh.visible = true; BEAR.mesh.scale.setScalar(1); BEAR.mesh.rotation.z = 0; if (!BEAR.mesh.parent) scene.add(BEAR.mesh); BEAR.pos.set(x, y, z); } } // the host's living bear stands a guest's dead copy back up
   }
@@ -12432,7 +12494,7 @@ const __boot = (async () => {
   // the main story's milestones, as a small record that can be compared and merged
   const WS_SHARED = ["marenFreed", "haleExposed", "pyreDismantled", "blackPoolAwake", "hermitTold", "hermitWarned", "kingTrusts", "goblinKingDefeated", "bearDefeated", "finaleStarted", "wardenDead", "guardsOut"];
   const mainProgress = () => ({ t: "mq", metKing, talkedKing, talkedOnce, gaveHerbs, lit, flint: !!P.flint, clues: STORY.clues, evidence: STORY.evidence.slice(), wick: !!STORY.wick, solved: !!STORY.solved, reported: !!STORY.reported, ws: Object.fromEntries(WS_SHARED.map(k => [k, !!WORLDSTATE[k]])), relics: { ...WORLDSTATE.relics }, ending: WORLDSTATE.ending });
-  function applyMainProgress(m) {
+  function applyMainProgress(m, peer) {
     const before = mainProgress();
     if (m.metKing && !metKing) metKing = true;
     if (m.talkedKing && !talkedKing) { talkedKing = true; P.maxHp += 2; P.hp = P.maxHp; }
@@ -12445,7 +12507,14 @@ const __boot = (async () => {
     if (m.wick) STORY.wick = true; if (m.solved) { if (!STORY.solved) { STORY.solved = true; if (!WORLDSTATE.marenFreed) freeMaren(); } } if (m.reported) STORY.reported = true;
     if (m.ws && typeof m.ws === "object") for (const k of WS_SHARED) if (m.ws[k] === true && !WORLDSTATE[k]) { if (k === "blackPoolAwake") awakenPool(); else if (k === "pyreDismantled") dismantlePyre(); else if (k === "guardsOut") guardsOutside(); else WORLDSTATE[k] = true; if (k === "finaleStarted" && NET.role === "host" && !WORLDSTATE.wardenDead && !(WARDEN && WARDEN.alive)) spawnWarden(); } // progress only ever moves forward; a transition function sets its own flag and does its work
     if (m.relics && typeof m.relics === "object") for (const k of ["seal", "root", "warden", "tear"]) if (m.relics[k] === true) WORLDSTATE.relics[k] = true;
-    if (typeof m.ending === "string" && ["bind", "break", "fairy"].includes(m.ending) && !WORLDSTATE.ending) endTheStory(m.ending);
+    // the ending is the one piece of shared progress that cannot be undone: endTheStory rewrites the pool, sets the
+    // flag and returns early ever after. it used to be applied from any peer with no authority check at all, so a
+    // single crafted message ended the story permanently for everyone in the session — including players who had not
+    // collected a relic, and it took their choice of ending with it. a guest only accepts it from the host.
+    if (typeof m.ending === "string" && ["bind", "break", "fairy"].includes(m.ending) && !WORLDSTATE.ending) {
+      if (NET.role === "guest" && peer && !NET.peers.has(peer.id)) return;
+      endTheStory(m.ending);
+    }
     if (JSON.stringify(before) !== JSON.stringify(mainProgress())) say("Your friend has moved the story along; you share it.", 3500, true);
   }
   function updateNet(rdt) {
@@ -12682,7 +12751,8 @@ const __boot = (async () => {
     for (const [id, who] of [["quest:stonefold", "Stonefold elder"], ["quest:greytor", "Grey Tor widow"]]) { const pk = pickups.find(p => p.id === id), q = SIDE.find(q => q.who === who); if (pk && q && !pk.taken) { const show = !!q.taken; pk.hidden = !show; pk.mesh.visible = show; if (pk.light) pk.light.visible = show; } } // an errand's item is only there once the errand is
     if (RELIC_SPOTS.wardenPickup) { const pk = RELIC_SPOTS.wardenPickup; const show = !!BEAR && !BEAR.alive && !pk.taken; pk.mesh.visible = show; if (pk.light) pk.light.visible = show; pk.hidden = !show; }
     // the finale: the four relics, the pool, the night
-    if (relicCount() === 4 && villagesDone() >= 8 && !WORLDSTATE.finaleStarted && dayElev < 0.05 && dist2D(P.pos, POOL) < 20 && !roomNow) { if (netGuest()) { if (!NET.finaleAsked) { NET.finaleAsked = true; for (const p of NET.peers.values()) netSend(p, { t: "finale" }); say("The relics burn cold. The water waits for the host's word.", 3000, true, "dark"); } } else startFinale(); }
+    if (relicCount() === 4 && villagesDone() >= 8 && !WORLDSTATE.finaleStarted && dayElev < 0.05 && dist2D(P.pos, POOL) < 20 && !roomNow) { if (netGuest()) { // a cooldown, not a latch: this used to be spent forever on the first ask, so a guest whose request went unanswered could never raise the warden again all session
+      if (time > (NET.finaleAsked || 0)) { NET.finaleAsked = time + 20; for (const p of NET.peers.values()) netSend(p, { t: "finale" }); say("The relics burn cold. The water waits for the host's word.", 3000, true, "dark"); } } else startFinale(); }
     if (WORLDSTATE.finaleStarted && !WORLDSTATE.wardenDead && WARDEN && !WARDEN.alive) { WORLDSTATE.wardenDead = true; say("It sinks. The water goes still, and for the first time you can hear the valley breathing. The stone by the shore is waiting.", 8000, true, "dark"); if (POOL_STONE) POOL_STONE.mark.material.emissiveIntensity = 2.5; }
     if (POOL_STONE && WORLDSTATE.wardenDead && !WORLDSTATE.ending) { if (!POOL_STONE.prompt) POOL_STONE.prompt = makePrompt(); const near2 = dist2D(P.pos, POOL_STONE) < 3.2; POOL_STONE.prompt.visible = near2; if (near2) POOL_STONE.prompt.position.set(POOL_STONE.x, POOL_STONE.y + 2.2, POOL_STONE.z); }
   }
@@ -14754,6 +14824,27 @@ const __boot = (async () => {
   }
 
   // extracted from update: one job, run once per frame
+  // extracted from update: one job, run once per frame
+  // fires only animate while somebody is near enough to see them, which keeps a valley full of hearths free
+  function updateFires(rdt) {
+    for (const f of FIRES) {
+      const t0 = f.tongues[0];
+      if (!t0) continue;
+      const near2 = Math.abs(t0.parent.position.x + t0.position.x - P.pos.x) < 90 && Math.abs(t0.parent.position.z + t0.position.z - P.pos.z) < 90;
+      for (const t of f.tongues) t.visible = near2;
+      if (!near2) continue;
+      for (let k = 0; k < f.tongues.length; k++) {
+        const t = f.tongues[k],
+          w = time * (7 + k * 1.6) + f.ph + k * 2.1;
+        t.scale.set(0.8 + Math.sin(w * 1.3) * 0.18, 0.75 + Math.sin(w) * 0.35, 0.8 + Math.cos(w * 1.1) * 0.18);
+        t.rotation.z = Math.sin(w * 0.8) * 0.22;
+        t.rotation.x = Math.cos(w * 0.6) * 0.14;
+        t.material.opacity = 0.55 + Math.sin(w * 1.7) * 0.2;
+      }
+      // the light breathes with the flame rather than on its own clock, so the two never disagree
+      if (f.light) f.light.intensity = f.base * (0.82 + Math.sin(time * 6.3 + f.ph) * 0.12 + Math.sin(time * 11.7 + f.ph * 2) * 0.06);
+    }
+  }
   function updateHerbPrompts() {
   herbs.forEach(h => {
         if (h.taken) {
@@ -15426,6 +15517,7 @@ const __boot = (async () => {
         { const dyG = tgt.y !== undefined ? tgt.y - (visY + 4.4) : 0, dhG = dist2D(tgt, P.pos); guide.rotation.set(0, guideA, 0); guide.rotateX(-clamp(Math.atan2(dyG, Math.max(1, dhG)), -1, 1)); } // and it tips up or down toward the goal
       }
     }
+    updateFires(rdt);
     updateHerbPrompts();
     updateSheep(dt);
     updateNPCs(dt);
