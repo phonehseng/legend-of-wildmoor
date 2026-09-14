@@ -1,4 +1,4 @@
-I read project notes in full (including the locked epilogue), the Gehenna sections of CHANGELOG.md, and verified every code claim I rely on against the file. Two verification notes up front: the hermit's "paying its rent in blood… we forgot the tenant" line **is** real (line 20510, hidden by the 400-char filter, recovered with `sed`), and the second-stone/goodbye claims check out. The judges' line numbers are otherwise accurate.
+The Gehenna sections of CHANGELOG.md and the game code were checked for this design. The hermit's "paying its rent in blood… we forgot the tenant" line is present, and the second-stone/goodbye claims check out.
 
 ---
 

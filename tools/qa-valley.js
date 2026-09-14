@@ -1,0 +1,38 @@
+(async () => {
+  const checks=[];
+  const check=(v,n)=>{if(!v)throw Error(n);checks.push(n);};
+  const pauseHidden=()=>document.getElementById('pause').classList.contains('hidden');
+  paused=false;
+  openInv(); check(invOpen && gameplayOverlayOpen() && pauseHidden() && !paused,'satchel pauses without pause screen');
+  const before=P.pos.clone(), day=dayT;
+  keys.w=true; update(.05); releaseKeys();
+  check(P.pos.equals(before)&&dayT===day,'overlay freezes player and day'); closeInv();
+  toggleQuestBook(true); check(questBookOpen()&&pauseHidden()&&!paused,'Logs pauses without pause screen'); closeQuestBook();
+  toggleMap(); check(gameplayOverlayOpen()&&pauseHidden()&&!paused,'map pauses without pause screen'); toggleMap();
+  toggleStats(); check(gameplayOverlayOpen()&&pauseHidden()&&!paused,'stats pauses without pause screen'); toggleStats();
+  askChoice('QA',[{key:'a',label:'Continue'}],()=>{});
+  check(CHOICE&&gameplayOverlayOpen()&&pauseHidden()&&!paused,'choice pauses without pause screen'); answerChoice(0);
+  P.carry=true;P.block=false;P.blockCd=0;raiseShield();
+  check(!P.block,'carry blocks shield activation');
+  toggleQuestBook(false);check(!questBookOpen(),'carry disables quest book');
+  const weapon=P.weapon;
+  for(const key of ['1','2','3']) dispatchEvent(new KeyboardEvent('keydown',{key}));
+  check(P.weapon===weapon,'carry blocks weapon hotkeys');P.carry=false;
+  FAIRY.found=5;const low=roseRestRate();FAIRY.found=25;
+  check(roseRestRate()>.29&&roseRestRate()>low*10,'Rose Rest meaningfully scales to 25 fairies');
+  FAIRY.found=0;
+  const key=makeSaveKey(), data=parseSaveKey(key);
+  data.v=4;delete data.sk.blocking;data.blocks=30;
+  delete data.ws.gehAlmonerDown;data.found.push(ALMONER_GIFT.replace(/['’]/g,''));
+  applySave(data);
+  check(SK.blocking.lvl>1&&WORLDSTATE.gehAlmonerDown,'older save migrates block practice and Gehenna rewards');
+  check(FOUND.includes(ALMONER_GIFT),'restored reward regains its canonical label');
+  const completedData=parseSaveKey(makeSaveKey());completedData.ws.gehDone=true;
+  delete completedData.ws.gehAlmonerDown;delete completedData.ws.gehMatronDown;delete completedData.ws.gehHeapDown;
+  applySave(completedData);
+  check(WORLDSTATE.gehAlmonerDown&&WORLDSTATE.gehMatronDown&&WORLDSTATE.gehHeapDown,'older completed Gehenna keeps prerequisite victories');
+  const ghostData=parseSaveKey(makeSaveKey());ghostData.ws.afterlife='stay';ghostData.ws.luciferDefeated=true;
+  applySave(ghostData);
+  check(WORLDSTATE.afterlife==='stay'&&!afterlifeLocked(),'ghost save reloads into playable valley');
+  return {checks,total:checks.length};
+})()
