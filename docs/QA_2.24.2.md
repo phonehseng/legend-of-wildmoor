@@ -10,6 +10,8 @@ checked in edge with hardware webgl2 on an rtx 5080. this is focused testing of 
 
 real local webrtc runs used four complete game clients for the ending handoff, three for quest items and pvp, and two for personal fairy rescues. they passed 14, 18 and 8 checks respectively. these runs do not measure internet latency or a long play session.
 
+the published build also passed 13 capacity/load checks with one full host and 15 lightweight webrtc clients. motion stayed near 20 hz, an extra player was rejected, and reliable events survived motion backpressure. the short local frame sample averaged 11.67 ms, with 12.6 ms at the 95th percentile. that is not 16 full game clients or an internet test.
+
 everyone in a party needs this build. older clients cannot honor the new personal progress rules, so the version handshake rejects them. portable save keys remain compatible with formats 3, 4 and 5.
 
 screenshots use the actual game scene and restored camera. longer playthrough and multiplayer testing are still underway.

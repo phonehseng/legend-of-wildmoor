@@ -2,6 +2,15 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 2.24.3 — keep the pages you found
+
+[screenshots + download](docs/updates/2.24.3.md) · [test notes](docs/QA_2.24.3.md)
+
+- reading a long church page could make your save key fail to load. those keys work again, and the save editor keeps the whole page too.
+- guests get the same perfect-dodge openings and creature shield rules as the host. the warden's lash keeps its piercing effect. pvp still checks shield facing.
+- map and satchel pictures sit above stats, quests and logs in the left-hand controls list.
+- huge mouse jumps from pointer locking are ignored, so one bad event cannot whip the camera around.
+
 ## 2.24.2 — his hands open
 
 [screenshots + download](docs/updates/2.24.2.md) · [test notes](docs/QA_2.24.2.md)
