@@ -4,6 +4,79 @@ Every change, with the bug it fixes and how. Newest first.
 
 ---
 
+## 2.9.1 — A save key can name a place, and the Ledger can be reached
+
+### Bug 98 — A hand-made save key teleported you to the opening moor · FIXED
+
+The save editor writes an x and a z you clicked and a y it has to guess. The
+game took that y literally, and `guardPlayerPosition` treats a body more than
+eight metres under the ground it is standing on as a body inside the world: it
+warns and puts you back at the last safe spot, which on a fresh load is the moor
+you started the game on.
+
+**Measured.** A key that named Highreach — `pos = [-440, 8, -200]` — loaded, and
+the player woke at `0, 8, 40`. The ground at Highreach is **113.92 m**, so y = 8
+was a hundred and six metres inside a mountain. The key was not corrupt: decoded
+side by side with a key the game wrote itself, both carry `v = 4` and the
+identical thirty-four field names, and the editor's payload held exactly what was
+clicked. The position was right the whole way down the pipe and then thrown away
+on the last frame.
+
+**Fix, on the loader.** A restored position that lands more than eight metres
+under its own ground is lifted on top of it, using the guard's own eight metres
+and the guard's own cave exemption so it can only ever fire where the guard was
+going to fire anyway. It asks `groundAt` about **the height the save names**
+rather than about the top of the world — with `1e9` the first version of this
+lifted a body standing at the foot of the elder tree **127 m up onto the
+canopy deck**, which is how that hint got fixed before it shipped.
+
+Measured after: Highreach loads at `-440, 114, -200` with the snap logged and no
+recovery; the foot of the elder tree loads at `0, 14, -175` with the snap silent;
+a key the game wrote itself is byte-for-byte unaffected.
+
+### Bug 99 — The Ledger, the payoff of the whole after-story, was unreachable · FIXED
+
+`summonKindly` registers the Kindly One at **exactly** the Clerk's position.
+2.9.0 fixed the original dead end — the Clerk won every tie, so the Kindly One
+could never be spoken to — by making the nearest-speaker scan keep the **last**
+candidate on an exact tie. That fix created its mirror image: after the fight she
+**still won the tie for ever**, so the Clerk could never be selected again, and
+`clerkAfter()` is where the names are read back and where The Ledger is granted.
+
+Measured on a full headless playthrough: the story's own closing line prints —
+*"The Clerk is waiting at her desk with a blank page."* — and then **sixty-one
+presses at that desk returned "The Kindly One: …" and nothing else.**
+
+`bossDown` now sets `leaving` on her, the flag the module already carries for a
+speaker who is not there any more; it drops her from the interact scan and hides
+her prompt in one move. The `tick` snap branch that also declares the story
+finished gets the identical clause, because those two loops are the two places
+that say "the after-story is over" and they have to agree. After the fix: **the
+Ledger is granted after eight presses**, which is exactly the eight beats of
+`clerkAfter`.
+
+### The save key editor ships
+
+`save_editor.html` is in the repository. A checkbox for every flag the save
+format carries, every skill and bonus as a number, and a clickable minimap that
+writes the position. It borrows its height from the nearest landmark within 90 m
+and **says so in the status line when it cannot** — and with Bug 98 fixed, a key
+that guesses wrong now lands on the ground instead of back on the moor.
+
+Verified end to end rather than by inspection: its "endgame" preset generated a
+3,948-character key that loads into the game with 14 hearts, every skill at 30,
+all four relics, 25 fairies, 14/14 errands, 13 discoveries, `ysoldeBuried` and
+`gehUnlocked` both true, arriving at the foot of the elder tree with no console
+warning of any kind.
+
+### Verified elsewhere, by the agent that built Gehenna
+
+Five descent cycles: the world builds in **246–805 ms** of the six-second fall,
+the player lands within **0.039 m** of the ground, and teardown returns `EXTRA`,
+`vlights`, `npcs` and the scene node count to their exact baseline every cycle,
+with geometry creation flat by cycle five — so the early rise is one-time lazy
+pooling and not a per-descent leak.
+
 ## Unreleased — NPC behaviour and ground cover
 
 ### Ground cover removed

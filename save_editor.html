@@ -268,7 +268,9 @@
     ["wardenDead", "The Drowned Warden is dead", ""],
     ["home", "You have been given the cottage", "builds the trophy shelf on load"],
     ["guardsOut", "The guards have moved outside the walls", ""],
-    ["gehUnlocked", "The way down is open", "you can dive through the bed of the pool"]
+    ["gehUnlocked", "The way down is open", "the bed of the pool can be dived through &mdash; but only once she is buried too"],
+    ["ysoldeBuried", "Ysolde is buried under the elder tree", "this and gehUnlocked together open the water; the dive needs both"],
+    ["gehDone", "The descent has been made", "you have been down and come back"]
   ];
 
   var RELICS = [
@@ -397,7 +399,7 @@
     if (!num(d.fairy.found, 0, 25)) bad.push("fairy.found must be 0..25");
     if (!num(d.fairy.hearts, 0, 10)) bad.push("fairy.hearts must be 0..10");
     if (!d.fairy.kids.every(function (v) { return num(v, 0, 99); })) bad.push("fairy.kids must be numbers 0..99");
-    if (!num(d.ws.gehSeed, 0, 1e9)) bad.push("ws.gehSeed must be 0..1000000000");
+    if (!(num(d.ws.gehSeed, 0, 999999) && Number.isInteger(d.ws.gehSeed))) bad.push("ws.gehSeed must be a whole number 0..999999");
     if (!num(d.ws.awokeAt, 0, 1e9)) bad.push("ws.awokeAt must be 0..1000000000");
     if (!(d.ws.ending === null || ["bind", "break", "fairy"].indexOf(d.ws.ending) >= 0)) bad.push("ws.ending must be null, bind, break or fairy");
     if (!(d.ws.wolfChoice === null || ["wolves", "goblins", "leave"].indexOf(d.ws.wolfChoice) >= 0)) bad.push("ws.wolfChoice must be null, wolves, goblins or leave");
@@ -425,7 +427,7 @@
         marenFreed: false, haleExposed: false, pyreDismantled: false, blackPoolAwake: false, awokeAt: 0,
         hermitTold: false, hermitWarned: false, kingTrusts: false, goblinKingDefeated: false,
         bearDefeated: false, finaleStarted: false, wardenDead: false, ending: null,
-        gehUnlocked: false, gehSeed: 0,
+        gehUnlocked: false, gehSeed: 0, ysoldeBuried: false, gehDone: false,
         relics: { seal: false, root: false, warden: false, tear: false },
         wolfChoice: null, home: false, guardsOut: false
       },
@@ -567,12 +569,14 @@
     mkNum(host, "x", { min: -BOUND, max: BOUND, step: 0.5, slider: true, fmt: function (v) { return v.toFixed(1); } },
       function () { return S.pos[0]; }, function (v) { S.pos[0] = v; });
     mkNum(host, "y (height)", { min: -2000, max: 2000, step: 0.5, fmt: function (v) { return v.toFixed(1); } },
-      function () { return S.pos[1]; }, function (v) { S.pos[1] = v; });
+      function () { return S.pos[1]; }, function (v) { S.pos[1] = v; posNote = ""; });
     mkNum(host, "z", { min: -BOUND, max: BOUND, step: 0.5, slider: true, fmt: function (v) { return v.toFixed(1); } },
       function () { return S.pos[2]; }, function (v) { S.pos[2] = v; });
     mkNum(host, "Time of day", { min: 0, max: 0.999, step: 0.005, slider: true, fmt: clock },
       function () { return S.day; }, function (v) { S.day = v; });
-    $("ynote").innerHTML = "The game does <b>not</b> snap you to the ground. It puts you exactly where the key says " +
+    $("ynote").innerHTML = "Clicking the map sets x and z, and borrows y from the nearest landmark within <b>90&nbsp;m</b>. " +
+      "Further out than that the tool has no ground height to give you, so it leaves y alone and says so above. " +
+      "The game does <b>not</b> snap you to the ground. It puts you exactly where the key says " +
       "and lets physics take over, so a y above the local ground simply means you fall to it. A y more than " +
       "<b>eight metres below</b> the ground trips the game's own recovery guard, which drops you at its last safe " +
       "spot instead. The Go-to buttons beside the map fill in a height that is known to be good. A y under " +
@@ -642,7 +646,7 @@
     mkSel(host, "wolfChoice <b>the hunter's wolves</b>", [
       [null, "not chosen yet"], ["wolves", "killed the wolves"], ["goblins", "killed the goblins instead"], ["leave", "drove them elsewhere"]
     ], function () { return S.ws.wolfChoice; }, function (v) { S.ws.wolfChoice = v; });
-    mkNum(host, "gehSeed <b>0 lets the game roll one</b>", { min: 0, max: 1e9, step: 1, int: true },
+    mkNum(host, "gehSeed <b>0 lets the game roll one</b>", { min: 0, max: 999999, step: 1, int: true },
       function () { return S.ws.gehSeed; }, function (v) { S.ws.gehSeed = v; });
     mkNum(host, "awokeAt <b>when the pool woke</b>", { min: 0, max: 1e9, step: 1, int: true },
       function () { return S.ws.awokeAt; }, function (v) { S.ws.awokeAt = v; });
@@ -944,12 +948,43 @@
     g.fillStyle = "#e0b45a"; g.beginPath(); g.arc(x, y, 2.5 * u, 0, 7); g.fill();
   }
 
+  /* the tool carries no terrain, so the only ground heights it can be sure of are the landmarks it
+     ships. a map click near one borrows that height the way the Go-to buttons do; a click anywhere else
+     leaves y where it stood, and posNote says so rather than letting the status line read green */
+  var GROUND_R = 90, posNote = "";
+
+  function nearestGround(x, z) {
+    var best = null, bd = GROUND_R, i, p, d;
+    for (i = 0; i < PLACES.length; i++) {
+      p = PLACES[i];
+      d = Math.sqrt((p.x - x) * (p.x - x) + (p.z - z) * (p.z - z));
+      if (d <= bd) { bd = d; best = p; }
+    }
+    return best;
+  }
+
+  function snapGround() {
+    var p = nearestGround(S.pos[0], S.pos[2]);
+    if (p) { S.pos[1] = p.y + 1; posNote = ""; return; }
+    posNote = "No known ground height here &mdash; y is still " + (+S.pos[1]).toFixed(1) +
+      ". Use a Go-to button, or the game will drop you at its last safe spot if that is far below the ground.";
+  }
+
+  /* the one height mistake the tool can actually prove, whichever control made it */
+  function buriedNote() {
+    var p = nearestGround(S.pos[0], S.pos[2]);
+    if (!p || S.pos[1] >= p.y - 8) return "";
+    return "y " + (+S.pos[1]).toFixed(1) + " is more than eight metres under the ground at " + p.n +
+      " (" + p.y.toFixed(1) + "). The game will refuse the position and wake you at its last safe spot instead.";
+  }
+
   function setFromPointer(e) {
     var r = cv.getBoundingClientRect();
     var wx = p2w(((e.clientX - r.left) / r.width) * N);
     var wz = p2w(((e.clientY - r.top) / r.height) * N);
     S.pos[0] = Math.round(Math.max(-BOUND, Math.min(BOUND, wx)) * 10) / 10;
     S.pos[2] = Math.round(Math.max(-BOUND, Math.min(BOUND, wz)) * 10) / 10;
+    snapGround();
     pull(); refresh();
   }
 
@@ -974,6 +1009,7 @@
     e.preventDefault();
     S.pos[0] = Math.max(-BOUND, Math.min(BOUND, S.pos[0] + dx));
     S.pos[2] = Math.max(-BOUND, Math.min(BOUND, S.pos[2] + dz));
+    snapGround();
     pull(); refresh();
   });
 
@@ -987,13 +1023,14 @@
       b.addEventListener("click", function () {
         /* a metre above the known ground, so you land on it rather than start inside it */
         S.pos = [p.x, p.y + 1, p.z];
+        posNote = "";
         pull(); refresh();
       });
       host.appendChild(b);
     });
     var s = el("button", "ghost");
     s.textContent = "Opening spawn";
-    s.addEventListener("click", function () { S.pos = [0, 8, 74]; pull(); refresh(); });
+    s.addEventListener("click", function () { S.pos = [0, 8, 74]; posNote = ""; pull(); refresh(); });
     host.appendChild(s);
     $("notshown").innerHTML = NOT_SHOWN;
   }
@@ -1058,6 +1095,8 @@
       var d = PRESETS.done();
       d.ws.goblinKingDefeated = d.ws.bearDefeated = true;
       d.ws.finaleStarted = d.ws.wardenDead = d.ws.gehUnlocked = true;
+      /* the whirlpool checks both flags, so unlocking the way down without burying her leaves the water shut */
+      d.ws.ysoldeBuried = true;
       d.ws.relics.seal = true; d.ws.relics.warden = true;
       d.ws.ending = null;
       d.ws.gehSeed = 0;
@@ -1091,13 +1130,17 @@
     $("key").value = key;
     $("json").value = JSON.stringify(S, null, 1);
     if ($("rawjson") !== document.activeElement) $("rawjson").value = JSON.stringify(S, null, 1);
-    var st = $("status");
+    var st = $("status"), height = posNote || buriedNote();
     if (problems.length) {
       st.className = "bad";
       st.innerHTML = "<b>The game would refuse this key:</b><br>" + problems.join("<br>");
+    } else if (height) {
+      st.className = "warn";
+      st.innerHTML = "<b>The key is valid, but check the height.</b> " + height +
+        "<br>" + key.replace(/\s/g, "").length + " characters.";
     } else {
       st.className = "ok";
-      st.textContent = "Valid. " + key.replace(/\s/g, "").length + " characters. Paste it into the game's Load key box.";
+      st.textContent = "Valid. " + key.replace(/\s/g, "").length + " characters. Paste it into the game\x27s Load key box.";
     }
   }
 
@@ -1133,6 +1176,7 @@
   document.querySelectorAll("[data-preset]").forEach(function (b) {
     b.addEventListener("click", function () {
       S = PRESETS[b.getAttribute("data-preset")]();
+      posNote = "";
       pull(); refresh();
       $("loadStatus").className = "";
       $("loadStatus").textContent = "";
@@ -1176,6 +1220,7 @@
     if (!d) { out.className = "bad"; out.textContent = "That is not a readable WM1- key."; return; }
     if (d.v !== 3 && d.v !== 4) { out.className = "bad"; out.textContent = "Key format v" + d.v + "; the game only accepts 3 or 4."; return; }
     S = adopt(d);
+    posNote = "";
     pull(); refresh();
     out.className = "ok";
     out.textContent = "Loaded a v" + d.v + " key" + (d.v === 3 ? " and upgraded it to v4" : "") + ".";
@@ -1196,6 +1241,7 @@
       out.className = "bad"; out.textContent = "That is not valid JSON: " + err.message; return;
     }
     S = adopt(d);
+    posNote = "";
     pull(); refresh();
     out.className = "ok"; out.textContent = "Applied.";
   });

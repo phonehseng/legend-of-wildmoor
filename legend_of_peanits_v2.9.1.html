@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.9.0</title>
+<title>Legend of Peanits 2.9.1</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -378,7 +378,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.9.0</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.9.1</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -446,7 +446,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.9.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.9.1</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -12102,6 +12102,19 @@ const __boot = (async () => {
         P.pos.set(rimX, groundAt(rimX, rimZ, 1e9) + 0.05, rimZ);
         console.warn("Save was taken below the seam; the player wakes on the rim of the pool.");
       }
+      // a key typed or edited by hand names an x and a z confidently and guesses the y, and a y that lands well under
+      // the hill it names reads to guardPlayerPosition as a body inside the world: it warns and teleports to the last
+      // safe spot, which on a fresh load is the opening moor. so a buried body is lifted onto the ground it asked for
+      // rather than silently moved somewhere else. the eight metres and the cave exemption are the guard's own, so
+      // this only ever fires where the guard was going to fire anyway, and it asks groundAt about the height the save
+      // names rather than about the top of the world, so a body at the foot of the elder tree is not lifted to its deck.
+      if (P.pos.y >= DIVIDE && inBounds(P.pos.x, P.pos.z) && !(typeof insideCave === "function" && insideCave())) {
+        const gy = groundAt(P.pos.x, P.pos.z, P.pos.y);
+        if (P.pos.y < gy - 8) {
+          console.warn("Save named a position under the ground; the player wakes on top of it instead.", P.pos.x, P.pos.y, P.pos.z, gy);
+          P.pos.set(P.pos.x, gy + 0.05, P.pos.z);
+        }
+      }
       dayT = d.day;
       P.hp = d.hp;
       P.maxHp = d.maxHp;
@@ -14574,10 +14587,19 @@ const __boot = (async () => {
       state.fight = false;
       state.fallbackT = 0;
       WORLDSTATE.gehDone = true;
+      // and she stops being somebody you can walk up to and press E on. summonKindly registered her at EXACTLY the
+      // clerk's position, and the nearest-speaker scan keeps the LAST candidate on an exact tie — which is the only
+      // reason she is reachable at all — so leaving her selectable once she is dead means the CLERK can never be
+      // selected again. the clerk's after-script is where the names are read back and where The Ledger is granted,
+      // so without this the story's own closing line is "The Clerk is waiting at her desk with a blank page" and
+      // then "The Kindly One: …" for ever. measured on a full headless playthrough: sixty-one presses, no ledger,
+      // no ending. `leaving` is the flag this module already carries for a speaker who is not there any more, and
+      // she is not there any more: it drops her out of the interact scan and hides her prompt in the same move.
       for (const s of speakers) {
         s.script = null;
         s.builtFor = "";
         s.beat = 0;
+        if (s.id === "kindly") s.leaving = true;
       }
       SFX.tone(520, 380, 0.5, 0.09, "triangle");
       SFX.tone(392, 300, 0.7, 0.07, "triangle", 0.22);
@@ -14682,10 +14704,13 @@ const __boot = (async () => {
         state.surfaced = true;
         state.fight = false;
         state.fallbackT = 0;
+        // the same clause as bossDown's, for the same reason, because these two loops are the two places that say
+        // "the after-story is finished" and they have to agree about what that means for her.
         for (const s of speakers) {
           s.script = null;
           s.builtFor = "";
           s.beat = 0;
+          if (s.id === "kindly") s.leaving = true;
         }
       }
       if (chain && chain.length) {
