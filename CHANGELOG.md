@@ -1494,3 +1494,184 @@ flagstones sound like stone, a `roofless` flag that skips the head-bump clamp
 (a nave with no roof has no ceiling to bump), a camera arm long enough for a
 19 m room, and a per-room `interiorK` — because the full indoor grade blacks out
 the sky, and here you can see it through the rafters.
+
+---
+
+## 2.5.0 — Hunters in the woods, healing that heals, and a Warden who fights fair
+
+### Bug 86 — The lore books reshuffled on every boot, and the save marked the wrong ones · FIXED
+
+**The worst bug found so far, and it was live before 2.4.0 shipped.**
+
+The lore-book scatter gated on `Math.random() < 0.35`. Every book that survived
+the draw called `addPickup` with **no explicit id**, and `addPickup` assigns
+`id = type + ":" + pickups.length`. So the *number* of books changed every boot
+— measured at **68, 67 and 61 pickups across three runs of the identical file**
+— and with it the id of every book after the first skipped house.
+
+The consequences were all certain rather than hypothetical. The text is stable
+by ordinal, so `clue:37` is always the same passage — but it sat in a different
+house each time. Save on a 44-book boot and reload onto a 37-book boot and the
+high ids matched nothing and were silently dropped; the other direction marked
+books as read that the player had never seen. And `GRANTED` is runtime-only and
+never saved, so a book re-taken under a shifted id pushed its label into both
+`FOUND` and `ITEMS` again — quietly reopening the duplicate-slot bug that 2.3.1
+had just closed, through a different door.
+
+**Fix.** The gate hashes the house's own position, so the same book sits in the
+same house on every boot and every machine. The books also carry an explicit
+`lore:<n>` id now, so the id does not depend on the pickup count at all.
+
+**A correction to the 2.4.0 entry.** It said an insertion before the church
+"would make the murder investigation uncompletable". That was wrong — all five
+murder clues carry explicit ids and are immune to renumbering from anywhere.
+The real blast radius of an early insertion is the implicit ids below it: four
+heart pieces, the Wind Feather, the Lungs of the Lake, three stamina fruit, four
+fairies and the Woodcutter's Axe. A shifted id there either re-arms a consumed
+permanent upgrade or silently deletes a weapon the player owns.
+
+### Bug 87 — The Drowned Warden was in the enemy list twice · FIXED
+
+`spawnWraith` pushes to `EXTRA`; `spawnWarden` **also** pushed to `bosses`; and
+`allEnemies()` concatenates both with no dedupe. So a swing that hit only her
+called `damageEnemy` on the same object twice. With the group-spread divisor
+that is **1.48x damage**, two knockback impulses and two particle bursts per
+hit, and her 120 HP behaving like 81. It also poisoned the spread maths for
+everything else — with one real second enemy the summoned wraiths took 0.588x
+while she still took 1.18x. The bear is listed once; she was the only one.
+
+### Bug 88 — The Warden could deadlock permanently, buried in a hillside · FIXED
+
+`updateEnemyTells` relocates any distant boss to within 22–30 m of the player
+and sets `state = "chase"`. **`updateWraith`'s switch has no `"chase"` case** —
+only rise, drift, windup, strike, recover, stun. She fell through it every
+frame: stopped moving, stopped attacking, permanently. Meanwhile her height damp
+dragged her from the ground she was dropped on down to pool level, so she ended
+up around five metres inside the hill — a motionless health bar in the rock. The
+only escape was a heavy hit, because the stun assignment in `damageEnemy` is
+gated on `!e.boss`.
+
+It fires at 55 m, which is trivial: she moves at 3.2 m/s and the player sprints.
+Wraiths are excluded from the relocation now, like the bear.
+
+### Bug 89 — The Warden hit from where you could not hit back · FIXED
+
+Her reach is 7.8 m with an 11 m vertical tolerance. The player's swing is 3 m.
+Her height was pinned to `POOL.y` while her chase had no range limit, so she
+walked up the bank and stayed at pool level — leaving an **eight-metre band
+where she was lethal and untouchable**, on roughly a fifth of the compass from
+about thirty metres out. She was not hitting through a wall; the terrain was the
+wall. She rides the higher of the waterline and the ground under her now.
+
+### Bug 90 — `dread()` ramped about thirty times slower than written · FIXED
+
+The body is throttled to twice a second but eased by a **frame** `dt`. At 60 fps
+the true rate was `0.06/60*2 = 0.002` per second — and faster hardware made it
+slower still. "Creeps in over thirteen seconds" was really **seven and a half
+minutes**, so the whole souring of the valley arrived minutes after the story
+beat that fires it, and choosing an ending took nearly two minutes to give the
+colour back instead of four. It eases by the interval that actually elapsed now.
+
+### Hunters live in the woods
+
+**Reported:** "the hunter tents have no reason to be that close to the kingdom
+or villages, they should be in forests, thats why they are in tents." And:
+"make it obviously a tent that he can go inside, with a fireplace outside, and
+make it look like the tent has a door at least."
+
+- They pitched twenty-six metres past the town wall, close enough that walking
+  to a real bed would have been quicker than pitching. They start at **95 m past
+  the wall** now and widen the ring every eight tries, with a minimum of 70 m
+  from the walls and 62 m from any village.
+- **A real forest test:** at least seven trunks within 34 m, counted off the
+  tree grid. A tent on a bare moor was the bug. If a hunter genuinely has no
+  wood near him, the best clear spot is used rather than leaving him tentless —
+  a hunter with no tent has no nap branch and keeps the whole night standing up.
+- **The tent is a tent.** It was one four-sided cone, which reads as a pyramid.
+  It is a ridge tent now: two canvas slopes over a pole that overhangs both
+  gables, a closed triangular back, two door poles, and the flap rolled and tied
+  back against one of them with three ties. Groundsheet inside, pegs and guys at
+  the corners.
+- **You can walk in.** Two side walls and a back, and nothing across the mouth.
+  The yaw snaps to a quarter turn first, because `resolveStructs` has no rotation
+  field and a tent at 37 degrees could only have its walls approximated by boxes
+  — you would feel that walking in. The collider tops sit at the ridge, so a hop
+  cannot clear them.
+- **A campfire outside the door**, in a ring of stones, registered in `hearths`
+  so goblins will not rise out of the ground under him.
+- His fire *is* his camp now, and that is load-bearing rather than decorative:
+  the nap only ever triggers within 25 m of the tent, and his night beat is
+  10–20 m around his fire. A hunter whose beat stayed at his village door would
+  simply never nap again. His daytime hunting still anchors on his house — he
+  walks out to the camp as the light goes.
+
+### Bug 91 — Rose Rest could not fire at all after the pool woke · FIXED
+
+**Reported:** "bugg the fairy reward auto heal thing."
+
+**Cause.** The gate was a **nineteen-term conjunction**, and any single term
+failing reset a five-second warm-up to zero. Among the terms: no movement key at
+all, speed under 0.15, weapon away, satchel shut — and **no enemy within 22
+metres**. That last one is what actually killed it. Once the pool wakes there is
+nearly always something walking toward you, and since 2.1.7 wraiths pursue from
+*any* distance, so the ring is effectively never empty at night. The heal could
+not fire, which is why it read as broken rather than as strict.
+
+**Fix, per the request** — "there should just be passive healing regardless of
+in or out of combat, although it shouldnt be that fast, and regardless of
+moving": it is unconditional, and slow enough that being unconditional costs
+nothing. **0.02 HP/s, one heart every fifty seconds.** The Warden hits for two
+about every four seconds; this gives back 0.08 in that time, under five per cent
+of one blow, so it cannot win a fight for you. What it does is mean the walk
+between two villages puts your hearts back. The petals are much rarer, because
+a constant halo would read as a status effect rather than a kindness.
+
+### Six more, from the standing agents
+
+- **A peer could NaN your velocity at will**, two ways. `netApplyState` did no
+  validation and `Vector3.set` does not coerce; the `ehit` handler's fallback
+  caught strings (NaN is falsy) but not `Infinity` (truthy). Either way
+  `hurtPlayer`'s divide guard is `|| 1`, and NaN is falsy, so the guard did
+  nothing. `guardPlayerPosition` recovers — but `hurtPlayer` clears `grounded`
+  and the safe spot only updates while grounded, so spamming it **pinned you at
+  your last footing indefinitely**. Both entry points are finite-checked and
+  clamped now. The `kb` multiplier added in 2.1.7 was already correctly clamped.
+- **Avatar flood:** `hello` built a full character mesh and a canvas nametag
+  every time with no cap — fifty messages made fifty avatars. Capped at 8, with
+  an existing id still allowed to rebuild so appearance changes still work.
+- **Wraiths could spawn inside houses.** The far-spawn branch checked bounds and
+  water but not interiors, and the `!roomNow` guard only covers the case where
+  the *player* is indoors.
+- **The rooks never flew again after a reload.** `applySave` re-added the
+  discovery id without spending its one-shot, so `discover()` short-circuited
+  and the effect could never fire. The discovery radius also dropped 26 to 13:
+  it was firing sixteen metres before the porch, through a wall.
+- **The Warden blinked out during her own entrance.** The wraith blink applies
+  to her too and starts at zero, so she vanished for a fifth of a second about
+  twice during the six-second surfacing built to be watched.
+- **The church's chancel sill blocked by eleven millimetres.** `resolveStructs`
+  skips while the body is below `top - 1.0`; the sill's top was `FY + 1.2` and
+  the flagstones are at `FY + 0.19`. Blocked at +0.005 above the floor, straight
+  through at +0.011 — and only from the inside, which is what marked it as an
+  accident rather than a window. Raised to match the long walls.
+
+### Two save-format improvements
+
+- **An unknown discovery id now drops instead of rejecting the whole key.** It
+  returned `null`, so a save made after any new discovery was added failed to
+  load in an older build with "bad save key" — the player losing everything over
+  one unrecognised place name. Unknown `picked` ids already behaved this way.
+- **Six more icon mis-routes fixed**, three of them the church's own clues. The
+  rules read *body prose* as if it were a name: a lore book quoting the fairy
+  queen drew a fairy, and the font's "no green ring where water stands" drew a
+  gold ring. `itemIcon` tries the item's **name** first and the full string
+  second, and the catch-all's bare apostrophe — which made a book of every
+  possessive in the game — is now a colon-quote, which is how the lore books
+  actually introduce a quotation.
+
+### Refuted
+
+A standing agent reported a debug-probe block shipping in the 2.4.0 release.
+**It is not there** — grep finds zero occurrences in the committed file. Two
+agents were auditing the same file concurrently and one saw the other's
+temporary instrumentation mid-flight. Noted so it is not re-reported.

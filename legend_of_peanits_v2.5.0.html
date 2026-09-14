@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.4.0</title>
+<title>Legend of Peanits 2.5.0</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -376,7 +376,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.4.0</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.5.0</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -443,7 +443,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.4.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.5.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -801,6 +801,7 @@ const __boot = (async () => {
   function updateDread(dt) {
     _dreadT -= dt;
     if (_dreadT > 0 && _dreadV >= 0) return; // twice a second is far oftener than any of these inputs actually move
+    const el = Math.max(dt, 0.5 - _dreadT); // how long it really was since the last pass, which is what the ease below must use
     _dreadT = 0.5;
     let d = 0;
     if (WORLDSTATE.blackPoolAwake)
@@ -813,7 +814,12 @@ const __boot = (async () => {
     d = clamp(d, 0, 1);
     // it creeps in over about thirteen seconds and drains in four, so picking up a relic never snaps the sky
     if (_dreadV < 0) _dreadV = d;
-    else _dreadV += clamp(d - _dreadV, -dt * 0.25, dt * 0.06);
+    // ease by the interval that actually elapsed, not by one frame's dt. the body is throttled to twice a second but
+    // used to step by the frame delta, so at 60fps the true rate was 0.06/60*2 = 0.002 per second — about thirty
+    // times slower than intended, and faster hardware made it slower still. "creeps in over thirteen seconds" was
+    // really seven and a half minutes, so the whole souring of the valley arrived minutes after the beat that fires
+    // it, and choosing an ending took nearly two minutes to give the colour back instead of four seconds.
+    else _dreadV += clamp(d - _dreadV, -el * 0.25, el * 0.06);
   }
   function storyAct() {
     if (WORLDSTATE.ending) return STORY_ACT.COMPLETE;
@@ -841,7 +847,7 @@ const __boot = (async () => {
     drownedChapel: { name: "The Drowned Chapel", r: 22 },
     hollow: { name: "The Hollow", r: 16 },
     wolfDen: { name: "The Wolf Den", r: 20 },
-    emptyChurch: { name: "The Abandoned Church", r: 26 }
+    emptyChurch: { name: "The Abandoned Church", r: 13 } // 26 fired the rook flush sixteen metres before the porch, through a wall
   };
   const DISC_FOUND = new Set();
   const RELIC_SPOTS = {}; // where the relics lie, filled in as the world is built
@@ -8117,33 +8123,114 @@ const __boot = (async () => {
       inTown = Math.hypot(h.home.x, h.home.z) < TOWN_R + 10,
       // the direction that leads out of wherever he lives
       outA = inTown ? Math.atan2(h.home.x, h.home.z) : vc ? Math.atan2(h.home.x - vc.x, h.home.z - vc.z) : Math.atan2(h.home.x, h.home.z),
-      outR = inTown ? TOWN_R + 26 : 34;
+      // a man who sleeps under canvas does it because he is a long way from a roof. these used to sit twenty-six
+      // metres past the town wall, close enough that walking to a real bed would have been quicker than pitching —
+      // which is the whole reason the tent looked wrong. they start well out now and work outward from there.
+      outR = inTown ? TOWN_R + 95 : 78;
     let t = null,
-      tyaw = 0;
-    for (let k = 0; k < 14 && !t; k++) {
-      const a = outA + (k % 2 ? 1 : -1) * Math.floor(k / 2) * 0.34,
+      tyaw = 0,
+      fallback = null; // the best spot that cleared everything except the trees, in case this hunter has no wood near him at all
+    // a real forest test, not "far from town". reach 2 is the 5x5 grid of 24 m cells around the point, so this counts
+    // the trunks within about fifty metres and asks for a wood rather than a hedgerow — while findSpot has already
+    // guaranteed a clear patch to actually pitch on.
+    const woodAt = (x, z) => { let n = 0; for (const tr of nearTrees(x, z, _nt, 2)) if (!tr.felled && Math.hypot(tr.x - x, tr.z - z) < 34) n++; return n; };
+    for (let k = 0; k < 40 && !t; k++) {
+      const a = outA + (k % 2 ? 1 : -1) * Math.floor(k / 2) * 0.28,
         base = inTown ? { x: 0, z: 0 } : vc || { x: 0, z: 0 },
-        c = findSpot(base.x + Math.sin(a) * outR, base.z + Math.cos(a) * outR, 0.6, 300, 4, 2);
-      if (!c || insideInterior(c.x, c.z, 2.2) || pathDist(c.x, c.z) < 6) continue;
-      // never inside the walls, and never in anybody's village
-      if (Math.hypot(c.x, c.z) < TOWN_R + 14) continue;
-      if (villages.some(v => dist2D(v.center, c) < 30)) continue;
+        rr = outR + Math.floor(k / 8) * 26, // widen the ring every eight tries rather than only sweeping the bearing
+        c = findSpot(base.x + Math.sin(a) * rr, base.z + Math.cos(a) * rr, 0.6, 300, 4, 2);
+      if (!c || insideInterior(c.x, c.z, 2.2) || pathDist(c.x, c.z) < 10) continue;
+      // never inside the walls, and never within sight of anybody's village
+      if (Math.hypot(c.x, c.z) < TOWN_R + 70) continue;
+      if (villages.some(v => dist2D(v.center, c) < 62)) continue;
       const probe = { x: c.x, y: c.y, z: c.z };
       resolveStructs(probe, 2);
       if (Math.hypot(probe.x - c.x, probe.z - c.z) > 0.05) continue; // a wall or a cart already stands there
+      if (!fallback) { fallback = c; fallback.yaw = a; }
+      if (woodAt(c.x, c.z) < 7) continue; // out on the open moor: keep looking for trees
       t = c;
       tyaw = a;
     }
+    // he would rather be on a bare hillside a long way out than have no tent at all, and a hunter with no tent has
+    // no nap branch and keeps the whole night watch standing up
+    if (!t && fallback) { t = fallback; tyaw = fallback.yaw; }
     if (!t) continue; // nowhere clear: he simply has no tent, and the nap branch never fires for him
+    // quarter turns only, the same constraint the church works under: resolveStructs has no rotation field, so a tent
+    // pitched at 37 degrees could only ever have its walls approximated by axis-aligned boxes, and you would feel that
+    // walking into it. snapping the yaw is what lets the doorway be a real gap in a real wall.
+    tyaw = Math.round(tyaw / (Math.PI / 2)) * (Math.PI / 2);
+    const tcc = Math.round(Math.cos(tyaw)),
+      tss = Math.round(Math.sin(tyaw)),
+      // local tent axes -> world. +z local is the way the door faces.
+      tX = (lx, lz) => t.x + tcc * lx + tss * lz,
+      tZ = (lx, lz) => t.z - tss * lx + tcc * lz,
+      trect = (lx, lz, hx, hz, top) => addRect(tX(lx, lz), tZ(lx, lz), tcc ? hx : hz, tcc ? hz : hx, top);
+    // a ridge tent, and an obvious one: two canvas slopes over a pole, a closed gable at the back, and an open mouth
+    // at the front with the flap rolled and tied to one side. it used to be a single four-sided cone, which reads as
+    // a pyramid rather than as somewhere a man sleeps, and it had no way in at all.
+    const canvas = texMat(TEX.flag, 0x8a7a5a),
+      canvasDark = texMat(TEX.flag, 0x6a5c42),
+      TL = 2.3, // half the tent's length
+      TW = 1.55, // half its width at the ground
+      TH = 2.3; // the ridge
     const tent = new THREE.Group();
-    tent.add(cone(2.4, 2.6, texMat(TEX.flag, 0x8a7a5a), 0, 1.3, 0, 4));
+    {
+      const slope = Math.hypot(TW, TH),
+        lean = Math.atan2(TW, TH);
+      for (const sx of [-1, 1]) {
+        const panel = boxM(0.09, slope, TL * 2, canvas, (sx * TW) / 2, TH / 2, 0);
+        panel.rotation.z = -sx * lean;
+        tent.add(panel);
+      }
+      // the ridge pole runs out past both gables, the way a real one does, and the ends are what the guys pull against
+      const pole = cyl(0.06, 0.06, TL * 2 + 0.6, timber, 0, TH, 0, 5);
+      pole.rotation.x = Math.PI / 2;
+      tent.add(pole);
+      // the back gable, closed. a four-sided cone flattened to nothing in z is a triangle, and a triangle is the
+      // cheapest thing in this engine that reads as the end of a tent.
+      const back = cone(TW * 1.42, TH, canvas, 0, TH / 2, -TL, 4);
+      back.rotation.y = Math.PI / 4;
+      back.scale.z = 0.05;
+      tent.add(back);
+      // the doorway: two upright poles and a lintel of rope, so the opening has an edge you can see from outside
+      for (const sx of [-1, 1]) tent.add(cyl(0.05, 0.05, TH * 0.92, timber, sx * TW * 0.86, TH * 0.46, TL, 5));
+      // and the flap itself, rolled and tied back against the left pole. this is the bit that says "door"
+      const flap = boxM(0.34, TH * 0.82, 0.34, canvasDark, -TW * 0.86, TH * 0.44, TL + 0.12);
+      flap.rotation.z = 0.12;
+      tent.add(flap);
+      for (let k = 0; k < 3; k++) tent.add(cyl(0.19, 0.19, 0.06, canvasDark, -TW * 0.86, TH * (0.2 + k * 0.28), TL + 0.12, 7)); // the ties
+      // groundsheet, so the inside is a floor and not grass
+      tent.add(boxM(TW * 1.7, 0.05, TL * 1.85, canvasDark, 0, 0.03, 0));
+      // pegs and guys at the four corners
+      for (const sx of [-1, 1])
+        for (const sz of [-1, 1]) {
+          const guy = cyl(0.02, 0.02, 1.5, timber, sx * (TW + 0.5), 0.55, sz * (TL + 0.18), 4);
+          guy.rotation.set(sz * 0.34, 0, -sx * 0.62);
+          tent.add(guy);
+        }
+    }
     tent.position.copy(t);
     tent.rotation.y = tyaw;
     scene.add(tent);
-    addCircle(t.x, t.z, 1.6, t.y + 2.6);
-    const md = dist2D(h.home, t) || 1;
+    // two side walls and a back, and nothing across the mouth — so he can walk in and so can you. the tops sit at the
+    // ridge so resolveStructs blocks properly rather than letting a hop through, which is the trap the church's
+    // chancel sill fell into.
+    trect(-TW, 0, 0.28, TL, t.y + TH);
+    trect(TW, 0, 0.28, TL, t.y + TH);
+    trect(0, -TL, TW, 0.28, t.y + TH);
     h.tent = V3(t.x, t.y, t.z);
-    h.tentMouth = V3(t.x + ((h.home.x - t.x) / md) * 2.1, t.y, t.z + ((h.home.z - t.z) / md) * 2.1); // the mouth faces his own door
+    h.tentMouth = V3(tX(0, TL + 1.1), t.y, tZ(0, TL + 1.1)); // straight out of the doorway, since the doorway now has a side
+    // the tent is his camp, so it is also where he keeps the night watch. this matters the moment the tents move out
+    // into the woods: the nap only fires within napReach of the tent, so a hunter whose night beat stayed circling his
+    // village door would simply never nap again. his beat is 10-20 m round the fire and napReach is 25, so putting the
+    // fire at the camp is the whole of what keeps the naps working. his daytime hunting still anchors on his house —
+    // he walks out to the camp as the light goes, which is what a man with a tent actually does.
+    const fx = tX(0, TL + 2.9),
+      fz = tZ(0, TL + 2.9);
+    h.fireSpot = V3(fx, terrainH(fx, fz), fz);
+    addFire(scene, fx, h.fireSpot.y, fz, true, 0.85);
+    for (let k = 0; k < 7; k++) { const a2 = (k / 7) * 6.28; tent.parent.add(boxM(0.3, 0.18, 0.3, stoneDarkM, fx + Math.cos(a2) * 0.82, h.fireSpot.y + 0.09, fz + Math.sin(a2) * 0.82)); } // a ring of stones round it, so it reads as a campfire and not a bonfire
+    hearths.push(V3(fx, h.fireSpot.y + 0.2, fz)); // registers the ring goblins will not rise inside, the same as every other fire in the valley
   }
   // wren, who never leaves her house and will happily change your look
   {
@@ -9386,13 +9473,21 @@ const __boot = (async () => {
     ];
     let loreN = 0;
     for (const it of interiors) {
-      if (!it.round || Math.random() < 0.35 || !it.bed) continue;
+      // deterministic, and it has to be. this gate used to be Math.random(), and every pickup below takes an implicit
+      // id of "clue:<pickups.length>" — so the COUNT of lore books changed on every boot (measured: 44, 43, 37 across
+      // three runs of the same file) and with it the id of every book after the first skipped house. a save therefore
+      // marked "already read" against numbers that meant a different book, in a different house, on the next load:
+      // some were silently dropped, others were marked read before you had seen them. the house a book sits in was
+      // also reshuffling. hashing the house's own position fixes both — same book, same house, every boot, every
+      // machine — and the explicit id below means the id no longer depends on the count at all.
+      if (!it.round || hash(it.cx | 0, (it.cz | 0) + 777) < 0.35 || !it.bed) continue;
       const p = it.bed.clone();
       p.x = it.cx + (it.cx - it.bed.x) * 0.3;
       p.z = it.cz + (it.cz - it.bed.z) * 0.3;
       p.y = it.y + 0.95;
-      const text = LORE[loreN++ % LORE.length];
-      addPickup(V3(p.x, p.y, p.z), "clue", text, () => {}, { noCount: true, shape: "book" });
+      const ln = loreN++,
+        text = LORE[ln % LORE.length];
+      addPickup(V3(p.x, p.y, p.z), "clue", text, () => {}, { noCount: true, shape: "book", id: "lore:" + ln }); // the id is the book's own ordinal, not the running pickup count
     }
     // the evidence used to sit in one heap on the pool shore — cloth, ring and ritual site all inside twenty metres, so
     // one walk round the water solved the whole murder. only the ring stays here now; the rest is spread along the way
@@ -9562,7 +9657,12 @@ const __boot = (async () => {
 
       // the chancel end: one great window with nothing at all in it
       g.add(boxM((CW + CT) * 2, 1.2, CT * 2, stoneWallM, 0, 0.6, -(CD + CT)));
-      rect(0, -(CD + CT), CW + CT, CT, FY + 1.2);
+      // the collider top is raised to match the long walls even though the stone here is only 1.2 m. resolveStructs
+      // skips a structure while the body is below `top - 1.0`, and the flagstones sit at FY + 0.19 — so a top of
+      // FY + 1.2 left an eleven-millimetre window: blocked at +0.005 above the floor, straight through at +0.011.
+      // any hop or landing float opened 1.2 m of solid stone, and only from the inside, which is what marked it as
+      // an accident rather than a window somebody meant.
+      rect(0, -(CD + CT), CW + CT, CT, FY + 2.2);
       for (const sx of [-1, 1]) {
         g.add(boxM(1.975 * 2, 4.4, CT * 2, stoneWallM, sx * 3.775, 3.4, -(CD + CT)));
         rect(sx * 3.775, -(CD + CT), 1.975, CT, FY + WH);
@@ -11338,16 +11438,33 @@ const __boot = (async () => {
     [/lantern/, "lantern"], [/knife/, "knife"], [/ashfall edge/, "edge"],
     [/candle/, "candles"], [/private note/, "note"], [/diary/, "diary"],
     [/\bgrave/, "grave"], // the word boundary matters: without it "engraved H. to Y." draws a headstone
+    // the church's own four, named before the generic rules can catch a word out of their body prose. the altar and
+    // the doorpost were falling through to the crate because the carving rule says "cut in the stone" and they say
+    // "cut into"; the font was drawing a gold ring off "no green ring where water stands", which is the same trap the
+    // candles were rescued from and nothing else was.
+    [/altar is bare|cut into the edge/, "carving"],
+    [/font is dry/, "carving"],
+    [/scratched into the doorpost/, "carving"],
+    [/visitation ledger/, "diary"],
     [/scratched in the stone|cut in the stone|worn smooth|carved into|scratched on the wall/, "carving"],
     [/sword/, "sword"], [/spear/, "spear"], [/axe/, "axe"],
     [/fairy/, "fairy"], [/heart/, "heart"], [/\bring/, "ring"],
     [/feather/, "feather"], [/fruit/, "fruit"], [/orb/, "orb"],
     [/cloth/, "cloth"], [/herb/, "herb"], [/flint/, "flint"], [/firewood|bundle/, "log"],
-    [/diary|book|ledger|letter|note|page|scrap|verse|hymn|record|journal|list|song|tally|roll|recipe|prayer|'/, "book"]
+    // the last alternation is `: '` and not a bare apostrophe. a bare one matched any possessive anywhere in the
+    // string, so "a trapper's camp" and "a chapel, drowned to the eaves" both drew a book. every real quoted lore
+    // book in this file introduces its quotation with a colon, which is what this now keys on.
+    [/diary|book|ledger|letter|note|page|scrap|verse|hymn|record|journal|list|song|tally|roll|recipe|prayer|: '/, "book"]
   ];
   const INV_HINT = '<p class="hint">Hover a picture to read what you found.</p>';
   function itemIcon(label) {
-    const l = String(label || "").toLowerCase();
+    const l = String(label || "").toLowerCase(),
+      head = l.split(/:|—|\(/)[0]; // the item's NAME, before any description
+    // the name is tried first and the whole string second, because these rules read body prose as if it were a name.
+    // "gran's book: 'the fairy queen never came'" drew a fairy — /fairy/ sits above /book/ and matched the quotation.
+    // testing "gran's book" on its own settles it, and anything genuinely unnamed still falls through to the full
+    // string, which is what the church's clues and the environmental props rely on.
+    for (const [re, key] of ICON_RULES) if (re.test(head)) return WEAPON_ICONS[key] || ITEM_ICONS[key] || ITEM_ICONS.misc;
     for (const [re, key] of ICON_RULES) if (re.test(l)) return WEAPON_ICONS[key] || ITEM_ICONS[key] || ITEM_ICONS.misc;
     return ITEM_ICONS.misc; // anything unnamed gets the crate rather than an empty box
   }
@@ -11393,7 +11510,7 @@ const __boot = (async () => {
     if (FOUND.some(f => /^Rose Rest/.test(f)))
       entries.push({
         label: "Rose Rest",
-        text: "Stand still and safe for a few seconds and the roses knit you back together.",
+        text: "The roses mend you as you go — one heart or so a minute, in a fight or out of it.",
         icon: ITEM_ICONS.roserest
       });
     entries.push({ label: `Act ${storyAct()}: ${ACT_NAMES[storyAct()]}`, text: `The story so far.<br><br>Relics for the pool: ${["seal", "root", "warden", "tear"].map(k => (WORLDSTATE.relics[k] ? "✓ " : "✗ ") + { seal: "the King's Seal", root: "the Root Word", warden: "the Warden's Stone", tear: "the Queen's Tear" }[k]).join(", ")}.${WORLDSTATE.ending ? "<br><br>Ending: " + { bind: "the pool bound to the beacon's light", break: "the pool drained and the seal broken", fairy: "the thing beneath sung to sleep by the rose court" }[WORLDSTATE.ending] + "." : ""}`, icon: ITEM_ICONS.scroll });
@@ -11777,7 +11894,10 @@ const __boot = (async () => {
         }
       Object.assign(STORY, d.story);
       if (d.ws) { const r = d.ws.relics || {}; delete d.ws.relics; Object.assign(WORLDSTATE, d.ws); for (const k in r) WORLDSTATE.relics[k] = !!r[k]; }
-      if (d.disc) for (const id of d.disc) DISC_FOUND.add(id);
+      // a discovery restored from a save is already found, so its one-shot must be spent rather than left armed:
+      // otherwise discover() short-circuits on the DISC_FOUND check and the effect can never fire again, which left
+      // the church's rooks sitting in the rafters forever on any post-discovery load.
+      if (d.disc) for (const id of d.disc) { DISC_FOUND.add(id); const D = DISCOVERIES[id]; if (D && D.onFound) { const fn = D.onFound; D.onFound = null; try { fn(); } catch (_) {} } }
       [talkedOnce, gaveHerbs, lit, talkedKing, metKing] = d.flags;
       for (const q of SIDE) {
         const e = d.side && d.side[q.title];
@@ -11958,7 +12078,11 @@ const __boot = (async () => {
         spec.relics = v => !!v && typeof v === "object" && ["seal", "root", "warden", "tear"].every(k => v[k] === undefined || typeof v[k] === "boolean");
         d.ws = pickObj(d.ws, spec); if (!d.ws) return null;
       }
-      if (d.disc !== undefined) { if (!Array.isArray(d.disc) || !d.disc.every(x => typeof x === "string" && Object.prototype.hasOwnProperty.call(DISCOVERIES, x))) return null; }
+      // an unknown discovery id DROPS rather than rejecting the whole key. it used to return null, so a save made
+      // after any new discovery was added failed to load in an older build with "bad save key" — the player losing
+      // everything over one unrecognised place name. unknown `picked` ids already behave this way and are harmless,
+      // and this makes the format genuinely tolerant in both directions for every future discovery.
+      if (d.disc !== undefined) { if (!Array.isArray(d.disc)) return null; d.disc = d.disc.filter(x => typeof x === "string" && Object.prototype.hasOwnProperty.call(DISCOVERIES, x)); }
       return d;
     } catch (e) {
       console.warn("bad save key", e);
@@ -13095,7 +13219,9 @@ const __boot = (async () => {
     if (m.t === "bye" && typeof m.id === "string") { netRemoveAvatar(m.id); if (NET.role === "host") netBroadcast(m, peer.id); return; }
     if (m.t === "en" && netGuest()) { if (!NET.mirroring) { NET.mirroring = true; for (const g of goblins) if (!g.mirror) { g.alive = false; g.gone = true; g.mesh.visible = false; if (g.bar) g.bar.visible = false; if (g.tell) g.tell.visible = false; } } netApplyEnemies(m); return; } // the first snapshot as a guest replaces your own goblins with the host's
     if (m.t === "ed" && NET.role === "host") { const a = [...NET.avatars.values()].find(x => x.via === peer.id); const e = m.k === "goblin" ? goblins.find(g => !g.mirror && g.nid === m.id) : m.k === "slime" ? slimes[m.id | 0] : m.k === "bear" ? BEAR : EXTRA.find(o => !o.mirror && o.nid === m.id) || null; if (e && e.alive && a) { const from = V3(+m.fx || e.pos.x + 1, e.pos.y, +m.fz || e.pos.z); from.netFrom = a.id; damageEnemy(e, clamp(+m.dmg || 0, 0, 12), from, clamp(+m.kb || 0, 0, 20), !!m.big); } return; }
-    if (m.t === "ehit" && m.to === NET.myId) { const fromPos = V3(+m.x || P.pos.x + 1, P.pos.y, +m.z || P.pos.z); if (P.block) { P.blocks = (P.blocks || 0) + 1; lowerShield(true); say("Blocked!", 900); SFX.block(); hitstop = 0.06; } else hurtPlayer(clamp(+m.dmg || 1, 0, 6), fromPos, clamp(+m.kb || 1, 1, 2.5)); return; } // kb is clamped like the damage: a peer cannot ask to launch you into orbit
+    // a string coordinate fell back correctly here, because NaN is falsy — but Infinity is truthy and walked straight
+    // past the old `|| ` fallback, and Infinity/Infinity is NaN. both are finite-checked and clamped now.
+    if (m.t === "ehit" && m.to === NET.myId) { const fx = +m.x, fz = +m.z, fromPos = V3(Number.isFinite(fx) ? clamp(fx, -2000, 2000) : P.pos.x + 1, P.pos.y, Number.isFinite(fz) ? clamp(fz, -2000, 2000) : P.pos.z); if (P.block) { P.blocks = (P.blocks || 0) + 1; lowerShield(true); say("Blocked!", 900); SFX.block(); hitstop = 0.06; } else hurtPlayer(clamp(+m.dmg || 1, 0, 6), fromPos, clamp(+m.kb || 1, 1, 2.5)); return; } // kb is clamped like the damage: a peer cannot ask to launch you into orbit
     if (m.t === "ek") { netKillCredit(m); return; }
     if (m.t === "mq") { applyMainProgress(m, peer); if (NET.role === "host") netBroadcast(m, peer.id); return; }
     if (m.t === "finale" && NET.role === "host") { if (!WORLDSTATE.finaleStarted) startFinale(); return; } // a friend with the four relics stands at the pool: the host raises the warden
@@ -13107,6 +13233,10 @@ const __boot = (async () => {
   function netAnnounceLook() { const m = { t: "hello", id: NET.myId, look: netLook(), hp: P.hp, maxHp: P.maxHp }; if (NET.role === "host") netBroadcast(m); else for (const p of NET.peers.values()) netSend(p, m); }
   function netAddAvatar(id, look, via, hp, maxHp) {
     if (id === NET.myId) return;
+    // one peer spamming hello used to build a full character mesh and a canvas nametag every time, with no cap at all:
+    // fifty messages made fifty avatars and a hundred scene children. an id already present rebuilds below, so a
+    // legitimate appearance change is exempt.
+    if (NET.avatars.size >= 8 && !NET.avatars.has(id)) return;
     const old = NET.avatars.get(id); if (old) { scene.remove(old.mesh); scene.remove(old.tag); NET.avatars.delete(id); } // a new look for someone already here: rebuild quietly, keep their place
     const clean = { name: String(look.name || "Stranger").replace(/[<>&"'`]/g, "").slice(0, 24), skin: +look.skin || 0xf0cdb0, hair: +look.hair || 0x5a2f16, style: HAIR_STYLES.includes(look.style) ? look.style : "short", tunic: +look.tunic || 0xc9ccd4, cape: +look.cape || 0x6d7280 };
     const mesh = makeHeroFor(clean); scene.add(mesh);
@@ -13124,7 +13254,13 @@ const __boot = (async () => {
     const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearFilter; return tex;
   }
   function netApplyState(a, m) {
-    a.target.set(m.x, m.y, m.z); a.tvel.set(m.vx || 0, 0, m.vz || 0); a.heading = m.h; a.lastAt = performance.now();
+    // a peer used to be able to NaN you at will from here: Vector3.set does not coerce, so a string or an Infinity went
+      // straight through, the lerp carried it into the avatar position, and a following "hit" fed that position to
+      // hurtPlayer — where the divide-by-zero guard is `|| 1` and NaN is falsy, so the guard did nothing. guardPlayerPosition
+      // recovers the next frame, but hurtPlayer clears grounded and the safe spot only updates while grounded, so
+      // spamming it pinned you at your last footing indefinitely.
+      if (![m.x, m.y, m.z, m.h].every(Number.isFinite) || Math.abs(m.x) > 2000 || Math.abs(m.z) > 2000) return;
+      a.target.set(m.x, m.y, m.z); a.tvel.set(Number.isFinite(m.vx) ? m.vx : 0, 0, Number.isFinite(m.vz) ? m.vz : 0); a.heading = m.h; a.lastAt = performance.now();
     const st = a.state, f = m.f | 0; st.moving = !!(f & 1); st.run = !!(f & 2); st.sliding = !!(f & 4); st.grounded = !!(f & 8); st.swim = !!(f & 16); st.block = !!(f & 32); st.armed = f & 64 ? 3 : 0; st.lying = !!(f & 128); st.dive = !!(f & 256); st.dead = !!(f & 1024);
     st.airSlash = f & 512 ? st.airSlash || { t: 0.1, hitDone: true, motion: { damage: 1, knockback: 1, kick: false } } : null;
     st.weapon = WEAPONS[m.w] ? m.w : "sword"; if (m.a >= 0 && SWINGS[m.a]) { if (!st.atk || st.atk.stage !== m.a) st.atk = { stage: m.a, t: 0, hitDone: true, motion: { damage: 1, knockback: 1, kick: false, sweep: false } }; st.atk.t = m.at; } else st.atk = null;
@@ -13151,7 +13287,10 @@ const __boot = (async () => {
   }
   // the host's picture of every enemy near a player, ten times a second
   function netEnemySnapshot() {
-    const near = p => dist2D(p, P.pos) < 220 || [...NET.avatars.values()].some(a => dist2D(a.state.pos, p) < 220);
+    // realm-aware, and the allocation hoisted out of the per-enemy filter. every proximity test in this game is 2D, so
+    // a gehenna creature three hundred metres UNDER a peer scored as "near" and would be mirrored into their valley.
+    const avs = [...NET.avatars.values()], sameRealm = (a, b) => (a.y < DIVIDE) === (b.y < DIVIDE);
+    const near = p => (sameRealm(p, P.pos) && dist2D(p, P.pos) < 220) || avs.some(a => sameRealm(a.state.pos, p) && dist2D(a.state.pos, p) < 220);
     const g = goblins.filter(x => near(x.pos)).map(x => [x.nid, +x.pos.x.toFixed(1), +x.pos.y.toFixed(1), +x.pos.z.toFixed(1), +x.heading.toFixed(2), +x.hp.toFixed(1), x.king ? 1 : 0, x.state, x.alive ? 1 : 0, +Math.max(0, x.rise).toFixed(2)]);
     const sl = slimes.map((x, i) => (near(x.pos) ? [i, +x.pos.x.toFixed(1), +x.pos.y.toFixed(1), +x.pos.z.toFixed(1), +x.hp.toFixed(1), x.alive ? 1 : 0, x.state] : null)).filter(Boolean);
     const b = BEAR ? [+BEAR.pos.x.toFixed(1), +BEAR.pos.y.toFixed(1), +BEAR.pos.z.toFixed(1), +BEAR.heading.toFixed(2), +BEAR.hp.toFixed(1), BEAR.alive ? 1 : 0, BEAR.awake ? 1 : 0, BEAR.state, +(BEAR.flash || 0).toFixed(2)] : null;
@@ -13232,7 +13371,9 @@ const __boot = (async () => {
       st.vel.copy(a.tvel); st.heading = turnToward(st.heading, a.heading, rdt * 9); st.hurt = Math.max(0, st.hurt - rdt); st.anim += st.moving && st.grounded ? rdt * Math.hypot(st.vel.x, st.vel.z) * 0.85 : 0;
       if (st.atk) { st.atk.t += rdt; if (st.atk.t > 0.9) st.atk = null; } if (st.airSlash) { st.airSlash.t += rdt; if (st.airSlash.t > 0.45) st.airSlash = null; }
       a.mesh.visible = !st.dead; a.mesh.position.set(st.pos.x, st.pos.y + (st.lying ? 0.9 : TUNE.player.footLift), st.pos.z); a.mesh.rotation.order = "YXZ"; a.mesh.rotation.y = st.heading; a.mesh.rotation.x = st.lying ? -Math.PI / 2 : 0;
-      animateHero(st, rdt, time, a.mesh); a.tag.visible = !st.dead && dist2D(st.pos, P.pos) < 60; a.tag.position.set(st.pos.x, st.pos.y + 3.6, st.pos.z);
+      // the tag is a depthTest:false sprite on a 2D distance test, so without the realm check it would hang over the
+      // grass while the player it belongs to is three hundred metres underground
+      animateHero(st, rdt, time, a.mesh); a.tag.visible = !st.dead && dist2D(st.pos, P.pos) < 60 && (st.pos.y < DIVIDE) === (P.pos.y < DIVIDE); a.tag.position.set(st.pos.x, st.pos.y + 3.6, st.pos.z);
     }
   }
   // kb scales the knockback only. the warden throws at 2.1, which is the one blow in the game that takes a player
@@ -14613,7 +14754,7 @@ const __boot = (async () => {
     if (!(FAIRY.groveOpen || FAIRY.found >= 20)) { GROVE_PICKUP.hidden = true; GROVE_PICKUP.mesh.visible = false; if (GROVE_PICKUP.light) GROVE_PICKUP.light.visible = false; }
   }
   function fairyMilestones() {
-    if (FAIRY.found >= 5 && !FAIRY.rest) { FAIRY.rest = true; grant("Rose Rest: rest safely a few seconds and your hearts slowly mend", () => {}); flashText("Rose Rest awakened"); }
+    if (FAIRY.found >= 5 && !FAIRY.rest) { FAIRY.rest = true; grant("Rose Rest: your hearts mend slowly, wherever you are and whatever you are doing", () => {}); flashText("Rose Rest awakened"); }
     if (FAIRY.found >= 15 && !FAIRY.petal) { FAIRY.petal = true; grant("Petal Step: dashes cost half the breath and carry a little further", () => { P.bonus.dashCost = Math.min(P.bonus.dashCost || 15, 8); P.bonus.dash = Math.max(P.bonus.dash || 1, 1.2); }); }
     if (FAIRY.found >= 20 && !FAIRY.grove) { FAIRY.grove = true; FAIRY.groveOpen = true; say("Queen Rosabel: Twenty. The grove behind my court has closed its ring since before the kingdom. It has opened for you.", 7000, true, "fairy"); if (GROVE_PICKUP) { GROVE_PICKUP.hidden = false; GROVE_PICKUP.mesh.visible = true; if (GROVE_PICKUP.light) GROVE_PICKUP.light.visible = true; } }
     if (FAIRY.found >= 25 && !FAIRY.crown) { FAIRY.crown = true; grant("Rose Crown: the court will answer you at the black pool, whatever waits there", () => {}); }
@@ -14648,52 +14789,38 @@ const __boot = (async () => {
   // offer a region clue, never an exact map pin, preserving the hunt while preventing blind searching
   function fairyHint() {
     const child = FAIRY.children.find(c => !c.found);
-    return child ? child.clue : "All children rescued. Rose Rest heals one heart every 20 seconds after 5 seconds safely idle.";
+    return child ? child.clue : "All children rescued. Rose Rest mends one heart about every fifty seconds, always, wherever you are.";
   }
 
-  // rest cannot be farmed in combat, menus, while moving, airborne, swimming or immediately after damage
+  // the queen's gift is a slow mend that simply never stops. it used to be a nineteen-term conjunction — grounded,
+  // not swimming, not attacking, not blocking, not dodging, not hurt, weapon away, satchel shut, speed under 0.15,
+  // no movement key at all, and NO ENEMY WITHIN 22 METRES — and any one of those failing reset a five-second warm-up
+  // to zero. that last clause is what actually killed it: once the pool wakes there is nearly always something
+  // walking toward you, and since wraiths now pursue from any distance at all, the twenty-two-metre ring is
+  // effectively never empty at night. the heal could not fire, which is why it read as broken rather than as strict.
+  //
+  // so it is unconditional now, and slow enough that being unconditional costs nothing: 0.02 hp a second is one
+  // heart every fifty seconds. the warden hits for two, roughly every four seconds — this gives back 0.08 in that
+  // time, which is under five per cent of one blow. it cannot win a fight for you. what it does is mean that the
+  // walk between two villages puts your hearts back, which is the thing a player actually wants from it.
   function updateFairyRest(dt) {
     FAIRY.healing = false;
-    const idle =
-      (FAIRY.complete || FAIRY.rest) &&
-      !paused &&
-      !document.hidden &&
-      document.getElementById("inv").classList.contains("hidden") &&
-      P.grounded &&
-      !P.swim &&
-      !P.atk &&
-      !P.airSlash &&
-      !P.block &&
-      P.dodge <= 0 &&
-      P.hurt <= 0 &&
-      P.armed <= 0 &&
-      hspeed() < 0.15 &&
-      Math.abs(P.vel.y) < 0.15 &&
-      !moveInput().lengthSq() &&
-      !nearestEnemy(P.pos, 22) &&
-      sleepT <= 0;
-    if (!idle) {
-      FAIRY.idle = 0;
-      return;
-    }
-    const before = FAIRY.idle;
-    FAIRY.idle += dt;
-    const healDt = Math.max(0, FAIRY.idle - 5) - Math.max(0, before - 5);
-    if (healDt > 0 && P.hp < P.maxHp) {
-      P.hp = Math.min(P.maxHp, P.hp + healDt * 0.05);
-      FAIRY.healing = true;
-      if (Math.random() < dt * 14) {
-        const a = Math.random() * 6.28,
-          r = 0.6 + Math.random() * 1.2;
-        PS.glow.emit(
-          V3(P.pos.x + Math.cos(a) * r, P.pos.y + 0.2 + Math.random() * 1.6, P.pos.z + Math.sin(a) * r),
-          V3((Math.random() - 0.5) * 0.4, 0.9 + Math.random() * 0.8, (Math.random() - 0.5) * 0.4),
-          1.6 + Math.random() * 0.8,
-          0.16 + Math.random() * 0.1,
-          0xffb0e0
-        );
-      }
-      if (Math.random() < dt * 3) ripple(P.pos.x, P.pos.z, 1.2);
+    if (!(FAIRY.complete || FAIRY.rest) || paused || document.hidden || death || sleepT > 0) return;
+    if (P.hp >= P.maxHp) return;
+    P.hp = Math.min(P.maxHp, P.hp + dt * 0.02);
+    FAIRY.healing = true;
+    // the petals are much rarer than they were, because this is on all the time now and a constant halo would read
+    // as a status effect rather than as a kindness
+    if (Math.random() < dt * 1.6) {
+      const a = Math.random() * 6.28,
+        r = 0.6 + Math.random() * 1.2;
+      PS.glow.emit(
+        V3(P.pos.x + Math.cos(a) * r, P.pos.y + 0.2 + Math.random() * 1.6, P.pos.z + Math.sin(a) * r),
+        V3((Math.random() - 0.5) * 0.4, 0.9 + Math.random() * 0.8, (Math.random() - 0.5) * 0.4),
+        1.6 + Math.random() * 0.8,
+        0.16 + Math.random() * 0.1,
+        0xffb0e0
+      );
     }
   }
 
@@ -15319,7 +15446,7 @@ const __boot = (async () => {
       w.mesh.add(bob, cap);
       w.hairMat = hair;
     }
-    w.mat.emissive.copy(toLin(0x5a2a8a)); WARDEN = w; bosses.push(w); return w;
+    w.mat.emissive.copy(toLin(0x5a2a8a)); WARDEN = w; return w; // NOT bosses.push: spawnWraith already put her in EXTRA, and allEnemies() concatenates both with no dedupe — so she was in the list twice and every swing called damageEnemy on her twice. with the group-spread divisor that is 1.48x damage, two knockbacks and two particle bursts per hit, and her 120 hp behaving like 81. boss-ness everywhere else is the e.boss flag, which is set independently.
   }
   // how deep under the pool she starts and how long she takes to come up. long on purpose: a boss that is simply
   // there is a health bar, and a boss you watch surface is a thing that was always down there.
@@ -15354,7 +15481,9 @@ const __boot = (async () => {
   // the wraith: drifts, flickers in and out, rises and brightens before it strikes, and is solid and slow for a moment afterwards
   function updateWraith(e, tgt, dx, dz, dist, dt) {
     const speed = e.warden ? 3.2 * (e.phase === 3 ? 1.4 : 1) : 4.5;
-    e.blink -= dt; if (e.blink <= 0) { e.blink = 2 + Math.random() * 3; e.mesh.visible = false; setTimeout(() => { if (e.alive) e.mesh.visible = true; }, 220); }
+    // not while she is surfacing. the blink applies to every wraith and starts at zero, so the warden went fully
+    // invisible for a fifth of a second about twice during the six-second entrance built to be watched.
+    e.blink -= dt; if (e.blink <= 0 && e.state !== "rise") { e.blink = 2 + Math.random() * 3; e.mesh.visible = false; setTimeout(() => { if (e.alive) e.mesh.visible = true; }, 220); }
     if (e.warden) wardenPhases(e, tgt, dist, dt);
     switch (e.state) {
       // the surfacing. it eases out rather than running at a constant rate, so the last two metres are the slowest
@@ -15399,7 +15528,11 @@ const __boot = (async () => {
         want = top + 0.4 + Math.sin(time * 2 + e.nid) * 0.2;
       e.pos.y = damp(e.pos.y, want, want > e.pos.y ? 22 : 4, dt);
     }
-    else if (e.state !== "rise") e.pos.y = damp(e.pos.y, POOL.y + 0.3 + Math.sin(time * 1.5) * 0.3, 3, dt);
+    // she rides the water, but never below the ground she is standing on. pinned to POOL.y alone she kept pool height
+    // while her chase walked her up the bank, so from about thirty metres out she ended up buried in the hillside —
+    // reaching 7.8m with an 11m vertical tolerance, against a player swing of 3m. an eight-metre band where she was
+    // lethal and untouchable, on roughly a fifth of the compass. the terrain was the wall.
+    else if (e.state !== "rise") e.pos.y = damp(e.pos.y, Math.max(POOL.y + 0.3, groundAt(e.pos.x, e.pos.z, e.pos.y + 2) + 0.3) + Math.sin(time * 1.5) * 0.3, 3, dt);
     e.mesh.position.copy(e.pos);
     // wraiths and the warden had no heading smoothing either, so a blink or a turn snapped
     e.visH = turnToward(e.visH === undefined ? e.heading : e.visH, e.heading, dt * (e.state === "windup" ? 12 : 5));
@@ -15477,7 +15610,9 @@ const __boot = (async () => {
     wraithSeen = count;
     wraithT = Math.max(2.6, 9 - wraithHeat * 1.1);
     const night = dayElev < 0.05, near = dist2D(P.pos, POOL) < 70 || (relicCount() >= 2 && Math.random() < 0.15 * relicCount()), cap = 2 + relicCount() + wraithHeat;
-    if (night && near && count < cap && dist2D(P.pos, POOL) > 12 && !roomNow) { if (dist2D(P.pos, POOL) >= 70) { const a = Math.random() * 6.28, r = 18 + Math.random() * 10; const x = P.pos.x + Math.cos(a) * r, z = P.pos.z + Math.sin(a) * r; if (inBounds(x, z) && !isWater(x, z)) { spawnWraith(x, z); say("Something has followed you from the pool.", 2500, false, "dark"); } return; } const a = Math.random() * 6.28, r = 16 + Math.random() * 10; const x = POOL.x + Math.cos(a) * r, z = POOL.z + Math.sin(a) * r; if (inBounds(x, z) && !isWater(x, z)) { spawnWraith(x, z); if (count === 0) SFX.dread(); } }
+    // the !roomNow guard only covers the case where the PLAYER is indoors, and this branch sites 18-28m from the
+    // player anywhere in the world, so a wraith could materialise in a villager's bedroom and walk out through the wall
+    if (night && near && count < cap && dist2D(P.pos, POOL) > 12 && !roomNow) { if (dist2D(P.pos, POOL) >= 70) { const a = Math.random() * 6.28, r = 18 + Math.random() * 10; const x = P.pos.x + Math.cos(a) * r, z = P.pos.z + Math.sin(a) * r; if (inBounds(x, z) && !isWater(x, z) && !insideInterior(x, z, 2)) { spawnWraith(x, z); say("Something has followed you from the pool.", 2500, false, "dark"); } return; } const a = Math.random() * 6.28, r = 16 + Math.random() * 10; const x = POOL.x + Math.cos(a) * r, z = POOL.z + Math.sin(a) * r; if (inBounds(x, z) && !isWater(x, z) && !insideInterior(x, z, 2)) { spawnWraith(x, z); if (count === 0) SFX.dread(); } }
   }
   function updateSlimes(dt, rdt) {
     if (netGuest()) return; // slimes too are the host's
@@ -15619,7 +15754,14 @@ const __boot = (async () => {
   // extracted from update: one job, run once per frame
   function updateEnemyTells() {
   for (const e of allEnemies()) {
-        if (!e.boss || !e.alive || e.kind === "bear" || P.pos.y < DIVIDE) continue; // belt and braces: the terrainH test below already finds nothing, but this stops ten wasted candidate rolls a frame
+        // wraiths are excluded for the same reason the bear is, and it is not cosmetic: this routine ends by setting
+        // state = "chase", and updateWraith's switch has no "chase" case at all (rise, drift, windup, strike, recover,
+        // stun). the warden would fall through it every frame, stop moving and stop attacking permanently, while her
+        // height damp dragged her from the ground she was dropped on down to pool level — a motionless health bar
+        // buried five metres inside a hillside, with the only escape being a heavy hit, because the stun assignment
+        // in damageEnemy is gated on !e.boss. it fires whenever she is 55m away, which is trivial: she moves at
+        // 3.2 m/s and the player sprints.
+        if (!e.boss || !e.alive || e.kind === "bear" || e.wraith || P.pos.y < DIVIDE) continue; // belt and braces: the terrainH test below already finds nothing, but this stops ten wasted candidate rolls a frame
         const d = dist2D(e.pos, P.pos);
         if (d > 55 && !P.swim) {
           for (let k = 0; k < 10; k++) {
@@ -16814,7 +16956,7 @@ const __boot = (async () => {
     const fairyStatus = document.getElementById("fairy-status");
     fairyStatus.textContent =
       FAIRY.accepted || FAIRY.found
-        ? `Pink fairies ${FAIRY.found}/25 · Rose hearts ${FAIRY.hearts}/5${FAIRY.healing ? " · Rose Rest: healing" : FAIRY.complete ? " · Stand safely idle to heal" : ""}`
+        ? `Pink fairies ${FAIRY.found}/25 · Rose hearts ${FAIRY.hearts}/5${FAIRY.healing ? " · Rose Rest: healing" : FAIRY.complete ? " · Rose Rest: mending" : ""}`
         : "";
     // the enemy rings carry the combat warning; there is no separate tip widget
     const hour = Math.floor(((dayT + 0.25) % 1) * 24),
