@@ -2,6 +2,15 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 2.24.4 — the little river
+
+[screenshots + download](docs/updates/2.24.4.md) · [test notes](docs/QA_2.24.4.md)
+
+- lucifer now has the full robe/cape look, hand glow, and new hand-throw pressure.
+- the pride room now has a living, swimmable river and an orphanage that gives the kids a place to move.
+- party flow in lucifer’s room now follows the new retry/spectate rules, and stamina is finite in that room.
+- camera transition is softer around portals and forced turns have the slower cap.
+
 ## 2.24.3 — keep the pages you found
 
 [screenshots + download](docs/updates/2.24.3.md) · [test notes](docs/QA_2.24.3.md)

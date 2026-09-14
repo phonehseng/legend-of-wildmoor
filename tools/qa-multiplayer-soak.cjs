@@ -49,7 +49,7 @@ async function main() {
     for(let i=1;i<count;i++)await connect(i);
     for(const p of pages)await p.waitForFunction(n=>window.__gameQa.run(`NET.avatars.size===${n-1}`),count,{timeout:25000});
     check('all clients see the full real WebRTC party',true);
-    check('dynamic protocol is 3 and channels have intended reliability',await run(0,`NET_PROTOCOL===3&&[...NET.peers.values()].every(p=>p.ch.ordered&&p.motion.readyState==='open'&&!p.motion.ordered&&p.motion.maxRetransmits===0)`));
+    check('protocol is 4 and channels have intended reliability',await run(0,`NET_PROTOCOL===4&&[...NET.peers.values()].every(p=>p.ch.ordered&&p.motion.readyState==='open'&&!p.motion.ordered&&p.motion.maxRetransmits===0)`));
     await run(0,`P.inv=.3;P.dodge=.3;P.flurry=0;P.block=false;enemyStrike({kind:'wraith',pos:V3(0,20,-2)},1,null);`);
     check('local melee dodge reference opens flurry',await run(0,'P.flurry===1.7'));
     await combat('remote valley melee dodge opens flurry',{},valley(false),s=>s.hp===20&&s.flurry===1.7);

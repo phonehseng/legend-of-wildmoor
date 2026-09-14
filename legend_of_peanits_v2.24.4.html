@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.24.3</title>
+<title>Legend of Peanits 2.24.4</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#1b1626, #0d0a14); --edge: #6c583a; --hi: #8a6a3e; }
@@ -504,7 +504,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   #worldTools { display: flex; flex-direction: column; gap: 7px; pointer-events: auto; }
   #worldTools button { display: flex; align-items: center; width: 78px; height: 32px; padding: 0; background: transparent; color: var(--bone); border: 0; cursor: pointer; }
   #worldTools button:hover, #worldTools button:focus-visible { color: var(--gold); outline: 1px solid currentColor; outline-offset: 3px; }
-  #worldTools svg { width: 30px; height: 30px; stroke: currentColor; stroke-width: 1.7; fill: none; }
+  #worldTools svg { width: 30px; height: 30px; stroke: currentColor; stroke-width: 1.7; fill: none; filter: drop-shadow(1px 1px 1px #000); }
   #worldTools kbd { order: -1; }
   .slot-item.special { border: 2px solid #ff9ccc; box-shadow: inset 0 0 18px #b738713f, 0 0 8px #e45b9655; }
   .item-badge { position: absolute; left: 0; top: 0; font: bold 8px Verdana,sans-serif; background: #ffacd5; color: #341128; padding: 2px 4px; z-index: 2; }
@@ -534,7 +534,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.24.3</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.24.4</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -604,7 +604,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.24.3</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.24.4</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -2256,7 +2256,7 @@ const __boot = (async () => {
       const v = SWIM_VOLS[i],
         dx = x - v.x,
         dz = z - v.z;
-      if (dx * dx + dz * dz > v.r * v.r) continue;
+      if (dx * dx + dz * dz > v.r * v.r || (v.contains && !v.contains(x, z))) continue;
       if (y > v.top + 1.5 || y < v.floor - 4) continue;
       return v;
     }
@@ -2302,6 +2302,15 @@ const __boot = (async () => {
   };
   // gehenna's own heightfield and structure grid. it shares nothing with terrainH, which is exactly why a flat placed
   // at gehenna's coordinates cannot crater the valley: there are no shared coordinates to crater.
+  // One channel profile drives its floor mesh, shore, swim boundary and collision bed.
+  function gehPrideRiverAt(x, z) {
+    const rz = z - GEH.cz, t = clamp((rz - 43) / 35, 0, 1);
+    const end = Math.min(smooth(clamp((rz - 43) / 4, 0, 1)), smooth(clamp((78 - rz) / 4, 0, 1)));
+    const center = -94 + Math.sin((rz - 43) * 0.16) * 2.2;
+    const half = 4.9 * Math.pow(Math.max(0, end), 0.35), distance = Math.abs(x - GEH.cx - center);
+    const depth = half > 0 && distance < half ? 2.8 * end * (1 - smooth(clamp((distance - 1.45) / Math.max(0.01, half - 1.45), 0, 1))) : 0;
+    return { center, half, depth, t, bed: GEH.floor + 9 - depth, wet: depth > 0.2 };
+  }
   function gehH(x, z) {
     if (!GEH.root) return GEH_VOID;
     const dx = x - GEH.cx, dz = z - GEH.cz, r = Math.hypot(dx, dz);
@@ -2311,8 +2320,8 @@ const __boot = (async () => {
         dx >= 132 && dx <= 140 && dz >= 0 && dz <= 38 ||
         dx >= 100 && dx <= 140 && dz >= 30 && dz <= 38 ||
         dx >= 100 && dx <= 108 && dz >= 30 && dz <= 82 ||
-        dx >= 48 && dx <= 108 && dz >= 74 && dz <= 82 ||
-        dx >= -108 && dx <= -62 && dz >= 37 && dz <= 83) return GEH.floor + 9;
+        dx >= 48 && dx <= 108 && dz >= 74 && dz <= 82) return GEH.floor + 9;
+    if (dx >= -108 && dx <= -62 && dz >= 37 && dz <= 83) return gehPrideRiverAt(x, z).bed;
     if (dx <= -19.5 && dx >= -69 && Math.abs(dz) <= 2.1) return GEH.floor + Math.max(0, Math.floor((-dx - 20) / 0.6)) * 0.27;
     // phase 5 shaping. every term is analytic and lives in THIS function, which is the whole reason the drawn ground
     // and the collision heightfield can never disagree: the mesh is built by sampling these same lines.
@@ -3346,10 +3355,10 @@ const __boot = (async () => {
     }
   }
   let rippleIdx = 0;
-  function ripple(x, z, size = 1) {
+  function ripple(x, z, size = 1, surface = 0.22) {
     if (!graphics.particles) return;
     const r = ripples[rippleIdx++ % ripples.length];
-    r.m.position.set(x, 0.22, z);
+    r.m.position.set(x, surface, z);
     r.m.scale.setScalar(size);
     r.m.visible = true;
     r.m.material.opacity = 0.55;
@@ -10675,7 +10684,7 @@ const __boot = (async () => {
     tryLock();
   }
   function gameplayOverlayOpen() {
-    return invOpen || custOpen || questBookOpen() || !!CHOICE || afterlifeLocked() ||
+    return invOpen || custOpen || questBookOpen() || !!CHOICE || afterlifeLocked() || gehFightLocked() ||
       document.getElementById("minimap").classList.contains("big") ||
       !document.getElementById("statsPanel").classList.contains("hidden");
   }
@@ -14108,9 +14117,9 @@ const __boot = (async () => {
       // rather than the reader is what makes the key correct in every build that has no gehenna in it at all.
       pos: (() => { const p = P.gehDive && validPos(P.gehDive.rim) ? P.gehDive.rim : P.pos; return [p.x, p.y, p.z]; })(),
       day: dayT,
-      hp: Math.max(0, P.hp),
+      hp: gehFightDead() ? P.maxHp : Math.max(0, P.hp),
       maxHp: P.maxHp,
-      stam: P.stam,
+      stam: gehFightDead() ? stamMax() : P.stam,
       weapon: P.weapon,
       owned: P.owned,
       bonus: P.bonus,
@@ -14350,6 +14359,7 @@ const __boot = (async () => {
   }
   // apply a validated snapshot to a freshly built world
   function applySave(d) {
+    gehFightLeaveForLoad();
     clearPickupFlights(); // a key describes a settled world; nothing may still be in the air when it lands
     try {
       // a key describes a world, not a scene. an arrest still walking is resolved into its finished world FIRST, so
@@ -14759,6 +14769,30 @@ const __boot = (async () => {
   const keys = {};
   let camYaw = 0,
     camPitch = 0.4;
+  const cameraFollow = { ready: false, player: P.pos.clone(), yaw: 0, pitch: 0.4, rotation: new THREE.Quaternion() };
+  function followCameraTravel() {
+    // Portals and respawns move the camera by the same amount as the player.
+    // Chasing across the old world position can carry the view through their head.
+    if (cameraFollow.ready && cameraFollow.player.distanceToSquared(P.pos) > 24 * 24) {
+      camera.position.x += P.pos.x - cameraFollow.player.x;
+      camera.position.y += P.pos.y - cameraFollow.player.y;
+      camera.position.z += P.pos.z - cameraFollow.player.z;
+    }
+    cameraFollow.player.copy(P.pos);
+  }
+  function steadyCameraLookAt(dt, x, y, z) {
+    cameraFollow.rotation.copy(camera.quaternion);
+    camera.lookAt(x, y, z);
+    if (cameraFollow.ready) {
+      // Mouse, touch and key turns keep their input allowance. Geometry-induced
+      // turns take the shortest arc at a gentle speed, including after a long frame.
+      const inputTurn = Math.hypot(wrapAngle(camYaw - cameraFollow.yaw), camPitch - cameraFollow.pitch);
+      const allowance = inputTurn + 0.65 * clamp(dt, 0, 0.05);
+      cameraFollow.rotation.rotateTowards(camera.quaternion, allowance);
+      camera.quaternion.copy(cameraFollow.rotation);
+    }
+    cameraFollow.yaw = camYaw; cameraFollow.pitch = camPitch; cameraFollow.ready = true;
+  }
   addEventListener("keydown", e => {
     // browser shortcuts (ctrl+a select-all, ctrl+s, ctrl+p…) get swallowed while playing; ctrl+w can only be stopped in fullscreen
     if ((e.ctrlKey || e.metaKey) && started && !paused && "asdfwprnt123 ".includes(e.key.toLowerCase())) e.preventDefault();
@@ -15437,7 +15471,7 @@ const __boot = (async () => {
     if (netRequestEnemyHit(e, dmg, from, kb, big)) return;
     if (e.kind === "unclaimed" && !WORLDSTATE.gehMatronDown || e.kind === "kindly" && !(GEH_SCRIPT && GEH_SCRIPT.fight)) return;
     if (e.kind === "lucifer") {
-      if (!e.armed || e.holdPause > 0 || (afterlifeLocked() && from === P.pos) || !(dmg > 0)) return;
+      if (!e.armed || e.holdPause > 0 || (GEH.luciferFight && GEH.luciferFight.status !== "active") || ((afterlifeLocked() || death) && from === P.pos) || !(dmg > 0)) return;
       // A strong hit still gives each child time to answer.
       const floor = [60, 30, 0][Math.min(2, e.phase || 0)];
       e.hp = Math.max(floor, e.hp - dmg); e.flash = 0.12;
@@ -15763,12 +15797,12 @@ const __boot = (async () => {
   }
   // draw the weapon and refresh its automatic sheathing timer
   function spendStam(v) {
-    if (P.pos.y < DIVIDE) { P.stam = stamMax(); return; }
+    if (gehFreeStamina()) { P.stam = stamMax(); return; }
     P.stam = Math.max(0, P.stam - v);
     P.stamRest = 1.1;
   }
   function hasStam(v) {
-    return P.pos.y < DIVIDE || P.stam >= v;
+    return gehFreeStamina() || P.stam >= v;
   }
   const TOUCH = { x: 0, z: 0, run: false, up: false };
   function moveInput() {
@@ -15894,7 +15928,7 @@ const __boot = (async () => {
   // One host-owned lease names the only shoulder Ysolde can occupy. `age` is sent instead of an absolute clock so
   // browsers with unrelated performance clocks still render the same point in the four-second graveside action.
   const BURIAL = { carrier: null, phase: "idle", phaseAt: 0, token: 0, drop: null, syncT: 0, earthT: 0 };
-  const NET_MAX_PLAYERS = 16, NET_PROTOCOL = 3;
+  const NET_MAX_PLAYERS = 16, NET_PROTOCOL = 4;
   const NET_VOLATILE = new Set(["s", "states", "en", "day"]);
   const NET_ICE = { iceServers: [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }] };
   const netEl = id => document.getElementById(id);
@@ -16181,7 +16215,7 @@ const __boot = (async () => {
   // what everyone is told about you, about fifteen times a second
   function netMyState() {
     const f = (P.moving ? 1 : 0) | (P.run ? 2 : 0) | (P.sliding ? 4 : 0) | (P.grounded ? 8 : 0) | (P.swim ? 16 : 0) | (P.block ? 32 : 0) | (P.armed > 0 ? 64 : 0) | (P.lying ? 128 : 0) | (P.dive ? 256 : 0) | (P.airSlash ? 512 : 0) | (death ? 1024 : 0) | (P.dodge > 0 ? 2048 : 0) | (P.gehDive ? 4096 : 0);
-    return { t: "s", seq: ++NET.seq, id: NET.myId, x: +P.pos.x.toFixed(2), y: +P.pos.y.toFixed(2), z: +P.pos.z.toFixed(2), h: +P.heading.toFixed(3), vx: +P.vel.x.toFixed(2), vy: +P.vel.y.toFixed(2), vz: +P.vel.z.toFixed(2), f, w: P.weapon, a: P.atk ? P.atk.stage : -1, at: P.atk ? +P.atk.t.toFixed(2) : 0, hp: P.hp, mh: P.maxHp, yc: BURIAL.carrier === NET.myId };
+    return { t: "s", seq: ++NET.seq, id: NET.myId, x: +P.pos.x.toFixed(2), y: +P.pos.y.toFixed(2), z: +P.pos.z.toFixed(2), h: +P.heading.toFixed(3), vx: +P.vel.x.toFixed(2), vy: +P.vel.y.toFixed(2), vz: +P.vel.z.toFixed(2), f, w: P.weapon, a: P.atk ? P.atk.stage : -1, at: P.atk ? +P.atk.t.toFixed(2) : 0, hp: P.hp, mh: P.maxHp, yc: BURIAL.carrier === NET.myId, lf: GEH.luciferFight?.epoch || 0 };
   }
   function netAcceptSnapshot(peer, m, field) {
     if (!Number.isSafeInteger(m.seq) || m.seq < 1 || m.seq <= (peer[field] || 0)) return false;
@@ -16218,6 +16252,7 @@ const __boot = (async () => {
       if (a && pk && ["quest:stonefold", "quest:greytor", "church:watch-clapper"].includes(m.id) && netSameRealm(a.target, pk.pos) && dist2D(a.target, pk.pos) < 6 && Math.abs(a.target.y - pk.pos.y) < 5) { peer.items = peer.items || new Set(); peer.items.add(m.id); }
       return;
     }
+    if (gehFightHandle(peer, m)) return;
     if (netHandleGehenna(peer, m)) return;
     if (m.t === "qslime" && NET.role === "host") { hostQuestSlimes(peer); return; }
     if (m.t === "qslime" && NET.role === "guest" && peer.id === "host" && m.ok === true) { const q = SIDE.find(q => /three slimes/i.test(q.title)); if (q && q.taken && !q.done) q.slimeRemote = true; return; }
@@ -16312,6 +16347,7 @@ const __boot = (async () => {
       // absurd y decides which realm they are judged to be in, and a mesh parked at 1e300 is a matrix of infinities.
       if (![m.x, m.y, m.z, m.h].every(Number.isFinite) || Math.abs(m.x) > 2000 || Math.abs(m.z) > 2000 || m.y < -400 || m.y > 1000) return;
       if (!Number.isSafeInteger(m.seq) || m.seq <= (a.seq || 0)) return false;
+      if (gehFightMember(a.id) && m.lf !== GEH.luciferFight.epoch) return false;
       a.seq = m.seq; a.lastAt = performance.now();
       const pos = V3(m.x, m.y, m.z), vel = V3(...[m.vx, m.vy, m.vz].map(v => clamp(Number.isFinite(v) ? v : 0, -100, 100)));
       a.samples = a.samples || [];
@@ -16495,13 +16531,13 @@ const __boot = (async () => {
       hp: +e.hp.toFixed(2), max: e.maxHp, h: e.heading, s: e.state, alive: !!e.alive, removed: !!e.removed,
       t: e.t, armed: !!e.armed, phase: e.phase || 0, tier: e.tier || 0, guard: e.guard || 1, atk: e.atk || null,
       target: e.netTarget || null, tellR: e.tellR || 0, heat: e.heat || 0,
-      scenePhase: e.scenePhase || null, sceneT: e.sceneT || 0, beat: e.beat || 0, bodyScale: e.bodyScale || 0, noBar: !!e.noBar,
+      scenePhase: e.scenePhase || null, sceneT: e.sceneT || 0, beat: e.beat || 0, bodyScale: e.bodyScale || 0, noBar: !!e.noBar, throwPose: e.throwPose ? { t: e.throwPose.t, side: e.throwPose.side, target: e.throwPose.target } : null,
       pose: netGehennaTransform(e.mesh), arms: (e.arms || []).map(netGehennaTransform),
       body: netGehennaTransform(e.body), ring: netGehennaTransform(e.ring), thrown: netGehennaTransform(e.thrown), cart: netGehennaTransform(e.cart)
     })) : [];
-    return { seed: WORLDSTATE.gehSeed, ws: GEH_NET_FLAGS.map(k => !!WORLDSTATE[k]), ready, actors,
+    return { seed: WORLDSTATE.gehSeed, fightEpoch: GEH.fightEpoch || 0, fight: GEH.luciferFight || null, ws: GEH_NET_FLAGS.map(k => !!WORLDSTATE[k]), ready, actors,
       woken: GEH.woken || 0, script: GEH_SCRIPT.netState(), hand: ready ? netGehennaTransform(GEH.godHand) : null,
-      finale: GEH.netFinale ? { t: GEH.netFinale.t, scale: GEH.netFinale.scale, handY: GEH.netFinale.handY, members: GEH.netFinale.members } : null };
+      finale: GEH.netFinale ? { epoch: GEH.fightEpoch || 0, t: GEH.netFinale.t, scale: GEH.netFinale.scale, handY: GEH.netFinale.handY, members: GEH.netFinale.members } : null };
   }
   function netGehennaGrant() {
     if (!netGehennaBelow(P.pos)) return;
@@ -16513,6 +16549,8 @@ const __boot = (async () => {
   function netApplyGehenna(s) {
     if (!netGuest() || !s || !netGehennaSeed(s.seed) || !Array.isArray(s.ws) || s.ws.length !== GEH_NET_FLAGS.length || !s.ws.every(v => typeof v === "boolean")) return;
     if (NET.worldClosing) return;
+    if (!Number.isSafeInteger(s.fightEpoch) || s.fightEpoch < 0 || (NET.luciferEpochSeed === s.seed && s.fightEpoch < (NET.luciferEpochSeen || 0))) return;
+    NET.luciferEpochSeed = s.seed; NET.luciferEpochSeen = s.fightEpoch;
     if (!NET.gehPersonal) netBeginGehennaSession();
     NET.gehState = s; NET.gehShared = true;
     if (!NET.gehEntered && !P.gehDive && !netGehennaBelow(P.pos)) return;
@@ -16524,6 +16562,7 @@ const __boot = (async () => {
     GEH_NET_FLAGS.forEach((k, i) => { WORLDSTATE[k] = s.ws[i]; });
     netGehennaEnsure();
     if (!GEH.root || !GEH.netBuilt || !s.ready) return;
+    if (s.fight) gehFightApply(s.fight, s.fightEpoch);
     if (s.script) GEH_SCRIPT.netApply(s.script);
     const rows = Array.isArray(s.actors) ? s.actors.slice(0, 32) : [];
     const mat = rows.find(r => r.k === "matron" && r.armed);
@@ -16545,6 +16584,7 @@ const __boot = (async () => {
       e.phase = r.phase; e.tier = r.tier; e.guard = r.guard; e.atk = r.atk; e.tellR = r.tellR; e.heat = r.heat;
       e.scenePhase = r.scenePhase; e.sceneT = r.sceneT; e.beat = r.beat; e.bodyScale = r.bodyScale || e.bodyScale;
       e.noBar = !!r.noBar;
+      e.throwPose = r.throwPose && Number.isFinite(r.throwPose.t) && [-1, 1].includes(r.throwPose.side) ? { t: clamp(r.throwPose.t, 0, 1.85), side: r.throwPose.side, target: r.throwPose.target } : null;
       if (!e.netPlaced) { e.pos.set(...r.p); e.netPlaced = true; }
       if (r.removed && !e.removed) removeEnemy(e);
     }
@@ -16552,7 +16592,7 @@ const __boot = (async () => {
     if (WORLDSTATE.gehMatronDown) gehOpenRoom();
     netGehennaSetTransform(GEH.godHand, s.hand);
     netGehennaGrant();
-    if (s.finale && Number.isFinite(s.finale.t) && Array.isArray(s.finale.members)) {
+    if (s.finale && s.finale.epoch === s.fightEpoch && Number.isFinite(s.finale.t) && Array.isArray(s.finale.members)) {
       GEH.netFinale = { t: clamp(s.finale.t, 0, 18), scale: clamp(+s.finale.scale || 0.62, 0.62, 2.4), handY: Number.isFinite(s.finale.handY) ? s.finale.handY : GEH.floor + 14, members: s.finale.members.slice(0, 32) };
       if (s.finale.members.includes(NET.myId) && !NET.gehFinaleLocal && netGehennaRoom(P.pos)) gehLuciferDown(true);
     }
@@ -16566,6 +16606,7 @@ const __boot = (async () => {
       (e.arms || []).forEach((a, i) => netGehennaSetTransform(a, (r.arms || [])[i]));
       netGehennaSetTransform(e.body, r.body); netGehennaSetTransform(e.ring, r.ring); netGehennaSetTransform(e.thrown, r.thrown); netGehennaSetTransform(e.cart, r.cart);
       if (e.kind === "lucifer" && e.alive) gehPoseLucifer(e, r.scenePhase === "run" ? "run" : ["grow", "hold"].includes(r.scenePhase) ? "hold" : ["release", "released"].includes(r.scenePhase) ? "release" : "children", r.bodyScale || 0.62, time);
+      if (e.kind === "lucifer") gehPoseLuciferThrow(e);
       if (e.kind === "unclaimed" && !e.alive) gehHeapSpill(e);
       if (e.bar) updateHealthBar(e, e.kind === "lucifer" ? 3.5 * e.bodyScale : 3);
       if (r.target === NET.myId && e.alive && netGehennaBelow(P.pos) && dist2D(e.pos, P.pos) < 5 && !death) {
@@ -16575,11 +16616,11 @@ const __boot = (async () => {
     }
   }
   function netGehennaRequest(action, id) {
-    const peer = NET.peers.get("host"); if (peer) netSend(peer, { t: "ga", action, id, seed: WORLDSTATE.gehSeed });
+    const peer = NET.peers.get("host"); if (peer) netSend(peer, { t: "ga", action, id, seed: WORLDSTATE.gehSeed, epoch: GEH.fightEpoch || 0 });
   }
   function netGehennaDamage(e, dmg, from, kb, big) {
     if (!netGuest() || !netGehennaBelow(e.pos)) return false;
-    if (from === P.pos && e.gehNetId) { const peer = NET.peers.get("host"); if (peer) netSend(peer, { t: "ged", seed: WORLDSTATE.gehSeed, id: e.gehNetId, dmg, kb, big: !!big }); e.flash = 0.12; }
+    if (from === P.pos && e.gehNetId) { const peer = NET.peers.get("host"); if (peer) netSend(peer, { t: "ged", seed: WORLDSTATE.gehSeed, id: e.gehNetId, dmg, kb, big: !!big, epoch: GEH.luciferFight?.epoch || 0 }); e.flash = 0.12; }
     return true;
   }
   function netGehennaEffect(tgt, kind, data) {
@@ -16590,7 +16631,7 @@ const __boot = (async () => {
   }
   function netGehennaSpeak(who, line, ms, lucifer = false, roomOnly = lucifer) {
     if (NET.role === "host") for (const a of NET.avatars.values()) if (!a.state.dead && (roomOnly ? netGehennaRoom(a.state.pos) : netGehennaBelow(a.state.pos))) {
-      const p = NET.peers.get(a.via); if (p) netSend(p, { t: "gsay", who, line, ms, lucifer, roomOnly, seed: WORLDSTATE.gehSeed });
+      const p = NET.peers.get(a.via); if (p) netSend(p, { t: "gsay", who, line, ms, lucifer, roomOnly, seed: WORLDSTATE.gehSeed, epoch: GEH.fightEpoch || 0 });
     }
     return roomOnly ? netGehennaRoom(P.pos) : netGehennaBelow(P.pos);
   }
@@ -16602,13 +16643,14 @@ const __boot = (async () => {
       if (m.t === "ged") {
         const e = (GEH.enemies || []).find(e => netGehennaId(e) === m.id);
         if (!e || !e.alive || e.removed || !netGehennaBelow(e.pos) || dist2D(a.state.pos, e.pos) > 14 + e.r || Math.abs(a.state.pos.y - e.pos.y) > 12 || !Number.isFinite(m.dmg) || !Number.isFinite(m.kb)) return true;
+        if (e.kind === "lucifer" && (!GEH.luciferFight || m.epoch !== GEH.luciferFight.epoch || GEH.luciferFight.status !== "active" || !gehFightMember(a.id) || GEH.luciferFight.dead.includes(a.id))) return true;
         peer.gehHits = peer.gehHits || new Map(); const last = peer.gehHits.get(m.id) ?? -Infinity;
         if (time - last < 0.12) return true; peer.gehHits.set(m.id, time);
         const from = a.state.pos.clone(); from.netFrom = a.id;
         damageEnemy(e, clamp(m.dmg, 0, 12), from, clamp(m.kb, 0, 20), m.big === true);
       } else {
         if (time - (peer.gehTalkAt ?? -Infinity) < 0.3) return true;
-        if (m.action === "lucifer") { if (!netGehennaRoom(a.state.pos)) return true; peer.gehTalkAt = time; gehInteractLucifer(a.state); }
+        if (m.action === "lucifer") { if (m.epoch !== (GEH.fightEpoch || 0) || !netGehennaRoom(a.state.pos)) return true; peer.gehTalkAt = time; gehInteractLucifer(a.state); }
         else if (m.action === "talk" && ["clerk", "kindly"].includes(m.id)) {
           const s = GEH_SCRIPT.netSpeaker(m.id);
           if (!s || dist2D(a.state.pos, s.pos) > 4.8 || Math.abs(a.state.pos.y - s.pos.y) > 5) return true;
@@ -16619,6 +16661,7 @@ const __boot = (async () => {
     }
     if (!netGuest() || peer.id !== "host" || m.seed !== WORLDSTATE.gehSeed) return true;
     if (m.t === "gsay") {
+      if ((m.lucifer || m.roomOnly) && m.epoch !== (GEH.fightEpoch || 0)) return true;
       if (!netGehennaBelow(P.pos) || ((m.lucifer || m.roomOnly) && !netGehennaRoom(P.pos)) || typeof m.line !== "string" || m.line.length > 600 || typeof m.who !== "string") return true;
       if (m.lucifer && GEH.lucifer) luciferSay(GEH.lucifer, m.line, clamp(+m.ms || 5500, 1000, 30000));
       else { logTalk(m.who, m.line); say(m.who ? m.who + ": " + m.line : m.line, clamp(+m.ms || 4200, 1000, 30000), true, "geh", true); }
@@ -16852,6 +16895,7 @@ const __boot = (async () => {
   // death: limbs and head come loose and tumble, then the screen fades, then you wake by the nearest bed
   function die(msg) {
     if (death) return;
+    if (gehFightDie()) return;
     death = { t: 0, msg, pieces: [], faded: false, woke: false };
     clearPickupFlights(); // the update loop stops while you are dying, and a frozen herb would hang in the air until you loaded
     inputLock = true;
@@ -17683,7 +17727,9 @@ const __boot = (async () => {
       const ASH = toLin(0x14120f), EMBER = toLin(0x8e1605), ROAD = toLin(0x2d2823), YARD = toLin(0x3a342d), DEEPC = toLin(0x050409);
       for (let i = 0; i < n; i++) {
         const x = GEH.cx + pa.getX(i), z = GEH.cz + pa.getZ(i), h = gehH(x, z);
-        pa.setY(i, Number.isFinite(h) ? h : GEH.floor);
+        const underGarden = x > GEH.cx - 111 && x < GEH.cx - 59 && z > GEH.cz + 34 && z < GEH.cz + 86;
+        // The separate garden mesh resolves its banks every half metre; coarse ash must not cut through it.
+        pa.setY(i, underGarden ? GEH.floor + 5.6 : Number.isFinite(h) ? h : GEH.floor);
         const dx = x - GEH.cx, dz = z - GEH.cz, r = Math.hypot(dx, dz);
         let cr = ASH.r, cg = ASH.g, cb = ASH.b;
         const onRoad = dx > GEH_L.roadX0 - 4 && dx < GEH_L.roadX1 + 4 ? 1 - clamp((Math.abs(dz) - GEH_L.roadW) / 2.6, 0, 1) : 0;
@@ -19292,9 +19338,9 @@ const __boot = (async () => {
       return { text: "Slay the Kindly One", hint: "IV · The Last Account. " + hint, target: sister ? sister.pos : GEH.clerkPos || target("kindly", 136, 0) };
     }
     const e = enemy("lucifer");
-    if (!GEH.inPride) return { text: "Slay Lucifer, Lord of Pride", hint: "V · The Still Kingdom. Follow the empty avenue to the white tear at the kingdom's centre.", target: V3(GEH.cx + 48, GEH.floor + 9, GEH.cz + 78) };
+    if (!GEH.inPride) return { text: "Slay Lucifer, Demon of Pride", hint: "V · The Still Kingdom. Follow the empty avenue to the white tear at the kingdom's centre.", target: V3(GEH.cx + 48, GEH.floor + 9, GEH.cz + 78) };
     const hint = e && e.armed ? "Break his hold. Listen when the children speak." : e && e.beat >= 5 ? "Follow Lucifer to the centre of the room." : "Speak to Lucifer beside the children.";
-    return { text: "Slay Lucifer, Lord of Pride", hint: "VI · The Impossible Room. " + hint, target: e ? e.pos : V3(GEH.cx - 73, GEH.floor + 9, GEH.cz + 54) };
+    return { text: "Slay Lucifer, Demon of Pride", hint: "VI · The Impossible Room. " + hint, target: e ? e.pos : V3(GEH.cx - 73, GEH.floor + 9, GEH.cz + 54) };
   }
   // The almshouse was a waystation. The city beyond has finished its work:
   // monumental, immaculate and almost entirely unoccupied. Architecture is
@@ -19508,8 +19554,27 @@ const __boot = (async () => {
       target.add("box", mat, GEH.cx + x, yy, GEH.cz + z, w, h, d);
       if (solid) gehAddStruct({ cx: GEH.cx + x, cz: GEH.cz + z, w: w / 2, d: d / 2, b: Math.max(w, d) / 2, bottom: yy - h / 2, top: yy + h / 2 });
     }
-    // no masonry from the kingdom continues across this threshold; even the river ends in white.
-    box(44, 0.4, 44, -85, y - 0.192, 60, white);
+    // The garden fades into white; the channel is cut into the same surface the player walks on.
+    const gardenWeight = (x, z) => {
+      const edge = Math.min((x + 106) / 5, (-64 - x) / 5, (z - 40) / 5, (80 - z) / 5);
+      const island = Math.max(0, 1 - Math.pow(Math.hypot((x + 86) / 22, (z - 60) / 23), 2));
+      return smooth(clamp(edge, 0, 1)) * smooth(clamp(island * 1.65, 0, 1));
+    };
+    const groundPositions = [], groundColors = [], groundIndices = [], resolution = 88;
+    const whiteColor = toLin(0xffffff), gardenColor = toLin(0x91af7c), dryBankColor = toLin(0xb9b295), bedColor = toLin(0x6c9589);
+    for (let iz = 0; iz <= resolution; iz++) for (let ix = 0; ix <= resolution; ix++) {
+      const x = -107 + ix * 0.5, z = 38 + iz * 0.5, profile = gehPrideRiverAt(GEH.cx + x, GEH.cz + z);
+      groundPositions.push(GEH.cx + x, profile.bed + 0.008, GEH.cz + z);
+      const color = whiteColor.clone().lerp(gardenColor, gardenWeight(x, z));
+      if (profile.depth > 0) color.lerp(dryBankColor, smooth(clamp(profile.depth / 0.2, 0, 1)));
+      if (profile.depth > 0.2) color.lerp(bedColor, clamp((profile.depth - 0.2) / 1.7, 0, 1));
+      groundColors.push(color.r, color.g, color.b);
+      if (ix < resolution && iz < resolution) { const a = iz * (resolution + 1) + ix; groundIndices.push(a, a + resolution + 1, a + 1, a + 1, a + resolution + 1, a + resolution + 2); }
+    }
+    const groundGeometry = new THREE.BufferGeometry();
+    groundGeometry.setAttribute("position", new THREE.Float32BufferAttribute(groundPositions, 3));
+    groundGeometry.setAttribute("color", new THREE.Float32BufferAttribute(groundColors, 3)); groundGeometry.setIndex(groundIndices); groundGeometry.computeVertexNormals();
+    room.add(new THREE.Mesh(groundGeometry, new THREE.MeshBasicMaterial({vertexColors:true, fog:false, toneMapped:false})));
     for (const x of [-107, -63]) box(1, 22, 44, x, y + 11, 60, white, true);
     for (const z of [38, 82]) box(44, 22, 1, -85, y + 11, z, white, true);
     box(44, 1, 44, -85, y + 22, 60, white);
@@ -19518,58 +19583,74 @@ const __boot = (async () => {
       architecture.add("box", seam, GEH.cx - 85 + side * 1.46, y + 2.3, GEH.cz + 39.08, 0.085, 4.7, 0.09, 0, 0, side * 0.025);
     }
     box(2.9, 0.06, 0.1, -85, y + 4.61, 39.08, seam);
-    const riverCenter = z => -93 + Math.sin((z - 43) * 0.14) * 2.2;
-    const riverRibbon = (mat, width, height) => {
-      const positions = [], indices = [], steps = 40;
-      for (let i = 0; i <= steps; i++) {
-        const t = i / steps, z = 44 + t * 32, x = riverCenter(z), half = width * Math.pow(Math.sin(t * Math.PI), 0.3);
-        positions.push(GEH.cx + x - half, height, GEH.cz + z, GEH.cx + x + half, height, GEH.cz + z);
-        if (i < steps) { const a = i * 2; indices.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
-      }
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3)); geometry.setIndex(indices);
-      geometry.computeVertexNormals();
-      const mesh = new THREE.Mesh(geometry, mat); room.add(mesh);
+    const riverCenter = z => -94 + Math.sin((z - 43) * 0.16) * 2.2;
+    const riverTop = y - 0.2;
+    const waterHalf = z => {
+      const x = riverCenter(z); let lo = 0, hi = 4.9;
+      if (!gehPrideRiverAt(GEH.cx + x, GEH.cz + z).wet) return 0;
+      for (let i = 0; i < 14; i++) { const mid = (lo + hi) * 0.5; if (gehPrideRiverAt(GEH.cx + x + mid, GEH.cz + z).wet) lo = mid; else hi = mid; }
+      return lo;
     };
-    // the garden stops before the room does; blank space still surrounds the little world he made.
-    riverRibbon(green, 5.1, y + 0.018);
-    riverRibbon(bank, 3.85, y + 0.026);
-    riverRibbon(water, 3.15, y + 0.042);
-    riverRibbon(deepWater, 1.55, y + 0.046);
-    for (const [x, z, r] of [[-98, 50, 3.8], [-98, 64, 4.5], [-98, 73, 3.5], [-77, 54, 7.1], [-77, 72, 6.4], [-85, 64, 4.3]]) {
-      architecture.add("circle", green, GEH.cx + x, y + 0.018, GEH.cz + z, r, r * 0.76, 1, -Math.PI / 2);
-      for (let i = 0; i < 24; i++) {
-        const angle = i * 2.39996, radius = Math.sqrt((i + 0.4) / 24) * r * 0.87;
-        const px = x + Math.cos(angle) * radius, pz = z + Math.sin(angle) * radius * 0.76;
-        if (Math.abs(px - riverCenter(pz)) < 3.5 && pz > 44 && pz < 76) continue;
-        const h = 0.14 + (i % 4) * 0.045;
-        architecture.add("blade", grass, GEH.cx + px, y + h * 0.5, GEH.cz + pz, 0.085, h, 0.07, 0, angle);
-        architecture.add("blade", leaf, GEH.cx + px + 0.11, y + h * 0.42, GEH.cz + pz + 0.07, 0.07, h * 0.84, 0.05, 0, -angle);
-      }
+    const waterPositions = [], waterColors = [], waterIndices = [], riverSteps = 140;
+    const clearWater = toLin(0x77bfc6), deepColor = toLin(0x3d91a5);
+    for (let i = 0; i <= riverSteps; i++) {
+      const z = 43 + i * 35 / riverSteps, x = riverCenter(z), half = waterHalf(z);
+      for (const side of [-1, 0, 1]) { waterPositions.push(GEH.cx + x + side * half, riverTop, GEH.cz + z); const c = side ? clearWater : deepColor; waterColors.push(c.r, c.g, c.b); }
+      if (i < riverSteps) { const a = i * 3; for (let j = 0; j < 2; j++) waterIndices.push(a+j,a+j+3,a+j+1,a+j+1,a+j+3,a+j+4); }
     }
-    for (let i = 0; i < 12; i++) {
-      const z = 47 + i * 2.3, side = i % 2 ? -1 : 1, x = riverCenter(z) + side * (3.35 + Math.sin(i) * 0.2);
-      architecture.add("crown", stone, GEH.cx + x, y + 0.08, GEH.cz + z, 0.38 + (i % 3) * 0.14, 0.14, 0.32, 0, i);
+    const waterGeometry = new THREE.BufferGeometry();
+    waterGeometry.setAttribute("position", new THREE.Float32BufferAttribute(waterPositions, 3)); waterGeometry.setAttribute("color", new THREE.Float32BufferAttribute(waterColors, 3)); waterGeometry.setIndex(waterIndices); waterGeometry.computeVertexNormals();
+    room.add(new THREE.Mesh(waterGeometry, new THREE.MeshBasicMaterial({vertexColors:true, transparent:true, opacity:0.85, depthWrite:false, fog:false, toneMapped:false, side:THREE.DoubleSide})));
+    // This volume uses the normal swim, air and shore-exit rules. It is not the black-pool descent.
+    for (let i = SWIM_VOLS.length - 1; i >= 0; i--) if (SWIM_VOLS[i].id === "pride-river") SWIM_VOLS.splice(i, 1);
+    const riverVolume = { id:"pride-river", x:GEH.cx-94, z:GEH.cz+60.5, r:22, top:riverTop, enter:riverTop-0.05, exit:riverTop+0.25, rest:riverTop-1.1, floor:y-2.8, place:"The Little River", contains:(x,z)=>gehPrideRiverAt(x,z).wet };
+    SWIM_VOLS.push(riverVolume);
+    for (let i = 0; i < 340; i++) {
+      const x = -103 + ((i * 17.731) % 37), z = 43 + ((i * 11.413) % 35);
+      if (gardenWeight(x,z) < 0.2 + (i % 7) * 0.085 || gehPrideRiverAt(GEH.cx+x,GEH.cz+z).depth > 0.015 || (x > -77.8 && x < -69.2 && z < 50)) continue;
+      const h = 0.13 + (i % 5) * 0.035, angle = i * 2.39996;
+      architecture.add("blade", grass, GEH.cx+x,y+h*0.5,GEH.cz+z,0.085,h,0.06,0,angle);
+      architecture.add("blade", leaf, GEH.cx+x+0.11,y+h*0.42,GEH.cz+z+0.07,0.07,h*0.84,0.05,0,-angle);
+    }
+    for (let i = 0; i < 15; i++) {
+      const z = 47 + i * 1.9, side = i % 2 ? -1 : 1, x = riverCenter(z) + side * (waterHalf(z) + 0.26);
+      architecture.add("crown", stone, GEH.cx+x,gehPrideRiverAt(GEH.cx+x,GEH.cz+z).bed+0.07,GEH.cz+z,0.25+(i%3)*0.12,0.12,0.22,0,i);
     }
     const bridgeX = riverCenter(55);
-    for (let i = 0; i < 18; i++) box(0.49, 0.045, 2.5, bridgeX - 4.25 + i * 0.5, y + 0.064, 55, i % 3 ? chalk : bank);
-    for (const [x, z, size] of [[-100, 47, 1], [-100, 57, 1.16], [-100, 68, 1.1], [-99, 75, 0.9], [-73, 47, 1.15], [-70.5, 59, 1.22], [-72, 69, 1.08], [-77, 75, 1.06], [-83, 49, 0.92]]) {
-      box(0.25 * size, 3.2 * size, 0.25 * size, x, y + 1.6 * size, z, bark);
-      architecture.limb(bark, [GEH.cx + x, y + 1.9 * size, GEH.cz + z], [GEH.cx + x + 0.82 * size, y + 3.05 * size, GEH.cz + z + 0.32], 0.1 * size);
-      architecture.add("crown", leaf, GEH.cx + x, y + 3.65 * size, GEH.cz + z, 1.9 * size, 1.6 * size, 1.8 * size);
-      architecture.add("crown", green, GEH.cx + x + 0.86 * size, y + 3.35 * size, GEH.cz + z + 0.27, 1.25 * size, 1.15 * size, 1.2 * size);
+    for (let i = 0; i < 22; i++) box(0.48,0.12,2.5,bridgeX-5.25+i*0.5,y+0.07,55,i%3?bark:bank);
+    gehAddStruct({cx:GEH.cx+bridgeX,cz:GEH.cz+55,w:5.5,d:1.25,b:5.5,top:y+0.13,bottom:y+0.01,floorOnly:true,walk:true});
+    for (const [x,z,size] of [[-101,48,1],[-101,59,1.14],[-100,70,1.1],[-98,75,0.85],[-81,46,0.85],[-68,55,1.1],[-70,65,1.16],[-74,74,1.08],[-85,76,0.94]]) {
+      box(0.25*size,3.2*size,0.25*size,x,y+1.6*size,z,bark);
+      architecture.limb(bark,[GEH.cx+x,y+1.9*size,GEH.cz+z],[GEH.cx+x+0.82*size,y+3.05*size,GEH.cz+z+0.32],0.1*size);
+      architecture.add("crown",leaf,GEH.cx+x,y+3.65*size,GEH.cz+z,1.9*size,1.6*size,1.8*size);
+      architecture.add("crown",green,GEH.cx+x+0.86*size,y+3.35*size,GEH.cz+z+0.27,1.25*size,1.15*size,1.2*size);
+      gehAddStruct({cx:GEH.cx+x,cz:GEH.cz+z,r:0.17*size,b:0.17*size,bottom:y,top:y+2.8*size});
     }
-    const flowMaterial = new THREE.MeshBasicMaterial({ color: 0xe1f4ec, transparent: true, opacity: 0.55, depthWrite: false, fog: false });
-    const flow = new THREE.InstancedMesh(shape.box, flowMaterial, 30), flowDummy = new THREE.Object3D();
-    flow.frustumCulled = false;
-    for (let i = 0; i < flow.count; i++) {
-      const z = 46 + i * 0.93;
-      flowDummy.position.set(GEH.cx + riverCenter(z) + Math.sin(i * 2.4) * 1.65, y + 0.065, GEH.cz + z);
-      flowDummy.scale.set(0.14 + (i % 4) * 0.1, 0.008, 0.38 + (i % 3) * 0.22);
-      flowDummy.updateMatrix(); flow.setMatrixAt(i, flowDummy.matrix);
+    // A modest home: open doorway, three small beds, and a clear path to the children's yard.
+    const hutWall = lit(0xd5c8ae), hutRoof = lit(0x83786d), hutWood = lit(0x9a8367), hutCloth = lit(0x97a99b);
+    const hx = -73.5, hz = 46, wallH = 2.8;
+    box(7,0.12,5.5,hx,y+0.02,hz,hutWood);
+    box(7,wallH,0.25,hx,y+wallH/2,hz-2.75,hutWall,true);
+    for (const side of [-1,1]) {
+      box(0.25,wallH,5.5,hx+side*3.5,y+wallH/2,hz,hutWall,true);
+      box(2.3,wallH,0.25,hx+side*2.35,y+wallH/2,hz+2.75,hutWall,true);
+      box(0.16,2.7,0.38,hx+side*1.17,y+1.35,hz+2.79,hutWood);
+      box(0.025,0.85,1.15,hx+side*3.635,y+1.6,hz-0.5,dark);
+      for (let pane=0;pane<2;pane++) box(0.04,0.06,1.25,hx+side*3.66,y+1.32+pane*0.56,hz-0.5,hutWood);
     }
-    flow.instanceMatrix.setUsage(THREE.DynamicDrawUsage); flow.instanceMatrix.needsUpdate = true; room.add(flow);
-    GEH.prideWater = { flow, dummy: flowDummy, center: riverCenter, y: y + 0.065 };
+    box(2.4,0.25,0.3,hx,y+2.675,hz+2.75,hutWood);
+    // Roof has a real underside; the doorway remains higher than the player's clearance.
+    const roofPositions=[-3.9,0,-3.1,3.9,0,-3.1,0,1.55,-3.1,-3.9,0,3.1,3.9,0,3.1,0,1.55,3.1], roofIndices=[0,2,1,3,4,5,0,3,5,0,5,2,1,2,5,1,5,4];
+    const roofGeometry=new THREE.BufferGeometry();roofGeometry.setAttribute("position",new THREE.Float32BufferAttribute(roofPositions,3));roofGeometry.setIndex(roofIndices);roofGeometry.computeVertexNormals();
+    const roofMesh=new THREE.Mesh(roofGeometry,hutRoof);roofMesh.position.set(GEH.cx+hx,y+2.8,GEH.cz+hz);room.add(roofMesh);
+    gehAddStruct({cx:GEH.cx+hx,cz:GEH.cz+hz,w:3.9,d:3.1,b:3.9,bottom:y+2.8,top:y+4.35,floorOnly:true});
+    for(let i=0;i<3;i++){box(1.15,0.25,1.9,hx-2.2+i*2.2,y+0.24,hz-1.2,hutWood);box(1.12,0.08,1.5,hx-2.2+i*2.2,y+0.405,hz-1,hutCloth);box(0.8,0.1,0.35,hx-2.2+i*2.2,y+0.43,hz-1.82,chalk);}
+    box(2.1,0.28,0.6,hx+2.2,y+0.32,hz+3.65,hutWood);
+    GEH.prideHut={x:GEH.cx+hx,z:GEH.cz+hz,doorX:GEH.cx+hx,doorZ:GEH.cz+hz+2.75,width:7,depth:5.5};
+    const flowMaterial = new THREE.MeshBasicMaterial({color:0xe1f4ec,transparent:true,opacity:0.55,depthWrite:false,fog:false});
+    const flow=new THREE.InstancedMesh(shape.box,flowMaterial,36),flowDummy=new THREE.Object3D();flow.frustumCulled=false;
+    flow.instanceMatrix.setUsage(THREE.DynamicDrawUsage);room.add(flow);
+    GEH.prideWater={flow,dummy:flowDummy,center:riverCenter,half:waterHalf,y:riverTop+0.014,volume:riverVolume};
     architecture.finish();
     const childSkin = lit(0xe2c3af), childBlue = lit(0x889dac), childGreen = lit(0x78956c);
     GEH.prideChildren = [];
@@ -19587,25 +19668,81 @@ const __boot = (async () => {
       child.userData.home = child.position.clone();
       room.add(child); GEH.prideChildren.push(child);
     }
-    const hand = new THREE.Group(), handParts = batch(hand), handWhite = lit(0xf4eee2), handCrease = lit(0xa89e8c);
-    handParts.add("box", handWhite, 0, 0, 0, 8.5, 2.3, 6);
-    handParts.add("sphere", handWhite, 0, 0, 0, 4.8, 1.15, 3.4);
-    handParts.add("box", handWhite, 0, 11, -2.1, 5.5, 22, 4.7);
-    handParts.add("sphere", handWhite, 0, 1.3, -1.8, 3.05, 2.2, 2.5);
-    for (let i = 0; i < 4; i++) {
-      const x = [-3.1, -1.1, 1.1, 3.1][i], length = [4.3, 5.8, 5.3, 3.9][i], radius = i === 3 ? 0.7 : 0.82;
-      const knuckle = [x, -0.05, 2.4], joint = [x * 1.08, -0.22, 2.4 + length * 0.55], tip = [x * 1.12, -0.5, 2.4 + length];
-      handParts.limb(handWhite, knuckle, joint, radius);
-      handParts.limb(handWhite, joint, tip, radius * 0.9);
-      for (const p of [knuckle, joint, tip]) handParts.add("sphere", handWhite, p[0], p[1], p[2], radius, radius, radius);
-      handParts.add("box", handCrease, joint[0], joint[1] - radius * 0.93, joint[2], radius * 1.4, 0.026, 0.065);
+    const hand = new THREE.Group(), handParts = batch(hand), handWhite = lit(0xf2ead9), handCrease = lit(0xc7baa0);
+    handWhite.roughness = 0.22; handWhite.metalness = 0.12;
+    handWhite.emissive = toLin(0xffdf9b); handWhite.emissiveIntensity = 0.3;
+    const shine = { value: 0 }; hand.userData.shine = shine;
+    handWhite.onBeforeCompile = shader => {
+      shader.uniforms.uDivineTime = shine;
+      const rim = ["#include <emissivemap_fragment>", "float divineRim = pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 1.75);", "float divineShimmer = 0.94 + sin(uDivineTime * 0.7 + vViewPosition.y * 0.45) * 0.06;", "diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.75, 0.4, 0.08), divineRim * 0.6);", "totalEmissiveRadiance += vec3(1.15, 0.58, 0.08) * divineRim * divineShimmer * 0.65;"].join(String.fromCharCode(10));
+      shader.fragmentShader = "uniform float uDivineTime;" + String.fromCharCode(10) + shader.fragmentShader.replace("#include <emissivemap_fragment>", rim);
+    };
+    handWhite.customProgramCacheKey = () => "geh-divine-hand-rim-v1";
+    // A tapered, flattened palm, rather than a block with four identical rods attached.
+    const palmRows = [[-3.05, 2.15, 0.8], [-1.9, 3.05, 1.04], [0, 4.05, 1.15], [1.8, 3.96, 1.05], [2.75, 3.38, 0.82]], palmSides = 12, palmVertices = [], palmIndices = [];
+    for (let row = 0; row < palmRows.length; row++) {
+      const [z, width, depth] = palmRows[row];
+      for (let side = 0; side <= palmSides; side++) {
+        const angle = side * Math.PI * 2 / palmSides;
+        palmVertices.push(Math.cos(angle) * width, Math.sin(angle) * depth, z);
+        if (row < palmRows.length - 1 && side < palmSides) { const a = row * (palmSides + 1) + side, b = a + palmSides + 1; palmIndices.push(a, a + 1, b, a + 1, b + 1, b); }
+      }
     }
-    handParts.limb(handWhite, [-3.5, 0, -0.6], [-5.7, -0.2, 1.1], 1.1);
-    handParts.limb(handWhite, [-5.7, -0.2, 1.1], [-6.1, -0.45, 3.8], 0.96);
-    handParts.add("sphere", handWhite, -5.7, -0.2, 1.1, 1.12, 1.02, 1.1);
-    handParts.add("sphere", handWhite, -6.1, -0.45, 3.8, 0.96, 0.92, 0.94);
-    handParts.add("box", handCrease, -2.1, -1.163, 0.1, 0.065, 0.026, 2.6, 0, -0.35);
+    for (const row of [0, palmRows.length - 1]) {
+      const center = palmVertices.length / 3; palmVertices.push(0, 0, palmRows[row][0]);
+      for (let side = 0; side < palmSides; side++) { const a = row * (palmSides + 1) + side; if (row === 0) palmIndices.push(center, a + 1, a); else palmIndices.push(center, a, a + 1); }
+    }
+    shape.divinePalm = new THREE.BufferGeometry(); shape.divinePalm.setAttribute("position", new THREE.Float32BufferAttribute(palmVertices, 3)); shape.divinePalm.setIndex(palmIndices); shape.divinePalm.computeVertexNormals();
+    handParts.add("divinePalm", handWhite, 0, 0, 0, 1, 1, 1);
+    shape.divineArm = new THREE.CylinderGeometry(3.1, 2.18, 22, 12);
+    handParts.add("divineArm", handWhite, 0, 11.1, -2.05, 1, 1, 0.82);
+    handParts.add("sphere", handWhite, 0, 1.18, -1.94, 2.5, 1.8, 2.12);
+    handParts.add("sphere", handWhite, -2.64, -0.01, -0.58, 1.6, 0.94, 2.08);
+    const fingers = [];
+    for (let finger = 0; finger < 4; finger++) {
+      const x = [-2.8, -0.92, 1.06, 2.84][finger], length = [5.45, 6.2, 5.76, 4.45][finger], radius = [0.7, 0.77, 0.72, 0.59][finger], spread = [-0.38, -0.08, 0.23, 0.62][finger];
+      const joints = [[x, 0.04, 2.12], [x + spread * 0.45, -0.04, 2.5 + length * 0.42], [x + spread * 0.85, -0.39, 2.5 + length * 0.76], [x + spread, -0.78, 2.5 + length]];
+      for (let j = 0; j < 3; j++) handParts.limb(handWhite, joints[j], joints[j + 1], radius * (1 - j * 0.1));
+      for (let j = 0; j < 4; j++) { const p = joints[j], r = radius * (1 - j * 0.08); handParts.add("sphere", handWhite, p[0], p[1], p[2], r, r * 0.94, r); }
+      for (let j = 1; j < 3; j++) { const p = joints[j]; handParts.add("box", handCrease, p[0], p[1] - radius * (1 - j * 0.08) * 0.95 - 0.014, p[2], radius * 1.35, 0.032, 0.055); }
+      fingers.push({ name: ["index", "middle", "ring", "little"][finger], joints, length });
+    }
+    // The thumb branches from the heel of the palm and turns inward across its own opposition joint.
+    const thumb = [[-3.1, -0.02, -0.96], [-5.13, -0.13, 0.55], [-5.66, -0.55, 2.63], [-4.94, -0.96, 4.16]];
+    for (let j = 0; j < 3; j++) handParts.limb(handWhite, thumb[j], thumb[j + 1], 0.96 - j * 0.13);
+    for (let j = 0; j < 4; j++) { const p = thumb[j], r = 1.02 - j * 0.1; handParts.add("sphere", handWhite, p[0], p[1], p[2], r, r * 0.88, r); }
+    fingers.push({ name: "thumb", joints: thumb, length: 4.4 });
+    hand.userData.fingers = fingers;
+    const crease = points => { const curve = new THREE.CatmullRomCurve3(points.map(p => V3(...p))); const mesh = new THREE.Mesh(new THREE.TubeGeometry(curve, 12, 0.028, 4, false), handCrease); hand.add(mesh); };
+    crease([[-2.8, -0.84, -1.4], [-2.12, -1.02, -0.35], [-2.18, -0.98, 0.95], [-2.83, -0.84, 1.82]]);
+    crease([[-2.9, -0.85, 0.7], [-1.35, -1.13, 0.82], [0.5, -1.17, 1.25], [2.7, -0.86, 1.48]]);
+    crease([[-1.22, -1.11, -1.2], [0.12, -1.18, -0.55], [1.66, -1.09, -0.08], [3.1, -0.77, 0.22]]);
     handParts.finish();
+    const motes = new Float32Array(72 * 3);
+    for (let i = 0; i < 72; i++) { const angle = i * 2.39996, r = 2.75 + (i % 5) * 0.24; motes[i * 3] = Math.cos(angle) * r; motes[i * 3 + 1] = (i * 0.731) % 21; motes[i * 3 + 2] = -2.05 + Math.sin(angle) * r * 0.82; }
+    const moteGeometry = new THREE.BufferGeometry(); moteGeometry.setAttribute("position", new THREE.BufferAttribute(motes, 3));
+    const radiance = new THREE.Points(moteGeometry, new THREE.PointsMaterial({ color: 0xffde84, size: 0.21, transparent: true, opacity: 0.6, depthWrite: false, fog: false, toneMapped: false }));
+    hand.add(radiance); hand.userData.radiance = radiance;
+    // A local shader bends a few luminous rings at the ceiling; it needs no screen copy or post-processing pass.
+    const apertureMaterial = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, uniforms: { uTime: { value: 0 }, uOpen: { value: 0 } },
+      vertexShader: `varying vec2 vUv; uniform float uTime;
+        void main() { vUv = uv; vec3 p = position; float r = length(p.xy); p.z += sin(r * 1.6 - uTime * 0.8) * 0.065; gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0); }`,
+      fragmentShader: `varying vec2 vUv; uniform float uTime; uniform float uOpen;
+        void main() {
+          vec2 p = (vUv - 0.5) * 2.0; float r = length(p); float a = atan(p.y, p.x);
+          float bend = sin(a * 7.0 + uTime * 0.42) * 0.017 + sin(a * 13.0 - uTime * 0.28) * 0.007;
+          float q = r + bend * smoothstep(0.14, 0.65, r);
+          float rings = exp(-pow((q - 0.29) / 0.019, 2.0)) + exp(-pow((q - 0.46) / 0.014, 2.0)) * 0.66 + exp(-pow((q - 0.66) / 0.011, 2.0)) * 0.37;
+          float rays = pow(abs(sin(a * 11.0 + sin(r * 8.0 - uTime * 0.32) * 0.22)), 32.0) * smoothstep(0.22, 0.4, r) * (1.0 - smoothstep(0.45, 0.87, r));
+          float mist = exp(-r * r * 8.0) * 0.2;
+          float alpha = (rings * 0.7 + rays * 0.2 + mist) * uOpen;
+          gl_FragColor = vec4(mix(vec3(0.95, 0.86, 0.65), vec3(0.48, 0.35, 0.16), min(1.0, rings * 0.8)), alpha);
+          #include <tonemapping_fragment>
+          #include <encodings_fragment>
+        }`
+    });
+    const aperture = new THREE.Mesh(new THREE.CircleGeometry(11.5, 64), apertureMaterial);
+    aperture.rotation.x = -Math.PI / 2; aperture.visible = false; aperture.frustumCulled = false; room.add(aperture); GEH.divineAperture = aperture;
     hand.position.set(GEH.cx - 85, y + 20, GEH.cz + 68); hand.rotation.y = Math.PI;
     hand.visible = false;
     hand.userData.holdY = y + 5.3;
@@ -19623,26 +19760,36 @@ const __boot = (async () => {
       grp.add(mesh);
       return mesh;
     };
-    // one continuous hem changes with the stance instead of exposing separate trouser legs.
-    const robeSides = 16, robeRows = 6, robePositions = new Float32Array((robeSides + 1) * robeRows * 3), robeIndices = [];
-    for (let row = 0; row < robeRows - 1; row++) {
-      for (let side = 0; side < robeSides; side++) {
-        const a = row * (robeSides + 1) + side, b = a + robeSides + 1;
-        robeIndices.push(a, a + 1, b, a + 1, b + 1, b);
+    // A full ankle-length skirt and an open, draped cloak share the existing body rig.
+    // The front skirt seam opens below the knee during a stride; the cloak hangs behind the arms.
+    const clothMesh = (sides, rows, material, cloak = false) => {
+      const positions = new Float32Array((sides + 1) * rows * 3), colors = new Float32Array(positions.length), indices = [];
+      for (let row = 0; row < rows; row++) for (let side = 0; side <= sides; side++) {
+        const i = (row * (sides + 1) + side) * 3;
+        const pleat = 0.91 + Math.cos(side * Math.PI * 0.5) * 0.07;
+        const hem = row === rows - 1 ? 0.68 : row === rows - 2 ? 0.83 : 1;
+        colors[i] = pleat * hem; colors[i + 1] = pleat * hem; colors[i + 2] = Math.min(1, pleat * hem + (cloak ? 0.025 : 0));
+        if (row < rows - 1 && side < sides) {
+          const a = row * (sides + 1) + side, b = a + sides + 1;
+          indices.push(a, a + 1, b, a + 1, b + 1, b);
+        }
       }
-    }
-    const robeGeometry = new THREE.BufferGeometry();
-    robeGeometry.setAttribute("position", new THREE.BufferAttribute(robePositions, 3).setUsage(THREE.DynamicDrawUsage));
-    robeGeometry.setIndex(robeIndices);
-    const robe = new THREE.Mesh(robeGeometry, robeCloth);
-    robe.frustumCulled = false;
-    grp.add(robe);
-    rig.robe = robe; rig.robeSides = robeSides; rig.robePositions = robePositions;
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage));
+      geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3)); geometry.setIndex(indices);
+      const cloth = material.clone(); cloth.vertexColors = true; cloth.side = THREE.DoubleSide;
+      const mesh = new THREE.Mesh(geometry, cloth); mesh.frustumCulled = false; grp.add(mesh);
+      return { mesh, positions, sides };
+    };
+    const skirt = clothMesh(32, 8, robeCloth), cloak = clothMesh(24, 7, capeCloth, true);
+    rig.robe = skirt.mesh; rig.robeSides = skirt.sides; rig.robePositions = skirt.positions;
+    rig.cloak = cloak.mesh; rig.cloakSides = cloak.sides; rig.cloakPositions = cloak.positions;
     person.add("mantle", capeCloth, 0, 2.225, -0.04, 0.91, 0.55, 0.55);
     person.add("mantle", robeCloth, 0, 2.38, -0.04, 0.62, 0.2, 0.42);
     for (const side of [-1, 1]) {
       person.add("clasp", claspMetal, side * 0.205, 2.365, 0.375, 0.095, 0.095, 0.095, 0, side * 0.16);
-      person.add("box", foldCloth, side * 0.45, 2.125, 0.39, 0.024, 0.48, 0.015, 0.22, 0, side * 0.86);
+      person.limb(foldCloth, [side * 0.25, 2.32, 0.42], [side * 0.77, 2.08, 0.25], 0.014);
+      person.limb(foldCloth, [side * 0.26, 2.28, 0.41], [side * 0.64, 1.99, 0.30], 0.012);
       const palm = new THREE.Group(), palmParts = batch(palm);
       palmParts.add("box", skin, 0, 0.085, 0.08, 0.36, 0.11, 0.42);
       palmParts.add("sphere", skin, 0, 0, 0, 0.13, 0.13, 0.13);
@@ -19676,7 +19823,7 @@ const __boot = (async () => {
     grp.position.set(GEH.cx - 73, y, GEH.cz + 54); room.add(grp);
     const e = { nid: ++ENEMY_NID, kind: "lucifer", geh: true, boss: true, big: true, mesh: grp,
       pos: grp.position.clone(), vel: V3(), hp: WORLDSTATE.luciferDefeated ? 0 : 90, maxHp: 90, r: 1.4, state: "children", t: 0, alive: true,
-      heading: 0, flash: 0, bar: WORLDSTATE.luciferDefeated ? null : makeHealthBar(), name: "Lucifer's hold", armed: false, beat: 0, plea: 0, phase: 0, holdPause: 0, born: time,
+      heading: 0, flash: 0, bar: WORLDSTATE.luciferDefeated ? null : makeHealthBar(), name: "Lucifer, Demon of Pride", armed: false, beat: 0, plea: 0, phase: 0, holdPause: 0, born: time,
       luciferRig: rig, holdPalmHeight: 4.15, bodyScale: 0.62, scenePhase: WORLDSTATE.luciferDefeated ? "released" : "children", noBar: !!WORLDSTATE.luciferDefeated };
     gehPoseLucifer(e, WORLDSTATE.luciferDefeated ? "release" : "children", 0.62, time);
     GEH.enemies.push(e);
@@ -19691,6 +19838,289 @@ const __boot = (async () => {
     }
     stairs.finish();
   }
+  // A Lucifer attempt owns only this encounter, never the player's earlier progress.
+  function gehFightMember(id = NET.myId) {
+    const f = GEH.luciferFight;
+    return !!f && f.members.includes(id);
+  }
+  function gehFightActor(id) {
+    if (id === NET.myId) return { id, state: P, pos: P.pos, local: true };
+    const a = NET.avatars.get(id);
+    return a && NET.peers.get(a.via)?.ready ? { id, state: a.state, pos: a.state.pos, local: false, avatar: a } : null;
+  }
+  function gehFightDead() { return !!(death && death.luciferEpoch); }
+  function gehFightLocked() { return gehFightDead() || !!GEH.fightMenuOpen; }
+  function gehFightLeaveForLoad() {
+    if (!GEH.luciferFight) return;
+    if (gehFightDead()) { death = null; P.dead = false; hero.visible = true; inputLock = false; }
+    GEH.luciferFight = null; GEH.fightMenuOpen = false; GEH.fightSpectator = null; GEH.fightPendingEpoch = null;
+    if (GEH.fightPanel) GEH.fightPanel.hidden = true;
+    if (GEH.root) gehTeardown("loading ends the previous Lucifer attempt");
+  }
+  function gehFreeStamina() {
+    return P.pos.y < DIVIDE && !GEH.inPride && !netGehennaRoom(P.pos);
+  }
+  function gehFightPeople() {
+    const people = [];
+    if (!death && P.hp > 0 && netGehennaRoom(P.pos)) people.push(NET.myId);
+    if (NET.role === "host") for (const a of NET.avatars.values())
+      if (NET.peers.get(a.via)?.ready && !a.state.dead && a.state.hp > 0 && netGehennaRoom(a.state.pos)) people.push(a.id);
+    return people.slice(0, NET_MAX_PLAYERS);
+  }
+  function gehFightStart(e) {
+    if (netGuest()) return;
+    e.fightHome = e.fightHome || e.pos.clone();
+    GEH.fightEpoch = (GEH.fightEpoch || 0) + 1;
+    GEH.luciferFight = { epoch: GEH.fightEpoch, status: "active", members: gehFightPeople(), dead: [], controller: NET.myId, action: null };
+    GEH.netFinale = null; e.throwPose = null; e.throwCd = 4.5;
+    gehFightBroadcast();
+  }
+  function gehFightBroadcast() {
+    if (NET.role === "host") netBroadcast({ t: "lf", op: "state", seed: WORLDSTATE.gehSeed, epoch: GEH.fightEpoch || 0, fight: GEH.luciferFight });
+  }
+  function gehFightLocalRevive(pos) {
+    if (death && !death.luciferEpoch) return;
+    death = null; P.dead = false; hero.visible = true;
+    P.hp = P.maxHp; P.stam = stamMax(); P.stamRest = 0; P.stamRamp = 0;
+    P.pos.copy(pos); P.vel.set(0, 0, 0); visY = P.pos.y; lastSafePos.copy(P.pos); lastSafeGeh.copy(P.pos);
+    P.grounded = true; P.jumps = 0; P.inv = 2; P.atk = null; P.airSlash = null; P.dodge = 0; P.flurry = 0;
+    P.block = false; P.sliding = false; P.climb = null; P.swim = false; P.swimVol = null; P.gehDive = null; P.dive = false; P.lying = false;
+    inputLock = false; inputLockT = 0; turnTo = null; sleepT = 0;
+    GEH.fightSpectator = null; GEH.fightPendingEpoch = null;
+    GEH.inPride = netGehennaRoom(P.pos);
+    if (GEH.prideRoom) GEH.prideRoom.visible = GEH.inPride;
+    if (GEH.kingdomRoot) GEH.kingdomRoot.visible = !GEH.inPride;
+    document.getElementById("fade").style.opacity = 0; document.getElementById("damage").style.opacity = 0;
+    releaseKeys();
+  }
+  function gehFightSpawn(f, id) {
+    const index = Math.max(0, f.members.indexOf(id)), column = index % 4, row = Math.floor(index / 4);
+    return f.action === "return" ? V3(GEH.cx + 51.5 + column * 1.6, GEH.floor + 9.05, GEH.cz + 78 + row * 1.6) :
+      V3(GEH.cx - 84 + column * 2, GEH.floor + 9.05, GEH.cz + 52 + row * 1.8);
+  }
+  function gehFightApply(f, epoch) {
+    if (!f || !Number.isSafeInteger(epoch) || epoch < 1 || f.epoch !== epoch || !["active", "wipe", "idle", "won"].includes(f.status) ||
+      !Array.isArray(f.members) || !Array.isArray(f.dead) || f.members.length > NET_MAX_PLAYERS ||
+      !f.members.every(id => typeof id === "string" && /^[a-zA-Z0-9_-]{1,32}$/.test(id)) || !f.dead.every(id => f.members.includes(id))) return false;
+    if (epoch < (GEH.fightEpoch || 0)) return false;
+    const previous = GEH.luciferFight, changed = epoch > (previous?.epoch || 0);
+    GEH.fightEpoch = epoch;
+    GEH.luciferFight = { epoch, status: f.status, members: [...new Set(f.members)], dead: [...new Set(f.dead)], controller: f.controller, action: f.action };
+    if (changed) {
+      GEH.netFinale = null; NET.gehFinaleLocal = false; GEH.fightPendingEpoch = null;
+      if (GEH.lucifer) { GEH.lucifer.throwPose = null; GEH.lucifer.netPlaced = false; }
+      if (["retry", "return"].includes(f.action) && f.members.includes(NET.myId)) gehFightLocalRevive(gehFightSpawn(f, NET.myId));
+    }
+    if (f.status === "won" && gehFightDead()) gehFightLocalRevive(netGehennaRoom(P.pos) ? P.pos.clone() : gehFightSpawn(f, NET.myId));
+    if (f.dead.includes(NET.myId) && !death && ["active", "wipe"].includes(f.status)) gehFightDie(true);
+    gehFightUi();
+    return true;
+  }
+  function gehFightDie(fromHost = false) {
+    const f = GEH.luciferFight;
+    if (!f || !["active", "wipe"].includes(f.status) || !gehFightMember()) return false;
+    if (death) return true;
+    death = { t: 0, pieces: [], luciferEpoch: f.epoch, pos: P.pos.clone() };
+    P.hp = 0; P.dead = true; P.vel.set(0, 0, 0); P.atk = null; P.airSlash = null; P.block = false; P.dodge = 0; P.flurry = 0;
+    P.climb = null; P.sliding = false; P.moving = false; inputLock = true; inputLockT = -99; hero.visible = false;
+    releaseKeys(); clearPickupFlights();
+    if (!f.dead.includes(NET.myId)) f.dead.push(NET.myId);
+    if (netGuest() && !fromHost) netSend(NET.peers.get("host"), { t: "lf", op: "dead", seed: WORLDSTATE.gehSeed, epoch: f.epoch, state: netMyState() });
+    else if (!netGuest()) gehFightBroadcast();
+    gehFightUi();
+    return true;
+  }
+  function gehFightTick(dt) {
+    const f = GEH.luciferFight;
+    if (!f) return;
+    if (!netGuest() && f.status === "active") {
+      let changed = false;
+      for (const id of gehFightPeople()) if (!f.members.includes(id)) { f.members.push(id); changed = true; }
+      for (const id of f.members) {
+        const a = gehFightActor(id);
+        if (a && (a.local ? !!death || P.hp <= 0 : a.state.dead || a.state.hp <= 0) && !f.dead.includes(id)) { f.dead.push(id); changed = true; }
+      }
+      const alive = f.members.filter(id => { const a = gehFightActor(id); return a && !f.dead.includes(id); });
+      if (f.members.length && !alive.length) {
+        f.status = "wipe";
+        const connected = f.members.filter(id => !!gehFightActor(id));
+        f.controller = connected.length === 1 ? connected[0] : NET.myId;
+        if (GEH.lucifer) GEH.lucifer.throwPose = null;
+        changed = true;
+      }
+      if (changed) gehFightBroadcast();
+    }
+    // If the host leaves, the detached surviving local attempt remains recoverable.
+    if (!netGuest() && NET.role !== "host" && f.status === "wipe") f.controller = NET.myId;
+    if (gehFightDead()) { P.hp = 0; P.vel.set(0, 0, 0); hero.visible = false; inputLock = true; }
+    gehFightUi();
+  }
+  function gehFightChoose(action) {
+    const f = GEH.luciferFight;
+    if (!f || f.status !== "wipe" || f.controller !== NET.myId || !["retry", "return"].includes(action)) return false;
+    if (netGuest()) {
+      GEH.fightPendingEpoch = f.epoch;
+      netSend(NET.peers.get("host"), { t: "lf", op: "choose", action, epoch: f.epoch, seed: WORLDSTATE.gehSeed });
+      gehFightUi(); return true;
+    }
+    return gehFightReset(action);
+  }
+  function gehFightReset(action) {
+    const old = GEH.luciferFight, e = GEH.lucifer;
+    if (netGuest() || !old || old.status !== "wipe" || !e || !["retry", "return"].includes(action)) return false;
+    const f = { epoch: (GEH.fightEpoch || 0) + 1, status: action === "retry" ? "active" : "idle", members: old.members.filter(id => !!gehFightActor(id)), dead: [], controller: NET.myId, action };
+    GEH.fightEpoch = f.epoch; GEH.luciferFight = f; GEH.netFinale = null;
+    WORLDSTATE.luciferDefeated = false; WORLDSTATE.gehFinaleWitnessed = false; WORLDSTATE.afterlife = null; NET.gehFinaleLocal = false;
+    e.hp = e.maxHp = 90; e.phase = 0; e.plea = 0; e.pleaStep = 0; e.holdPause = 0; e.sceneT = 0; e.lineReadUntil = 0;
+    e.armed = false; e.alive = true; e.noBar = false; e.removed = false; e.throwPose = null; e.throwCd = 4.5;
+    e.pos.copy(e.fightHome || V3(GEH.cx - 73, GEH.floor + 9, GEH.cz + 54)); e.vel.set(0, 0, 0); e.heading = 0;
+    e.scenePhase = action === "retry" ? "omen" : "children"; e.state = "wait"; e.beat = action === "retry" ? 5 : 0;
+    e.runTo = V3(GEH.cx - 85, GEH.floor + 9, GEH.cz + 68);
+    e.mesh.visible = true; e.mesh.position.copy(e.pos); e.mesh.rotation.y = e.heading;
+    gehPoseLucifer(e, "children", 0.62, time); if (!EXTRA.includes(e)) EXTRA.push(e);
+    enemiesTick = -1;
+    if (GEH.godHand) GEH.godHand.visible = false;
+    if (GEH.kingdom) { GEH.kingdom.transit = null; GEH.kingdom.cooldown = 2; }
+    if (GEH.portalVeil) GEH.portalVeil.style.opacity = "0";
+    Voice.stop();
+    for (const id of f.members) {
+      const a = gehFightActor(id), pos = gehFightSpawn(f, id);
+      if (a.local) gehFightLocalRevive(pos);
+      else {
+        a.state.pos.copy(pos); a.state.vel.set(0, 0, 0); a.state.hp = a.state.maxHp; a.state.dead = false;
+        a.avatar.target.copy(pos); a.avatar.tvel.set(0, 0, 0); a.avatar.samples = [];
+        const peer = NET.peers.get(a.avatar.via); if (peer) { peer.lastState = null; peer.gehHits = new Map(); }
+      }
+    }
+    GEH.fightPendingEpoch = null; gehFightUi(); gehFightBroadcast();
+    if (NET.role === "host") netBroadcast(netEnemySnapshot());
+    return true;
+  }
+  function gehFightWin() {
+    const f = GEH.luciferFight;
+    if (!f) return;
+    f.status = "won"; if (GEH.lucifer) GEH.lucifer.throwPose = null;
+    if (gehFightDead()) gehFightLocalRevive(netGehennaRoom(P.pos) ? P.pos.clone() : gehFightSpawn(f, NET.myId));
+    gehFightUi(); gehFightBroadcast();
+  }
+  function gehFightUi() {
+    const f = GEH.luciferFight, dead = gehFightDead(), choosing = !!f && f.status === "wipe" && f.controller === NET.myId;
+    GEH.fightMenuOpen = choosing;
+    if (!dead && !choosing) { if (GEH.fightPanel) GEH.fightPanel.hidden = true; return; }
+    if (!GEH.fightPanel) {
+      const panel = document.createElement("div"); panel.id = "luciferFight";
+      panel.style.cssText = "position:fixed;z-index:95;left:50%;bottom:7%;transform:translateX(-50%);max-width:520px;width:calc(100% - 40px);padding:20px 24px;border:1px solid #c9c1aa;border-radius:8px;background:rgba(19,20,28,.94);color:#f2edde;text-align:center;font:16px Georgia,serif;box-shadow:0 12px 45px #0008";
+      document.body.appendChild(panel); GEH.fightPanel = panel;
+    }
+    const panel = GEH.fightPanel, pending = GEH.fightPendingEpoch === f.epoch;
+    const living = f.members.filter(id => !f.dead.includes(id) && gehFightActor(id));
+    const watched = GEH.fightSpectator?.target;
+    const name = watched === NET.myId ? CUSTOM.name : NET.avatars.get(watched)?.look.name;
+    const key = [f.epoch, f.status, choosing, pending, living.join(","), name || ""].join("|");
+    panel.hidden = false; panel.style.pointerEvents = choosing ? "auto" : "none";
+    if (panel.dataset.state === key) return;
+    panel.dataset.state = key; panel.replaceChildren();
+    const title = document.createElement("strong"), copy = document.createElement("p");
+    title.textContent = choosing ? "Lucifer, Demon of Pride" : "You have fallen";
+    copy.textContent = pending ? "Waiting for the host…" : choosing ? "Everyone in the fight has fallen. Try again, or return to Gehenna?" :
+      f.status === "wipe" ? "The party has fallen. Waiting for the host's decision…" : name ? "Watching " + name + ". The fight continues." : "Your companions are still fighting.";
+    panel.append(title, copy);
+    if (choosing && !pending) {
+      panel.setAttribute("role", "dialog"); panel.setAttribute("aria-modal", "true");
+      for (const [action, label] of [["retry", "Restart fight"], ["return", "Return to Gehenna"]]) {
+        const button = document.createElement("button"); button.textContent = label; button.dataset.action = action;
+        button.style.cssText = "padding:11px 16px;margin:4px;border:1px solid #d3c7a6;background:#31333f;color:#fff1d1;border-radius:5px;cursor:pointer;font:inherit";
+        button.onclick = () => gehFightChoose(action); panel.append(button);
+      }
+      releaseKeys(); if (document.pointerLockElement) document.exitPointerLock(); panel.querySelector("button").focus();
+    } else { panel.setAttribute("role", "status"); panel.removeAttribute("aria-modal"); }
+  }
+  function gehFightSpectate(dt) {
+    const f = GEH.luciferFight;
+    if (!gehFightDead() || !f || f.status !== "active") return false;
+    const alive = f.members.filter(id => !f.dead.includes(id) && gehFightActor(id));
+    if (!alive.length) return false;
+    let s = GEH.fightSpectator;
+    if (!s) s = GEH.fightSpectator = { target: alive[0], position: camera.position.clone(), quaternion: camera.quaternion.clone(), view: new THREE.PerspectiveCamera() };
+    if (!alive.includes(s.target)) s.target = alive[0];
+    const a = gehFightActor(s.target), focus = a.pos.clone().add(V3(0, 2.2, 0));
+    const distance = 10, pitch = clamp(camPitch, 0.12, 0.8);
+    const desired = focus.clone().add(V3(Math.sin(camYaw) * Math.cos(pitch) * distance, Math.sin(pitch) * distance + 0.8, Math.cos(camYaw) * Math.cos(pitch) * distance));
+    desired.y = Math.max(desired.y, gehH(desired.x, desired.z) + 1.3);
+    s.position.lerp(desired, 1 - Math.exp(-Math.min(dt, 0.1) * 1.6));
+    s.view.position.copy(s.position); s.view.lookAt(focus);
+    s.quaternion.rotateTowards(s.view.quaternion, Math.min(dt, 0.1) * 0.55);
+    camera.position.copy(s.position); camera.quaternion.copy(s.quaternion); camera.updateMatrixWorld();
+    return true;
+  }
+  function gehFightHandle(peer, m) {
+    if (m.t !== "lf") return false;
+    if (m.seed !== WORLDSTATE.gehSeed || !Number.isSafeInteger(m.epoch) || m.epoch < 1) return true;
+    if (netGuest()) {
+      if (peer.id !== "host") return true;
+      if (m.op === "state") {
+        if (m.epoch < (NET.luciferEpochSeen || 0)) return true;
+        if (gehFightApply(m.fight, m.epoch)) { NET.luciferEpochSeed = m.seed; NET.luciferEpochSeen = m.epoch; }
+      } else if (m.op === "throw" && m.epoch === GEH.luciferFight?.epoch && m.to === NET.myId && gehFightMember()) gehFightTakeThrow(m);
+      return true;
+    }
+    const f = GEH.luciferFight, a = NET.avatars.get(peer.playerId);
+    if (NET.role !== "host" || !f || m.epoch !== f.epoch || !a || a.via !== peer.id || !peer.ready || !f.members.includes(a.id)) return true;
+    if (m.op === "dead" && ["active", "wipe"].includes(f.status) && m.state && m.state.id === a.id && m.state.hp === 0 && (m.state.f & 1024) && netApplyState(a, m.state)) {
+      if (!f.dead.includes(a.id)) f.dead.push(a.id); a.state.dead = true; peer.lastState = m.state; gehFightTick(0); gehFightBroadcast();
+    } else if (m.op === "choose" && f.status === "wipe" && f.controller === a.id && f.members.filter(id => !!gehFightActor(id)).length === 1 && ["retry", "return"].includes(m.action)) gehFightReset(m.action);
+    return true;
+  }
+  function gehFightTakeThrow(m) {
+    const f = GEH.luciferFight;
+    if (!f || f.status !== "active" || death || m.epoch !== f.epoch || !Number.isSafeInteger(m.hit) || m.hit <= (GEH.throwHitSeen || 0) ||
+      ![m.x, m.y, m.z, m.dmg].every(Number.isFinite) || m.y >= DIVIDE || m.dmg < 0 || m.dmg > 40) return;
+    GEH.throwHitSeen = m.hit;
+    if (enemyPerfectDodge(false)) return;
+    if (P.block) lowerShield(true);
+    hurtPlayer(m.dmg, V3(m.x, m.y, m.z), 2.6, false);
+  }
+  function gehLuciferThrow(e, dt) {
+    if (netGuest()) return;
+    const f = GEH.luciferFight;
+    if (!f || f.status !== "active" || e.holdPause > 0 || !e.armed) { e.throwPose = null; return; }
+    if (e.throwPose) {
+      const p = e.throwPose; p.t += dt;
+      if (p.t >= 1 && !p.hit) {
+        p.hit = true;
+        const a = gehFightActor(p.target);
+        if (a && !f.dead.includes(a.id) && netGehennaRoom(a.pos) && dist2D(a.pos, e.pos) < e.r + 3.5 && Math.abs(a.pos.y - e.pos.y) < 5) {
+          const hit = { t: "lf", op: "throw", seed: WORLDSTATE.gehSeed, epoch: f.epoch, to: a.id, hit: GEH.throwHitSeq = (GEH.throwHitSeq || 0) + 1,
+            x: e.pos.x, y: e.pos.y, z: e.pos.z, dmg: Math.min(40, Math.max(6, a.state.maxHp * 0.65)) };
+          if (a.local) gehFightTakeThrow(hit); else netSend(NET.peers.get(a.avatar.via), hit);
+        }
+      }
+      if (p.t >= 1.85) { e.throwPose = null; e.throwCd = 7 + e.phase * 0.65; }
+      return;
+    }
+    e.throwCd = Math.max(0, (e.throwCd || 0) - dt);
+    if (e.throwCd > 0) return;
+    const nearby = f.members.map(gehFightActor).filter(a => a && !f.dead.includes(a.id) && netGehennaRoom(a.pos) && dist2D(a.pos, e.pos) < e.r + 2.8 && Math.abs(a.pos.y - e.pos.y) < 4.5).sort((a, b) => dist2D(a.pos, e.pos) - dist2D(b.pos, e.pos));
+    if (!nearby.length) return;
+    const a = nearby[0], side = (a.pos.x - e.pos.x) * Math.cos(e.heading) - (a.pos.z - e.pos.z) * Math.sin(e.heading) < 0 ? -1 : 1;
+    e.throwPose = { t: 0, side, target: a.id, hit: false };
+    if (netGehennaSpeak("Lucifer", "Stay back. I cannot hold it with you there!", 2400, false, true)) say("Lucifer draws one hand away. Move back!", 1900, true, "geh", true);
+    SFX.tone(105, 160, 0.65, 0.055, "sine", 0, 260);
+  }
+  // Applied after the ordinary rig pose: the other arm keeps supporting the hand.
+  function gehPoseLuciferThrow(e) {
+    const p = e.throwPose, rig = e.luciferRig;
+    if (!p || !rig || e.scenePhase !== "hold") return;
+    const arm = rig.arms.find(a => a.side === p.side); if (!arm) return;
+    const t = clamp(p.t, 0, 1.85), lower = smooth(clamp(t / 0.72, 0, 1)), sweep = smooth(clamp((t - 0.88) / 0.3, 0, 1)), back = smooth(clamp((t - 1.2) / 0.65, 0, 1));
+    const side = p.side, w = V3(lerp(side * 0.91, side * (0.68 + sweep * 1.7), lower), lerp(4.01, 1.65 + sweep * 0.65, lower), lerp(0.02, 1.1 - sweep * 0.8, lower));
+    w.lerp(V3(side * 0.91, 4.01, 0.02), back);
+    const elbow = V3(side * (1.06 + lower * (1 - back) * 0.12), lerp(3.03, 2.1, lower * (1 - back)), lerp(0.04, 0.55, lower * (1 - back)));
+    const span = (mesh, a, b, radius) => { const d = b.clone().sub(a), length = Math.max(0.001, d.length()); mesh.position.copy(a).add(b).multiplyScalar(0.5); mesh.scale.set(radius, length, radius); mesh.quaternion.setFromUnitVectors(rig.up, d.divideScalar(length)); };
+    span(arm.upper, V3(side * 0.54, 2.29, -0.06), elbow, 0.22); span(arm.lower, elbow, w, 0.145);
+    arm.elbow.position.copy(elbow); arm.palm.position.copy(w); arm.palm.rotation.x = Math.PI * 0.65 * lower * (1 - back);
+  }
+
   function gehPoseLucifer(e, mode, scale, t) {
     if (!e || !e.luciferRig) return;
     const rig = e.luciferRig, running = mode === "run", holding = mode === "hold", releasing = mode === "release";
@@ -19700,23 +20130,38 @@ const __boot = (async () => {
     rig.torso.position.set(0, lift, 0); rig.torso.rotation.set(lean, 0, 0);
     e.bodyScale = Math.max(0.05, Number.isFinite(scale) ? scale : 0.62);
     e.mesh.scale.setScalar(e.bodyScale);
-    const clothRows = [2.44, 2.12, 1.42, 1.05, 0.64, 0.28];
-    const clothWidth = holding ? [0.27, 0.66, 0.59, 0.95, 1.16, 1.12] : [0.27, 0.66, 0.55, 0.58, 0.67, 0.72];
-    const clothDepth = holding ? [0.23, 0.39, 0.44, 0.72, 0.8, 0.72] : running ? [0.23, 0.39, 0.43, 0.72, 0.9, 0.76] : [0.23, 0.39, 0.4, 0.44, 0.48, 0.5];
+    const clothRows = [2.44, 2.16, 1.45, 0.9, 0.48, 0.16, 0.11, 0.055];
+    const clothWidth = holding ? [0.27, 0.66, 0.63, 1.01, 1.23, 1.23, 1.24, 1.25] : [0.27, 0.66, 0.59, 0.67, 0.8, 0.88, 0.89, 0.9];
+    const clothDepth = holding ? [0.23, 0.4, 0.48, 0.77, 0.84, 0.84, 0.84, 0.84] : running ? [0.23, 0.4, 0.45, 0.7, 0.91, 0.96, 0.97, 0.98] : [0.23, 0.4, 0.43, 0.48, 0.54, 0.6, 0.61, 0.62];
     for (let row = 0; row < clothRows.length; row++) {
-      const height = clothRows[row], follow = Math.max(0, (height - 0.28) / 2.16);
+      const height = clothRows[row], follow = Math.max(0, (height - 0.055) / 2.385);
       const yy = height * (1 + (cs - 1) * follow) + lift * follow;
       const centerZ = height * sn * follow + (holding && row > 2 ? 0.16 : running && row > 2 ? phase * 0.07 : -0.04);
+      const slit = row > 3 ? (1 - height / 0.9) * (running ? 0.055 + Math.abs(phase) * 0.045 : 0.035) : 0;
       for (let side = 0; side <= rig.robeSides; side++) {
-        const angle = side * Math.PI * 2 / rig.robeSides;
-        const fold = side % 2 ? 0.965 : 1.035, i = (row * (rig.robeSides + 1) + side) * 3;
+        const angle = Math.PI * 0.5 + slit + side / rig.robeSides * (Math.PI * 2 - slit * 2);
+        const fold = 1 + Math.cos(side * Math.PI * 0.5) * (0.025 + (1 - follow) * 0.055), i = (row * (rig.robeSides + 1) + side) * 3;
         rig.robePositions[i] = Math.cos(angle) * clothWidth[row] * fold;
-        rig.robePositions[i + 1] = yy + (row === clothRows.length - 1 && running ? Math.abs(phase) * 0.055 : 0);
+        rig.robePositions[i + 1] = yy + (running && row > 3 ? Math.max(0, -phase * Math.cos(angle)) * (1 - follow) * 0.075 : 0);
         rig.robePositions[i + 2] = centerZ + Math.sin(angle) * clothDepth[row] * fold;
       }
     }
     rig.robe.geometry.attributes.position.needsUpdate = true;
     rig.robe.geometry.computeVertexNormals();
+    const cloakHeights = [2.39, 2.2, 1.7, 1.08, 0.48, 0.16, 0.1], cloakWidths = [0.68, 0.89, 0.87, 0.96, 1.03, 1.1, 1.1], cloakDepths = [0.44, 0.58, 0.6, 0.66, 0.74, 0.79, 0.8];
+    for (let row = 0; row < cloakHeights.length; row++) {
+      const height = cloakHeights[row], follow = Math.max(0, (height - 0.1) / 2.29), opening = 0.1 + (1 - follow) * 0.44;
+      const widen = holding ? 1 + (1 - follow) * 0.24 : 1;
+      for (let side = 0; side <= rig.cloakSides; side++) {
+        const angle = Math.PI * (0.5 + opening) + side / rig.cloakSides * Math.PI * (2 - opening * 2);
+        const fold = 1 + Math.cos(side * Math.PI * 0.5) * (0.035 + (1 - follow) * 0.04), i = (row * (rig.cloakSides + 1) + side) * 3;
+        rig.cloakPositions[i] = Math.cos(angle) * cloakWidths[row] * widen * fold;
+        rig.cloakPositions[i + 1] = height * (1 + (cs - 1) * follow) + lift * follow + (running ? Math.abs(phase) * (1 - follow) * 0.1 : 0);
+        rig.cloakPositions[i + 2] = -0.055 + height * sn * follow + Math.sin(angle) * cloakDepths[row] * fold - (running ? (0.11 + Math.abs(phase) * 0.13) * (1 - follow) : 0);
+      }
+    }
+    rig.cloak.geometry.attributes.position.needsUpdate = true;
+    rig.cloak.geometry.computeVertexNormals();
     // the face, sleeves and open palms are the same person through every change in size.
     const span = (mesh, ax, ay, az, bx, by, bz, radius) => {
       rig.direction.set(bx - ax, by - ay, bz - az);
@@ -19793,6 +20238,7 @@ const __boot = (async () => {
   }
   function gehBeginConfrontation(e) {
     if (!e || e.scenePhase !== "children") return;
+    gehFightStart(e);
     e.scenePhase = "omen";
     e.sceneT = 0;
     e.runTo = V3(GEH.cx - 85, GEH.floor + 9, GEH.cz + 68);
@@ -19812,12 +20258,13 @@ const __boot = (async () => {
   function gehLuciferBreak(e) {
     if (!e || e.phase >= 3 || e.holdPause > 0) return;
     e.phase = (e.phase || 0) + 1;
-    e.holdPause = 5.5; e.pleaStep = 0;
+    e.holdPause = 5.5; e.pleaStep = 0; e.throwPose = null; e.throwCd = 4.5;
     const line = LUCIFER_CHILDREN[e.phase - 1];
     if (netGehennaSpeak("A child", line, 5200, false, true)) { logTalk("A child", line); say("A child: " + line, 5200, true, "geh", true); }
   }
   function gehUpdateLucifer(e, tgt, dx, dz, dist, dt) {
     if (!e.alive || !tgt || !netGehennaRoom(tgt.pos) || e.scenePhase === "release" || e.scenePhase === "released") return;
+    if (GEH.luciferFight?.status === "wipe") return;
     e.vel.set(0, 0, 0);
     e.scenePhase = e.scenePhase || "children";
     e.sceneT = (e.sceneT || 0) + dt;
@@ -19865,21 +20312,37 @@ const __boot = (async () => {
         } else if (e.holdPause === 0 && e.phase === 3) { gehLuciferDown(); return; }
       }
     }
+    if (e.scenePhase === "hold") gehLuciferThrow(e, dt);
     e.bodyScale = scale;
     e.r = 0.5 + scale * 0.65;
     e.state = e.armed ? "hold" : "wait";
     e.mesh.position.copy(e.pos);
     e.mesh.rotation.y = e.heading;
     gehPoseLucifer(e, mode, scale, time);
+    gehPoseLuciferThrow(e);
   }
 
+  function gehUpdateDivineHand(dt) {
+    const hand = GEH.godHand, aperture = GEH.divineAperture;
+    if (!hand || !aperture) return;
+    aperture.visible = GEH.inPride && hand.visible;
+    if (!aperture.visible) return;
+    const ceilingY = GEH.floor + 30.42;
+    aperture.position.set(hand.position.x - Math.sin(hand.rotation.y) * 2.05, ceilingY, hand.position.z - Math.cos(hand.rotation.y) * 2.05);
+    aperture.material.uniforms.uTime.value = time;
+    aperture.material.uniforms.uOpen.value = clamp((ceilingY - hand.position.y + 5) / 7, 0, 1);
+    if (hand.userData.shine) hand.userData.shine.value = time;
+    const radiance = hand.userData.radiance;
+    if (radiance) { radiance.rotation.y = Math.sin(time * 0.19) * 0.045; radiance.material.opacity = 0.5 + Math.sin(time * 1.2) * 0.1; }
+  }
   function gehUpdateFinale(dt) {
+    gehUpdateDivineHand(dt);
     if (GEH.inPride && GEH.prideWater) {
       const water = GEH.prideWater, dummy = water.dummy;
       for (let i = 0; i < water.flow.count; i++) {
-        const z = 46 + (i * 0.93 + time * 0.62) % 28;
-        dummy.position.set(GEH.cx + water.center(z) + Math.sin(i * 2.4) * 1.65, water.y, GEH.cz + z);
-        dummy.rotation.y = Math.atan(Math.cos((z - 43) * 0.14) * 0.308);
+        const z = 46 + (i * 0.83 + time * 0.62) % 29;
+        dummy.position.set(GEH.cx + water.center(z) + Math.sin(i * 2.4) * water.half(z) * 0.64, water.y, GEH.cz + z);
+        dummy.rotation.y = Math.atan(Math.cos((z - 43) * 0.16) * 0.352);
         dummy.scale.set(0.14 + (i % 4) * 0.1, 0.008, (0.38 + (i % 3) * 0.22) * (0.9 + Math.sin(time * 0.9 + i) * 0.1));
         dummy.updateMatrix(); water.flow.setMatrixAt(i, dummy.matrix);
       }
@@ -19895,34 +20358,33 @@ const __boot = (async () => {
     if (P.pos.x < GEH.cx - 36 && Math.abs(P.pos.z - GEH.cz) < 2.3 && P.pos.y > GEH.floor + 6 && GEH.exitArm > 3) gehAscend();
   }
   function gehPrideChildren(releaseT = null) {
-    // They have their own small lives before, during and after his decision.
+    // Their little routes continue during the confrontation and remain on walkable ground.
     for (let i = 0; i < (GEH.prideChildren || []).length; i++) {
       const child = GEH.prideChildren[i], home = child.userData.home;
-      child.visible = true;
+      child.visible = true; child.scale.y = 1;
       if (releaseT !== null) {
         const walk = clamp((releaseT - 3 - i * 1.4) / 9, 0, 1);
-        const destinations = [[-99, 55], [-74, 60.2], [-87, 64]], [x, z] = destinations[i];
-        const end = V3(GEH.cx + x, GEH.floor + 9, GEH.cz + z);
-        child.position.lerpVectors(home, end, smooth(walk));
-        child.position.y += walk > 0 && walk < 1 ? Math.abs(Math.sin(releaseT * 6 + i)) * 0.055 : 0;
-        child.rotation.y = Math.atan2(end.x - home.x, end.z - home.z);
-        child.scale.y = i === 1 ? 0.72 : 1;
+        const routes = [[[-87,55],[-99,55],[-99,57]],[[-74,56],[-74,60.2]],[[-83,57],[-87,64]]];
+        const route = [home, ...routes[i].map(([x,z])=>V3(GEH.cx+x,GEH.floor+9,GEH.cz+z))];
+        const progress = smooth(walk)*(route.length-1), part = Math.min(route.length-2,Math.floor(progress)), mix=progress-part;
+        child.position.lerpVectors(route[part],route[part+1],mix);
+        child.rotation.y=Math.atan2(route[part+1].x-route[part].x,route[part+1].z-route[part].z);
+        child.position.y=gehGroundAt(child.position.x,child.position.z,GEH.floor+10)+(walk>0&&walk<1?Math.abs(Math.sin(releaseT*6+i))*0.055:0);
       } else {
-        // A child plays, another rests, another explores the bank. The fight never suspends them.
-        child.position.copy(home);
-        child.scale.y = i === 1 ? 0.72 : 1;
-        if (i !== 1) {
-          child.position.x += Math.sin(time * (i === 0 ? 0.7 : 0.31) + i) * 0.7;
-          child.position.z += Math.cos(time * (i === 0 ? 0.7 : 0.31) + i) * 0.45;
-          child.position.y += Math.abs(Math.sin(time * 4 + i)) * 0.035;
-          child.rotation.y = Math.atan2(Math.cos(time * (i === 0 ? 0.7 : 0.31) + i) * 0.7, -Math.sin(time * (i === 0 ? 0.7 : 0.31) + i) * 0.45);
-        }
+        const pace = [0.48,0.21,0.3][i], angle = time*pace+i*2.1;
+        const centers = [[-72.2,55.2],[-75.5,52],[-82.5,57.6]], radius = [2,0.9,2.2][i];
+        child.position.set(GEH.cx+centers[i][0]+Math.sin(angle)*radius,GEH.floor+9,GEH.cz+centers[i][1]+Math.cos(angle)*radius*0.62);
+        child.position.y+=Math.abs(Math.sin(time*4+i))*0.035;
+        child.rotation.y=Math.atan2(Math.cos(angle),-Math.sin(angle)*0.62);
+        // A brief crouch to examine the grass, followed by more exploring.
+        if(i===1&&Math.sin(time*0.25)>0.7)child.scale.y=0.72;
       }
     }
   }
   function gehLuciferDown(fromHost = false) {
     const e = GEH.lucifer;
-    if (!e || (netGuest() && !fromHost)) return;
+    if (!e || (netGuest() && !fromHost) || GEH.luciferFight?.status === "wipe") return;
+    gehFightWin();
     if (GEH.netFinale && (e.scenePhase === "release" || e.scenePhase === "released") && (!fromHost || NET.gehFinaleLocal)) return;
     // Keep the old save key: it now records the end of his hold, never a death.
     WORLDSTATE.luciferDefeated = true;
@@ -19932,7 +20394,7 @@ const __boot = (async () => {
     const enemyIndex = EXTRA.indexOf(e); if (enemyIndex >= 0) { EXTRA.splice(enemyIndex, 1); enemiesTick = -1; }
     if (!GEH.netFinale) {
       if (NET.role === "host") NET.gehShared = true;
-      GEH.netFinale = { t: 0, scale: e.bodyScale, handY: GEH.godHand.position.y, members: [
+      GEH.netFinale = { t: 0, scale: e.bodyScale, handY: GEH.godHand.position.y, members: GEH.luciferFight ? GEH.luciferFight.members.slice() : [
         ...(netGehennaRoom(P.pos) && !death ? [NET.myId] : []),
         ...[...NET.avatars.values()].filter(a => NET.peers.get(a.via)?.ready && !a.state.dead && netGehennaRoom(a.state.pos)).map(a => a.id)
       ] };
@@ -19998,6 +20460,7 @@ const __boot = (async () => {
   function updateAfterlife(dt) {
     if (!AFTERLIFE) return;
     // The host keeps the release moving even when its own player is in a menu or back in Wildmoor.
+    gehFightTick(dt);
     netGehennaFinaleTick(dt);
     if (!AFTERLIFE.phase && WORLDSTATE.luciferDefeated && WORLDSTATE.gehFinaleWitnessed && WORLDSTATE.afterlife !== "stay") {
       if (WORLDSTATE.afterlife === "moveOn") showModernEnding(0); else showAfterlifeChoice();
@@ -20145,9 +20608,13 @@ const __boot = (async () => {
     GEH.room = null;
     GEH.almSeats = null;
     GEH.heapDown = false;
+    GEH.luciferFight = null; GEH.fightEpoch = 0; GEH.fightMenuOpen = false; GEH.fightSpectator = null;
+    if (GEH.fightPanel) GEH.fightPanel.hidden = true;
     GEH.lucifer = GEH.godHand = GEH.luciferPrompt = GEH.prideGate = GEH.prideSolid = null;
     GEH.prideChildren = [];
-    GEH.prideWater = GEH.prideRoom = null;
+    for (let i = SWIM_VOLS.length - 1; i >= 0; i--) if (SWIM_VOLS[i].id === "pride-river") SWIM_VOLS.splice(i, 1);
+    GEH.prideHut = null;
+    GEH.prideWater = GEH.prideRoom = GEH.divineAperture = null;
     GEH.inPride = false;
     GEH.kingdom = GEH.kingdomRoot = null;
     GEH.kingdomResidents = [];
@@ -20706,6 +21173,7 @@ const __boot = (async () => {
   }
   function updateDeath(dt) {
     if (!death) return;
+    if (death.luciferEpoch) { death.t += dt; P.pos.copy(death.pos); P.vel.set(0, 0, 0); hero.visible = false; return; }
     death.t += dt;
     const fade = document.getElementById("fade");
     for (const p of death.pieces) {
@@ -24051,6 +24519,7 @@ const __boot = (async () => {
   function update(rdt) {
     updateTick++;
     if (!started) {
+      cameraFollow.ready = false;
       P.heading += rdt * 0.5;
       hero.position.copy(P.pos);
       hero.rotation.y = P.heading;
@@ -24219,8 +24688,9 @@ const __boot = (async () => {
     const th = terrainH(P.pos.x, P.pos.z),
       g0 = groundAt(P.pos.x, P.pos.z, P.pos.y);
     {
-      const ws = waterSurfaceAt(P.pos.x, P.pos.z);
-      P.wading = P.grounded && ((th < 0.3 && th >= DEEP && g0 < 0.3) || (ws > -1e8 && g0 < ws - 0.12));
+      const localWater = P.pos.y < DIVIDE ? swimVolAt(P.pos.x, P.pos.z, P.pos.y) : null;
+      const ws = localWater ? localWater.top : waterSurfaceAt(P.pos.x, P.pos.z);
+      P.wading = P.grounded && ((P.pos.y > DIVIDE && th < 0.3 && th >= DEEP && g0 < 0.3) || (ws > -1e8 && g0 < ws - 0.12));
     }
     P.slideAir = P.grounded ? 0 : (P.slideAir || 0) + dt;
     const slideGround = P.grounded || (P.sliding && P.slideAir < TUNE.player.slideAirGrace && P.vel.y < 4);
@@ -24251,9 +24721,9 @@ const __boot = (async () => {
       P.stamRamp = Math.min(1, (P.stamRamp || 0) + hdt / 0.6);
       const before = P.stam;
       P.stam = Math.min(SM, P.stam + (18 + SK.endurance.lvl * 0.6) * hdt * P.stamRamp * P.stamRamp);
-      if (P.pos.y > DIVIDE) gainXP("endurance", Math.max(0, P.stam - before) * 0.008);
+      if (!gehFreeStamina()) gainXP("endurance", Math.max(0, P.stam - before) * 0.008);
     } else P.stamRamp = 0;
-    P.stam = P.pos.y < DIVIDE ? SM : clamp(P.stam, 0, SM);
+    P.stam = gehFreeStamina() ? SM : clamp(P.stam, 0, SM);
     if (!P.grounded && !P.swim && P.jumps > 0) {
       P.airT += rdt;
       gainXP("agility", rdt * 1.4);
@@ -24313,7 +24783,7 @@ const __boot = (async () => {
         document.getElementById("damage").style.opacity = 0.6;
         if (P.hp <= 0) die("The cold lake took you. The guards fished you out at the south gate.");
       }
-      if (hasInput && Math.random() < hdt * 4) ripple(P.pos.x, P.pos.z, 1.2);
+      if (hasInput && Math.random() < hdt * 4) ripple(P.pos.x, P.pos.z, 1.2, vol.sea ? 0.22 : vol.top + 0.025);
     } else if (P.dodge > 0) P.dodge -= hdt;
     else if (P.grounded) {
       if (P.sliding) {
@@ -24516,7 +24986,7 @@ const __boot = (async () => {
       // registered volume once y is below its floor), g is gehenna's floor at about -280 and is therefore
       // comfortably under DEEP, and the ONLY thing between the player and a permanent forced swim on dry ash is
       // that terrainH(600, 600) happens to answer about forty. that is a coincidence of siting, not a design.
-      deepHere = P.pos.y > DIVIDE && (vol0.sea ? terrainH(P.pos.x, P.pos.z) < DEEP && g < DEEP : g < vol0.top - 0.35);
+      deepHere = !vol0.dry && (vol0.sea ? P.pos.y > DIVIDE && terrainH(P.pos.x, P.pos.z) < DEEP && g < DEEP : g < vol0.top - 0.35);
     P.noSwim = Math.max(0, (P.noSwim || 0) - rdt);
     if (deepHere && !P.gehDive && P.pos.y <= vol0.enter && !(P.noSwim > 0 && P.vel.y > 0)) {
       // deep water: swim
@@ -24531,7 +25001,7 @@ const __boot = (async () => {
         P.vel.multiplyScalar(0.3);
         SFX.splash(true);
         burst(P.pos.clone().add(V3(0, 0.2, 0)), 0x9fd0ea, 18, 5, 0.6, 0.14);
-        ripple(P.pos.x, P.pos.z, 2.5);
+        ripple(P.pos.x, P.pos.z, 2.5, vol0.sea ? 0.22 : vol0.top + 0.025);
       }
     } else if (P.swim && (!deepHere || P.pos.y > (P.swimVol || vol0).exit)) {
       P.swim = false;
@@ -24823,11 +25293,12 @@ const __boot = (async () => {
     }
     // a slower arm. at 9 the camera snapped onto every corner and every ledge and the whole picture jolted; 4.5 lets it
     // trail and settle, which reads as a camera following you rather than a camera stapled to you.
+    followCameraTravel();
     camera.position.lerp(V3(cx, cy, cz), Math.min(1, rdt * 4.5));
     shake = Math.max(0, shake - rdt * 2.5);
     const shk = shake * shake * 0.6;
     camera.position.add(V3((Math.random() - 0.5) * shk, (Math.random() - 0.5) * shk, (Math.random() - 0.5) * shk));
-    camera.lookAt(P.pos.x, visY + 2.2 + Math.max(0, -camPitch) * 6, P.pos.z);
+    steadyCameraLookAt(rdt, P.pos.x, visY + 2.2 + Math.max(0, -camPitch) * 6, P.pos.z);
     // and a much gentler zoom. the speed term used to swing eighteen degrees of field of view and chase it at rdt*6,
     // so every sprint and every stop pumped the lens — which is most of what read as jarring. twelve degrees, eased at
     // 1.8, and the doorway change to 78 now takes about a second instead of snapping.
@@ -25544,6 +26015,7 @@ const __boot = (async () => {
       drawHUD();
       hudElapsed = 0;
     }
+    gehFightSpectate(dt);
     renderer.clippingPlanes = P.pos.y < DIVIDE ? GEH_CLIP : NO_CLIP;
     renderer.render(scene, camera);
     {

@@ -70,7 +70,7 @@
   WORLDSTATE.gehDone = true;
   const lucifer = GEH.lucifer; guest.state.pos.copy(lucifer.pos).add(V3(0, 0, -3));
   const subs = document.querySelector('#subs').children.length;
-  for (let i = 0; i < 5; i++) { netHandleGehenna(peer, { t: "ga", action: "lucifer", seed: snap.seed }); time += 1; }
+  for (let i = 0; i < 5; i++) { netHandleGehenna(peer, { t: "ga", action: "lucifer", seed: snap.seed, epoch: GEH.fightEpoch || 0 }); time += 1; }
   check(lucifer.beat === 5 && lucifer.scenePhase === "omen", "guest's fifth Lucifer line starts host confrontation");
   check(sent.filter(m => m.t === "gsay" && m.lucifer).length === 5, "five Lucifer dialogue beats are sent to participants");
   check(document.querySelector('#subs').children.length === subs, "host above valley does not hear Lucifer's dialogue");
@@ -98,7 +98,7 @@
   netApplyGehenna(guestSnap); netMirrorGehenna(0.016);
   check(lucifer.gehMirror && lucifer.scenePhase === "hold" && lucifer.bodyScale === 2.1, "guest mirror renders the authoritative Lucifer state");
   const roomPosition = P.pos.clone(), childLine = LUCIFER_CHILDREN[0];
-  const childMessage = { t: "gsay", seed: guestSnap.seed, who: "A child", line: childLine, ms: 5200, lucifer: false, roomOnly: true };
+  const childMessage = { t: "gsay", seed: guestSnap.seed, epoch: guestSnap.fightEpoch || 0, who: "A child", line: childLine, ms: 5200, lucifer: false, roomOnly: true };
   P.pos.set(GEH.cx + 43, GEH.floor + 1, GEH.cz + 1);
   const outsideSpeech = document.querySelector("#subs").textContent;
   netHandleGehenna(NET.peers.get("host"), childMessage);
