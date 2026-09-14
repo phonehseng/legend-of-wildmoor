@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.5.0</title>
+<title>Legend of Peanits 2.5.1</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -376,7 +376,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.5.0</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.5.1</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -443,7 +443,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.5.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.5.1</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -455,7 +455,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
       <!-- s-music: pause-menu setting or control -->
       <label>Music</label><input type="range" id="s-music" min="0" max="1" step=".05" value=".5">
       <!-- s-sens: pause-menu setting or control -->
-      <label>Mouse sensitivity</label><input type="range" id="s-sens" min=".3" max="2" step=".1" value="1">
+      <label>Mouse sensitivity <span id="s-sens-val" style="opacity:.7;font-variant-numeric:tabular-nums">1.0</span></label><input type="range" id="s-sens" min=".1" max="2" step=".05" value="1">
       <!-- s-voice: pause-menu setting or control -->
       <div class="row"><input type="checkbox" id="s-voice" checked><label for="s-voice" style="margin:0">Spoken dialogue</label></div>
       <!-- s-fps: pause-menu setting or control -->
@@ -5073,7 +5073,7 @@ const __boot = (async () => {
     "They say the bear in the west wood sleeps on a pile of gold. They say a lot."
   ];
   const KNIGHT_NEWS = [
-    "the captain says a knight is only as good as his weakest skill. Bring every one of them up, swimming too, and you'll shrug off blows that used to floor you.",
+    "the captain says a knight is the sum of his training, not the worst of it. Bring them all up and blows land softer — and swimming counts double, if you can stand the cold.",
     "a tip: goblins duck a sword swung level. Come down on them from a jump and they never see it.",
     "you want a spear? Sir Corrin at the plaza keeps a spare for anyone who proves a sword to him. Five sheep and two deer, he says.",
     "the woodcutter Old Wick left his axe near the black pool. He'd rather someone used it than the moss.",
@@ -5185,7 +5185,7 @@ const __boot = (async () => {
     "Nobody here asked for a hero."
   ];
   const LEVEL_HINTS = [
-    "A soldier once told me: it isn't the strongest arm that keeps you alive, it's having no weak one. Sword, legs, lungs, all of it. Level them all and the blows land softer.",
+    "A soldier once told me it is the whole of your training that keeps you alive, not the weakest part of it. Sword, legs, lungs. Swimming on top, if you have the nerve for deep water.",
     "My gran swam every morning until she was ninety. Said a body that can do everything takes less from the world. She was never sick a day.",
     "Don't neglect the water. The ones who train the sword and forget to swim are the ones the moor eats."
   ];
@@ -6074,7 +6074,12 @@ const __boot = (async () => {
           n.wantMove = true;
           step(P.pos.x, P.pos.z, 3.4);
           n.heading = Math.atan2(P.pos.x - n.pos.x, P.pos.z - n.pos.z);
-        } else {
+        } else if (!paused) {
+          // he holds his tongue while the menu is up. setPaused cancels speech synthesis, so a line delivered into a
+          // pause arrives as a silent subtitle over the pause screen and reads as the knight talking to nobody — and
+          // with a friend on the moor the world keeps turning while your menu is open, which is the case that made
+          // this happen at all. the P.vel line below is the other half: being stopped dead while paused is not a
+          // thing the player can see a reason for.
           n.escort.talk = 6;
           n.heading = Math.atan2(P.pos.x - n.pos.x, P.pos.z - n.pos.z);
           speak(n, "You there. The king wants a word with you. Follow the avenue to the keep. He's waiting.", "Knight", 5600);
@@ -8228,7 +8233,13 @@ const __boot = (async () => {
     const fx = tX(0, TL + 2.9),
       fz = tZ(0, TL + 2.9);
     h.fireSpot = V3(fx, terrainH(fx, fz), fz);
-    addFire(scene, fx, h.fireSpot.y, fz, true, 0.85);
+    // addFire's fifth argument is a LIGHT, not a flag — it reads `light.intensity` for the flicker base. passing true
+    // gave the camp a fire with no light at all. vlight is the pooled kind every other fire in the valley uses, so
+    // this costs no real three.js light and cannot push the shader over its light count.
+    const campLight = vlight(0xff8a3a, 1.2, 12);
+    campLight.position.set(fx, h.fireSpot.y + 1, fz);
+    h.fireLight = campLight;
+    addFire(scene, fx, h.fireSpot.y, fz, campLight, 0.85);
     for (let k = 0; k < 7; k++) { const a2 = (k / 7) * 6.28; tent.parent.add(boxM(0.3, 0.18, 0.3, stoneDarkM, fx + Math.cos(a2) * 0.82, h.fireSpot.y + 0.09, fz + Math.sin(a2) * 0.82)); } // a ring of stones round it, so it reads as a campfire and not a bonfire
     hearths.push(V3(fx, h.fireSpot.y + 0.2, fz)); // registers the ring goblins will not rise inside, the same as every other fire in the valley
   }
@@ -11314,9 +11325,42 @@ const __boot = (async () => {
     windDir = 0,
     gust = 0,
     sens = 1;
+  // the settings that are a property of this machine rather than of this playthrough
+  const PREF_IDS = ["s-sens", "s-sfx", "s-music", "s-amb", "s-voice", "s-arrow"];
+  function savePrefs() {
+    try {
+      const o = {};
+      for (const id of PREF_IDS) {
+        const el = document.getElementById(id);
+        if (el) o[id] = el.type === "checkbox" ? !!el.checked : +el.value;
+      }
+      localStorage.setItem("wildmoor.prefs", JSON.stringify(o));
+    } catch (_) {}
+  }
+  function loadPrefs() {
+    let o = null;
+    try {
+      o = JSON.parse(localStorage.getItem("wildmoor.prefs") || "null");
+    } catch (_) {}
+    if (!o || typeof o !== "object") return;
+    for (const id of PREF_IDS) {
+      const el = document.getElementById(id),
+        v = o[id];
+      if (!el || v === undefined || v === null) continue;
+      if (el.type === "checkbox") el.checked = !!v;
+      else {
+        const n = +v;
+        if (!Number.isFinite(n)) continue;
+        el.value = clamp(n, +el.min || 0, +el.max || 1); // clamped to the control's own range, so a stale value from an older slider cannot set something unreachable
+      }
+      // fire the control's own handler rather than duplicating what it does, the same way the save restore does
+      if (el.oninput) el.oninput({ target: el });
+      else if (el.onchange) el.onchange({ target: el });
+    }
+  }
   const sunDirNow = V3(0, 1, 0);
   // ---- skills: the more you do a thing, the better you get ----
-  // the six practiced skills, sk: each has a level and the experience toward the next; the hero level is the lowest of them
+  // the six practiced skills, sk: each has a level and the experience toward the next; the hero level averages the five land ones and lets swimming raise it
   const SK = {
     attack: { lvl: 1, xp: 0, name: "Attack" },
     strength: { lvl: 1, xp: 0, name: "Strength" },
@@ -11339,9 +11383,9 @@ const __boot = (async () => {
       say(`${s.name} ${s.lvl}`, TUNE.ui.levelSubtitle, false, "level");
       SFX.levelUp();
     }
-    // the hero level is the lowest of the six skills, so it only moves when your weakest one does. that is the real
-    // milestone — it is what the goblin king waits for — and it used to pass in silence while a single skill got all
-    // the noise.
+    // the hero level is the average of the five land skills, lifted by swimming when swimming is ahead of them. it is
+    // the real milestone — it is what the goblin king waits for — and it used to pass in silence while a single skill
+    // got all the noise.
     const heroNow = heroLevel();
     if (heroNow > heroBefore && heroNow > heroLvlShown) {
       heroLvlShown = heroNow;
@@ -11632,7 +11676,11 @@ const __boot = (async () => {
     };
     document.getElementById("s-sfx").oninput = e => SFX.setVol(+e.target.value, SFX.ambVol);
     document.getElementById("s-amb").oninput = e => SFX.setVol(SFX.sfxVol, +e.target.value);
-    document.getElementById("s-sens").oninput = e => (sens = +e.target.value);
+    document.getElementById("s-sens").oninput = e => {
+      sens = +e.target.value;
+      const r = document.getElementById("s-sens-val");
+      if (r) r.textContent = sens.toFixed(2);
+    };
     document.getElementById("s-music").oninput = e => Music.setVol(+e.target.value);
     document.getElementById("s-arrow").onchange = e => {
       arrowOn = e.target.checked;
@@ -11649,6 +11697,19 @@ const __boot = (async () => {
         document.getElementById("fps").classList.remove("hidden");
       } else document.getElementById("s-fps").checked = false;
     } catch (_) {}
+    // these belong to the machine and the browser, not to the save. a save key is meant to be pasted between
+    // computers, and inheriting somebody else's mouse sensitivity along with their progress is not a feature —
+    // mouse sensitivity in particular HAS to be per-browser, because pointer-lock does not report movementX the same
+    // way in every engine or at every display scaling, so the same hand movement can turn you half again as far in
+    // one browser as in another. they lived only inside the save code before, which meant they reset on any plain
+    // reload and were simply gone the moment you opened the game somewhere else.
+    for (const id of PREF_IDS) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      el.addEventListener("change", savePrefs);
+      if (el.type === "range") el.addEventListener("input", savePrefs);
+    }
+    loadPrefs();
     /* the grass toggle went with the ground cover; its checkbox no longer exists, so wiring it would throw on null
     document.getElementById("s-grass").onchange = e => {
       grassOn = e.target.checked;
@@ -11981,6 +12042,8 @@ const __boot = (async () => {
           gi("s-grass").checked = !!st.grass;
           fire("s-grass");
         }
+        // a save key still carries these for backward compatibility, but loadPrefs() runs after this loop and wins:
+        // a code pasted from somebody else's machine should not reach over and change your mouse or your volumes
         for (const [id, v] of [
           ["s-sfx", st.sfx],
           ["s-music", st.music],
@@ -11997,6 +12060,7 @@ const __boot = (async () => {
           gi("s-voice").checked = !!st.voice;
           fire("s-voice");
         }
+        if (typeof loadPrefs === "function") loadPrefs(); // this machine's own settings have the last word
       }
       if (lit) {
         const u = lighthouse.userData;
@@ -12863,13 +12927,19 @@ const __boot = (async () => {
     }
   }
   // subtract player health and trigger invulnerability and damage feedback
+  // hero level is the average of the five land skills, with swimming folded in as a SIXTH share only when it helps.
+  // it used to be the flat minimum of all six, which meant swimming — the one skill that only rises in water over your
+  // head — held the whole character at level one for any player who kept their feet dry. the floor is the land average
+  // now, so nothing can hold you back; swimming can only ever pull the number UP, which is what makes it worth doing
+  // rather than something you are punished for skipping.
   function heroLevel() {
-    return Math.min(SK.attack.lvl, SK.strength.lvl, SK.agility.lvl, SK.speed.lvl, SK.endurance.lvl, SK.swimming.lvl);
+    const land = (SK.attack.lvl + SK.strength.lvl + SK.agility.lvl + SK.speed.lvl + SK.endurance.lvl) / 5,
+      all = (land * 5 + SK.swimming.lvl) / 6;
+    return Math.max(1, Math.floor(Math.max(land, all)));
   }
-  // the same reckoning without swimming. hero level is the MINIMUM of six skills, and swimming only rises in water over
-  // your head — so a player who never goes out of their depth is pinned at level one for ever. gating the goblin king
-  // on that would have left the seal ungrantable and the finale unreachable, with nothing in the game saying why.
-  const heroLevelLand = () => Math.min(SK.attack.lvl, SK.strength.lvl, SK.agility.lvl, SK.speed.lvl, SK.endurance.lvl);
+  // the land-only reckoning, kept for the goblin king's gate: the finale must never wait on a skill a player can
+  // legitimately never train.
+  const heroLevelLand = () => Math.floor((SK.attack.lvl + SK.strength.lvl + SK.agility.lvl + SK.speed.lvl + SK.endurance.lvl) / 5);
   const fwd = () => V3(Math.sin(P.heading), 0, Math.cos(P.heading)),
     hspeed = () => Math.hypot(P.vel.x, P.vel.z);
   // add directional momentum while handling rapid changes of direction
@@ -16893,7 +16963,7 @@ const __boot = (async () => {
     const sp0 = document.getElementById("statsPanel");
     if (!sp0.classList.contains("hidden") && statsT <= 0) {
       statsT = 1;
-      sp0.innerHTML = `<h3>${esc(CUSTOM.name)} — hero level ${heroLevel()}</h3><small style="opacity:.75">Your level is the lowest of all six skills, swimming included; each level takes 4.5% off the damage you take.</small><br>Hearts ${P.hp % 1 ? P.hp.toFixed(1) : P.hp} / ${P.maxHp} · Stamina ${Math.round(P.stam)} / ${Math.round(stamMax())} · Air ${Math.round(airMax())}s<br>Weapon: ${WEAPONS[P.weapon].name} · Damage ×${(dmgMul() * WEAPONS[P.weapon].dmg).toFixed(2)} · Reach +${((attackReachMul() - 1) * 100).toFixed(1)}% · Swing ×${(1 / swingMul()).toFixed(2)} · Reach ×${attackReachMul().toFixed(2)}<br>Run ${runSpd().toFixed(1)} · Jump ${jumpV().toFixed(1)} · Air control ${airCtl().toFixed(1)}<h3>Skills</h3>${skillsHTML()}<h3>Tally</h3>${P.kills} slimes · ${P.gkills} goblins · ${P.herbs} herbs · ${Math.round(P.steps / 2)} paces`; // the "found" strip lived here and was the satchel's job; the satchel shows the things themselves
+      sp0.innerHTML = `<h3>${esc(CUSTOM.name)} — hero level ${heroLevel()}</h3><small style="opacity:.75">Your level is the average of your five land skills. Swimming counts as a sixth only while it helps, so it can lift your level but never hold it back. Each level takes 4.5% off the damage you take.</small><br>Hearts ${P.hp % 1 ? P.hp.toFixed(1) : P.hp} / ${P.maxHp} · Stamina ${Math.round(P.stam)} / ${Math.round(stamMax())} · Air ${Math.round(airMax())}s<br>Weapon: ${WEAPONS[P.weapon].name} · Damage ×${(dmgMul() * WEAPONS[P.weapon].dmg).toFixed(2)} · Reach +${((attackReachMul() - 1) * 100).toFixed(1)}% · Swing ×${(1 / swingMul()).toFixed(2)} · Reach ×${attackReachMul().toFixed(2)}<br>Run ${runSpd().toFixed(1)} · Jump ${jumpV().toFixed(1)} · Air control ${airCtl().toFixed(1)}<h3>Skills</h3>${skillsHTML()}<h3>Tally</h3>${P.kills} slimes · ${P.gkills} goblins · ${P.herbs} herbs · ${Math.round(P.steps / 2)} paces`; // the "found" strip lived here and was the satchel's job; the satchel shows the things themselves
     }
     const st = stage(),
       target = [king.pos, hermitPos, null, null, hermitPos, flintPos, lighthousePos, king.pos, ELDERSTAIR][st];

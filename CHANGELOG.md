@@ -1675,3 +1675,89 @@ A standing agent reported a debug-probe block shipping in the 2.4.0 release.
 **It is not there** — grep finds zero occurrences in the committed file. Two
 agents were auditing the same file concurrently and one saw the other's
 temporary instrumentation mid-flight. Noted so it is not re-reported.
+
+---
+
+## 2.5.1 — Settings that survive, and a level swimming cannot hold back
+
+### Bug 92 — Every device setting reset on any reload · FIXED
+
+**Reported as "the camera is way more finnicky and dizzying now", then correctly
+self-diagnosed by the player as "probably just the mouse sensitivity default
+being too high — since i changed browsers".**
+
+That second diagnosis was right, and it exposed a real gap. Mouse sensitivity,
+the three volume sliders, voice and the guide arrow lived **only inside the save
+key**. Nothing wrote them to `localStorage` (only the FPS counter did). So they
+reset to default on every plain reload, and were simply gone the moment the game
+was opened in another browser.
+
+Mouse sensitivity is the one that hurts, because it is genuinely
+**device-dependent**: pointer lock does not report `movementX` the same way in
+every engine or at every display scaling, so the same hand movement can turn you
+half again as far in one browser as in another. A player who dialled it in once
+lost it by switching browser and had no way to know why.
+
+**Fix.** Those six settings are now machine preferences stored in
+`wildmoor.prefs`, applied at boot and **re-applied after a save key loads** —
+so a code pasted from someone else's computer no longer reaches over and changes
+your mouse or your volumes. The save key still carries them for backward
+compatibility; the local preference simply wins.
+
+Also: the sensitivity slider goes down to 0.1 (was 0.3), steps in 0.05, and
+shows its current value, so it can actually be dialled in.
+
+**Investigated and ruled out before the player corrected me.** I diffed the
+camera against 2.1.7, the last build they called satisfying:
+`camera.position.lerp`, `camera.fov = lerp`, the shake decay, `shk`, both
+mouse-look handlers, `hurtPlayer`'s velocity impulse, `hdt`, `dtFrame` and the
+hitstop branch are all **byte-identical**. Recorded so nobody re-investigates it.
+
+### Bug 93 — Swimming held the whole character at level one · FIXED
+
+**Reported:** "make it possible to level up beyond swimming. swimming will just
+weigh it harder and make it easier to level up but without holding you back."
+
+Hero level was `Math.min` of six skills, and swimming only rises in water over
+your head. A player who kept their feet dry was pinned at **level one for the
+entire game** — and hero level is what reduces incoming damage, so the player
+who avoided deep water was also the player who took full damage forever.
+
+It is the **average of the five land skills** now, with swimming folded in as a
+sixth share **only when that average is higher**. So swimming can lift your
+level and can never lower it: it is worth doing rather than something you are
+punished for skipping. The two villager lines that taught the old rule — "a
+knight is only as good as his weakest skill" — are rewritten to teach the new
+one, and so is the stats-panel explanation.
+
+`heroLevelLand()` stays for the Goblin King's gate, on the same principle that
+made it necessary in 2.1.6: the finale must never wait on a skill a player can
+legitimately never train.
+
+### Bug 94 — The opening knight spoke into the pause menu · FIXED
+
+**Reported:** "the knight randomly says you there the king wants a word with you
+when the game is paused at the start."
+
+`update()` returns early while paused **only when you are alone** — with a
+friend on the moor the world deliberately keeps turning so the session does not
+stall. So the escort knight could walk over and deliver his line while your menu
+was open. And `setPaused` cancels speech synthesis, so it arrived as a *silent
+subtitle* over the pause screen: the knight talking to nobody. He holds his
+tongue while the menu is up now — which also stops the same branch zeroing the
+player's velocity behind the menu.
+
+### Bug 95 — The hunter camps had no light · FIXED
+
+`addFire`'s fifth argument is a **light object** — it reads `light.intensity` to
+get the flicker base — and 2.5.0 passed `true`. Assigning to `true.intensity` is
+a silent no-op outside strict mode, so the new camps had a fire that cast
+nothing. They use `vlight` now, the pooled kind every other fire in the valley
+uses, so it costs no real three.js light.
+
+### Reverted
+
+The wraith knockback and spawn-pressure nerfs made in the first half of this
+version are **reverted**. They were a response to the camera report, and once the
+player corrected the diagnosis there was no reason to keep an unrequested combat
+change — the escalating pressure is what was asked for in the first place.
