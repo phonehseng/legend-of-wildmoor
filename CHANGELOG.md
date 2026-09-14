@@ -4,6 +4,82 @@ Every change, with the bug it fixes and how. Newest first.
 
 ---
 
+## 2.23.0 — Three ways to ruin a save, all of them reachable by accident
+
+Eight hunters swept the file and an adversarial verifier checked every finding.
+These are the three that lose progress in single player. The full ranked list is
+in `BUGS_AUDIT.md`.
+
+### Bug 129 — Going to bed killed the Goblin King and finished Tobias's errand · FIXED
+
+**Everybody hits this. It is the worst bug found in the project.**
+
+The sleep purge was `goblins.forEach(g => { if (g.alive) killEnemy(g, false, 999); })`
+— three arguments, so `quiet` defaults to **false** and every goblin alive
+anywhere in the valley went through the full credited death path. And `killEnemy`
+sets the story flags with **no `byPlayer` test at all**:
+
+```js
+if (e.king) { WORLDSTATE.goblinKingDefeated = true; guardsOutside(); }
+if (e.camp && STORY.campLeft > 0) STORY.campLeft--;
+```
+
+So sleeping in any bed, anywhere, **killed the Goblin King** — set the flag,
+threw the gates open, and made the King hand over the King's Seal, one of the
+four relics, for a fight that never happened. The Tooth was silently lost in
+single player and dropped to everyone in co-op.
+
+It also **finished Tobias's camp errand from under the blankets**: three camp
+goblins, three decrements, quest complete and Hunter's Patience granted for a
+wood the player never walked into. Camp goblins are exempt from every cull in the
+file, so all three were always in that list and **the first sleep of the game
+ended the quest.**
+
+Measured after the fix, with a live king and a camp goblin standing next to the
+player: `kingDead false → false`, `campLeft 3 → 3`, both still alive, `gkills 0`.
+
+### Bug 130 — Every reload put the Grove's Heart back, for ever · FIXED
+
+**+1 maximum heart per reload, unbounded, until the save key stops loading.**
+
+`buildGrove()` runs only from `updateFairyCourt`, which is a **per-frame**
+function — and the boot block calls `applySave` **synchronously**, before the
+first frame. So at load time `pickups` does not contain `grove:heart`, the
+`d.picked` loop cannot mark it taken, and `applySave`'s own grove clause is dead
+because `GROVE_PICKUP` is still `null`.
+
+The grove then builds fresh and untaken on the first frame. `grant()` guards only
+on `GRANTED`, which `applySave` deliberately never restores. Walk back in, take it
+again, +1 heart. Every reload. Until `maxHp` passes the validator's ceiling of
+sixty, at which point **the key stops loading and the autosave refuses to write.**
+
+Fixed by holding the ids rather than reaching back for them: `applySave` records
+what was collected into `PICKED_IDS`, and **any pickup built later is born taken**.
+That closes the whole class rather than the one case — and these are the only two
+`addPickup` sites in the file that run after worldgen.
+
+Measured on a loaded save: the grove heart is in `pickups` exactly once and
+already `taken`.
+
+### Bug 131 — A cleared wolf den refilled on load and could never be cleared again · FIXED
+
+Finish either branch of Tobias's wolf choice and the den is empty. Reload, and
+worldgen rebuilds it with three live wolves and `cleared: false`, while
+`applySave` restores `STORY.wolfDone` and never touches the den. Both writers of
+`cleared` are gated on `!STORY.wolfDone` — **so it can never be cleared again**,
+the pack restocks every four minutes for ever, and Tobias goes on reporting
+wolves the player already dealt with.
+
+Measured after: `wolfDone true`, `den1cleared true`, `den1wolves 0`.
+
+### A note on how the first two were found
+
+Both came from asking the same question in two different places: *what runs
+before `applySave`, and what runs after?* The grove builds after. The sleep purge
+runs the credited death path on things a player never touched. Neither is a typo
+and neither would ever show up in a smoke test — they need somebody to ask what
+order things actually happen in.
+
 ## 2.22.1 — Two reported logic defects, both real
 
 Both reported from a code read rather than from play. Both confirmed, and each

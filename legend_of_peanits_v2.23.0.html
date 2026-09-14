@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.22.1</title>
+<title>Legend of Peanits 2.23.0</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#1b1626, #0d0a14); --edge: #6c583a; --hi: #8a6a3e; }
@@ -510,7 +510,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.22.1</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.23.0</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -580,7 +580,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.22.1</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.23.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -9209,6 +9209,8 @@ const __boot = (async () => {
   }
   // ---- permanent finds: heart pieces, charms, weapons, fairies, clues ----
   const pickups = [];
+  // the ids applySave said were already collected, kept for pickups this world has not built yet. see addPickup.
+  const PICKED_IDS = new Set();
   // register pickup and the data needed for later interaction
   function addPickup(pos, type, label, apply, opts = {}) {
     const g = new THREE.Group();
@@ -9321,6 +9323,17 @@ const __boot = (async () => {
       opts,
       light
     };
+    // a pickup built AFTER applySave has run is born untaken, and applySave cannot reach back to it. the grove is
+    // the live case: buildGrove runs from updateFairyCourt, which is a per-frame function, and the boot block calls
+    // applySave synchronously before the first frame - so on every single load the grove's heart stood there again,
+    // untaken, and grant() only guards on GRANTED, which applySave deliberately never restores. one more maximum
+    // heart per reload, for ever, until maxHp passed the validator's ceiling of sixty and the save key stopped
+    // loading at all. holding the ids rather than reaching back closes the whole class rather than the one case.
+    if (PICKED_IDS.has(pk.id)) {
+      pk.taken = true;
+      pk.mesh.visible = false;
+      if (pk.light) pk.light.intensity = 0;
+    }
     pickups.push(pk);
     return pk; // the id is the type plus the creation index, which the deterministic world makes stable
   }
@@ -14005,6 +14018,9 @@ const __boot = (async () => {
       FOUND.push(...d.found.map(t => (/^The Queen'?s (Tear|Thorn)\b/.test(t) ? THORN_LABEL : t)));
       ITEMS.length = 0;
       ITEMS.push(...d.items);
+      // kept for every pickup this world has not built yet. see addPickup.
+      PICKED_IDS.clear();
+      for (const id of d.picked) PICKED_IDS.add(id);
       for (const p of pickups)
         if (d.picked.includes(p.id) && !p.taken) {
           p.taken = true;
@@ -14037,6 +14053,14 @@ const __boot = (async () => {
         FAIRY.accepted = d.fairy.accepted;
         FAIRY.complete = d.fairy.complete;
         FAIRY.seen = !!d.fairy.seen;
+        // a den cleared before a save was rebuilt live by worldgen and never marked cleared again: both writers of
+        // WOLF_DENS[1].cleared are gated on !STORY.wolfDone, and wolfDone round-trips - so the pack restocked every
+        // four minutes for ever and tobias went on reporting wolves that the player had already dealt with.
+        if (STORY.wolfDone && WOLF_DENS[1]) {
+          WOLF_DENS[1].cleared = true;
+          for (const w of WOLF_DENS[1].wolves) if (w.alive) killEnemy(w, false, 999, true);
+          WOLF_DENS[1].wolves.length = 0;
+        }
         FAIRY.compass = !!d.fairy.compass;
         FAIRY.rest = !!d.fairy.rest; FAIRY.petal = !!d.fairy.petal; FAIRY.grove = !!d.fairy.grove; FAIRY.groveOpen = FAIRY.grove; FAIRY.crown = !!d.fairy.crown;
         if (FAIRY.grove && GROVE_PICKUP) { GROVE_PICKUP.hidden = false; GROVE_PICKUP.mesh.visible = !GROVE_PICKUP.taken; if (GROVE_PICKUP.light) GROVE_PICKUP.light.visible = !GROVE_PICKUP.taken; }
@@ -21867,8 +21891,16 @@ const __boot = (async () => {
           P.stam = stamMax();
           P.air = 100;
           say(night ? "You sleep until dawn. Hearts restored." : "You doze until dusk. Hearts restored.", 4000, true);
+          // the night purge is an environmental removal and not a credited kill, and it used to be neither. quiet
+          // defaults to false, so this ran the full death path on EVERY goblin alive anywhere in the valley - and
+          // killEnemy sets goblinKingDefeated and calls guardsOutside with no byPlayer test at all. so going to bed,
+          // in any bed, killed the goblin king, opened the gates, and made the king hand over the seal for a fight
+          // that never happened. it also decremented STORY.campLeft once per camp goblin, and camp goblins are
+          // exempt from every cull in the file, so all three were always in this list and the first sleep of the
+          // game finished tobias's errand from under the blankets.
           goblins.forEach(g => {
-            if (g.alive) killEnemy(g, false, 999);
+            if (!g.alive || g.king || g.camp) return;
+            killEnemy(g, false, 999, true);
           });
           // the night the king sends you to bed is the night the pool turns over
           if (WORLDSTATE.ysoldeBuried && WORLDSTATE.kingMourned && !WORLDSTATE.gehUnlocked) wakeTheWhirlpool();
