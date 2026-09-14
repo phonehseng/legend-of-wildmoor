@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.22.0</title>
+<title>Legend of Peanits 2.22.1</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#1b1626, #0d0a14); --edge: #6c583a; --hi: #8a6a3e; }
@@ -510,7 +510,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.22.0</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.22.1</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -580,7 +580,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.22.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.22.1</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -15513,7 +15513,11 @@ const __boot = (async () => {
     // past the old `|| ` fallback, and Infinity/Infinity is NaN. both are finite-checked and clamped now.
     if (m.t === "ehit" && m.to === NET.myId) { const fx = +m.x, fz = +m.z, fromPos = V3(Number.isFinite(fx) ? clamp(fx, -2000, 2000) : P.pos.x + 1, P.pos.y, Number.isFinite(fz) ? clamp(fz, -2000, 2000) : P.pos.z); if (P.block) { P.blocks = (P.blocks || 0) + 1; lowerShield(true); say("Blocked!", 900); SFX.block(); hitstop = 0.06; } else hurtPlayer(clamp(+m.dmg || 1, 0, 6), fromPos, clamp(+m.kb || 1, 1, 2.5)); return; } // kb is clamped like the damage: a peer cannot ask to launch you into orbit
     if (m.t === "ek") { netKillCredit(m); return; }
-    if (m.t === "mq") { applyMainProgress(m, peer); if (NET.role === "host") netBroadcast(m, peer.id); return; }
+    // a guest's progress snapshot may not carry an ending, and the host must not pass one on. the relay hands a
+    // guest's message to every other guest unchanged, and it arrives there FROM the host — so without this strip a
+    // guest could launder an ending through the host into everybody's world. the host's own ending still travels,
+    // because that one is broadcast from mainProgress rather than relayed from here.
+    if (m.t === "mq") { if (NET.role === "host" && m.ending !== undefined) delete m.ending; applyMainProgress(m, peer); if (NET.role === "host") netBroadcast(m, peer.id); return; }
     if (m.t === "finale" && NET.role === "host") { if (!WORLDSTATE.finaleStarted) startFinale(); return; } // a friend with the four relics stands at the pool: the host raises the warden
   }
   // another player's body: your hero model with their look, driven by the same animation as yours
@@ -15658,8 +15662,13 @@ const __boot = (async () => {
     // flag and returns early ever after. it used to be applied from any peer with no authority check at all, so a
     // single crafted message ended the story permanently for everyone in the session — including players who had not
     // collected a relic, and it took their choice of ending with it. a guest only accepts it from the host.
-    if (typeof m.ending === "string" && ["bind", "break", "fairy"].includes(m.ending) && !WORLDSTATE.ending) {
-      if (NET.role === "guest" && peer && !NET.peers.has(peer.id)) return;
+    // and it is the HOST's to declare. the old test only ever fired for a receiving guest, so a host applied an
+    // ending carried in any guest's ordinary half-second progress snapshot — a friend joining with a finished save
+    // ended the host's unfinished valley within half a second of connecting, permanently, and took their choice of
+    // ending with it. the host then RELAYED that same message to everyone else, so it arrived at the other guests
+    // from the host and passed their own check. the strip in netHandle is what closes that second door; this is the
+    // first. no early return here, because the notification below is about the rest of the message.
+    if (typeof m.ending === "string" && ["bind", "break", "fairy"].includes(m.ending) && !WORLDSTATE.ending && NET.role === "guest" && peer && peer.id === "host") {
       endTheStory(m.ending);
     }
     if (JSON.stringify(before) !== JSON.stringify(mainProgress())) say("Your friend has moved the story along; you share it.", 3500, true);
@@ -19161,7 +19170,13 @@ const __boot = (async () => {
     storyT += dt;
     updateDiscoveries(dt);
     updateArrest(dt);
-    if (GEH_SCRIPT) GEH_SCRIPT.tick(dt);
+    // the after-story is NOT ticked from here. window.GEHENNA and GEH_SCRIPT are the same object, and updateGehenna
+    // already drives it through gehSay() a few lines further down the same frame — so this line ran it a SECOND time
+    // every frame a gehenna existed, and every automatic beat, every arming distance and the whole closing sequence
+    // ran at double speed below the seam.
+    // it also bypassed the dive guard: updateGehenna returns early while P.gehDive is set, deliberately, so the
+    // after-story does not advance during the six seconds of falling. this line had no such guard and advanced it
+    // anyway. tick() returns on !GEH.root, so removing it changes nothing above the seam.
     if (STORY.reported && !reportedAt) reportedAt = storyT;
     // act iii begins on the first night after the king has heard that maren is innocent
     if (STORY.reported && !WORLDSTATE.blackPoolAwake && dayElev < 0.05 && storyT - reportedAt > 12) awakenPool();

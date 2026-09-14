@@ -4,6 +4,75 @@ Every change, with the bug it fixes and how. Newest first.
 
 ---
 
+## 2.22.1 — Two reported logic defects, both real
+
+Both reported from a code read rather than from play. Both confirmed, and each
+turned out to have a consequence the report did not mention.
+
+### Bug 127 — Gehenna's whole narrative clock ran at double speed · FIXED
+
+`window.GEHENNA` and `GEH_SCRIPT` are **the same object** — `window.GEHENNA = api`
+at the end of the after-story module. So:
+
+- `updateStory2` called `GEH_SCRIPT.tick(dt)` directly.
+- `updateGehenna`, seven hundred lines and one frame-order position later, called
+  `gehSay().tick(dt)` — which resolves to `window.GEHENNA`, the same object.
+
+Both run every frame, and the main loop calls both. `tick()` opens with
+`if (!GEH.root) return`, so above the seam it was harmless — but **from the moment
+Gehenna exists, every automatic beat, every arming distance and the entire
+closing sequence advanced twice per frame.**
+
+**And a consequence the report did not name.** `updateGehenna` returns early while
+`P.gehDive` is set — deliberately, so the after-story does not advance during the
+six seconds of falling. The `updateStory2` call had no such guard, so **it
+advanced the after-story all the way down the shaft**, which is exactly what that
+guard exists to prevent. Removing the `updateStory2` call fixes the doubling and
+restores the dive guard in one line.
+
+### Bug 128 — A guest could end the host's story, and the host relayed it onward · FIXED
+
+The guard read:
+
+```js
+if (NET.role === "guest" && peer && !NET.peers.has(peer.id)) return;
+```
+
+It only ever fires **for a receiving guest.** A host ran straight past it, so a
+host applied an ending carried in any guest's ordinary half-second progress
+snapshot. A friend joining with a finished save **ended the host's unfinished
+valley within half a second of connecting** — permanently, since `endTheStory`
+rewrites the pool, sets the flag and returns early ever after — and took the
+host's choice of ending with it.
+
+**The relay makes it worse than reported.** The `mq` handler is:
+
+```js
+if (m.t === "mq") { applyMainProgress(m, peer); if (NET.role === "host") netBroadcast(m, peer.id); return; }
+```
+
+The host forwards the guest's message to **every other guest, unchanged**. It
+arrives there *from the host*, so it passes their own check. One guest's stale
+save ended the story for the entire session.
+
+Two doors, so two fixes. The ending is accepted only by a **guest**, only from a
+peer whose id is `"host"` — which a guest's single peer always is, since it is
+created as `netPeer("host")`. And the host **strips `ending` from any guest's
+snapshot** before applying or relaying it. The host's own ending still travels
+normally, because that one is broadcast from `mainProgress` rather than relayed.
+
+The early `return` in the old guard is gone as well: it skipped the "your friend
+has moved the story along" notice, which is about the rest of the message and had
+nothing to do with the ending.
+
+### Refuted, in passing
+
+The report said `updateGehenna()` "calls the same `tick(dt)` again". It does, but
+not by name — there is exactly **one** literal `GEH_SCRIPT.tick` call site in the
+file, and the second path is `gehSay()`. The conclusion was right and worth
+acting on; anyone grepping for the reported symptom would have found one hit and
+stopped.
+
 ## 2.22.0 — She stands among the people she is defending
 
 ### The Matron's post moves to her cart
