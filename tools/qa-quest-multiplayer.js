@@ -67,7 +67,7 @@
 
     WORLDSTATE.finaleStarted = false;
     const guestSent = [];
-    const hostPeer = { id: "host", ready: true, ch: channel(guestSent) };
+    const hostPeer = { id: "host", hello: true, ready: true, ch: channel(guestSent) };
     NET.role = "guest";
     NET.peers.clear();
     NET.avatars.clear();
