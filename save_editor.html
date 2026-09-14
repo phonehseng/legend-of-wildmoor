@@ -81,3 +81,1143 @@
 </style>
 </head>
 <body>
+<header>
+  <h1>Legend of Peanits &mdash; Save Key Editor</h1>
+  <p>Builds a <code>WM1-</code> key (format <b>v4</b>) that the game's <b>Load key</b> box accepts. Nothing here loads or needs the game; the payload is constructed from scratch. Field names, bounds, quest titles and landmark coordinates were read out of the game source.</p>
+  <div class="presets">
+    <button class="big" data-preset="fresh">Fresh start</button>
+    <button class="big" data-preset="stats">Max stats only</button>
+    <button class="big" data-preset="done">Everything done, boss not fought</button>
+    <button class="big" data-preset="endgame">Endgame + Gehenna unlocked</button>
+    <button class="ghost" id="expand">Expand all</button>
+    <button class="ghost" id="collapse">Collapse all</button>
+  </div>
+</header>
+
+<div class="layout">
+  <div id="left">
+
+    <section id="sec-pos"><h2><span>Where you wake</span> <span class="tag">position &middot; time of day</span></h2><div class="body">
+      <p class="note">Click or drag on the map to place yourself. The world is <b>1600&nbsp;m</b> across, centred on the origin, so x and z run &minus;800&hellip;+800; the game's own <code>inBounds</code> is tighter at <b>&plusmn;796</b> and the dashed box shows it. The map uses the same projection as the game's world map: <b>+x to the right, +z downward</b>, so north is up.</p>
+      <div class="grid nums" id="posnums"></div>
+      <p class="note" id="ynote"></p>
+    </div></section>
+
+    <section id="sec-story"><h2><span>Main story</span> <span class="tag">the five flags &middot; STORY</span></h2><div class="body">
+      <h3>The five <code>flags</code>, in payload order</h3>
+      <div class="grid wide" id="flags"></div>
+      <h3>STORY</h3>
+      <div class="grid" id="storybools"></div>
+      <div class="grid nums" id="storynums" style="margin-top:8px"></div>
+      <h3>Evidence against Hale <span style="color:var(--dim);text-transform:none;letter-spacing:0">(three is the threshold)</span></h3>
+      <div class="grid" id="evidence"></div>
+      <div class="fld" style="margin-top:8px"><span>weaver0 <b>appearance snapshot the Highreach weaver took</b></span>
+        <input type="text" id="weaver0" placeholder="leave blank to omit">
+      </div>
+    </div></section>
+
+    <section id="sec-ws"><h2><span>World state</span> <span class="tag">WORLDSTATE</span></h2><div class="body">
+      <div class="grid wide" id="wsbools"></div>
+      <h3>Relics <span style="color:var(--dim);text-transform:none;letter-spacing:0">(all four open the finale)</span></h3>
+      <div class="grid" id="relics"></div>
+      <h3>Choices and counters</h3>
+      <div class="grid nums" id="wschoice"></div>
+    </div></section>
+
+    <section id="sec-quests"><h2><span>Side quests</span> <span class="tag">all 14, by exact title</span></h2><div class="body">
+      <p class="note">The payload keys these by <b>title string</b>, so the titles below are copied character for character out of the game. <b>Taken</b> means accepted; <b>done</b> means handed in and paid. Marking a quest done here does <b>not</b> hand you its reward &mdash; the reward lives in <code>bonus</code>, <code>maxHp</code> or <code>owned</code>, so set those too if you want the quest's keepsake.</p>
+      <div class="chips">
+        <button data-q="all">All done</button><button data-q="taken">All taken, none done</button><button data-q="none">None</button>
+      </div>
+      <table class="q"><thead><tr><th>Quest</th><th class="c">Taken</th><th class="c">Done</th></tr></thead><tbody id="quests"></tbody></table>
+    </div></section>
+
+    <section id="sec-disc"><h2><span>Discoveries</span> <span class="tag">13 named places</span></h2><div class="body">
+      <div class="chips"><button data-d="all">All found</button><button data-d="none">None</button></div>
+      <div class="grid" id="disc" style="margin-top:6px"></div>
+    </div></section>
+
+    <section id="sec-fairy"><h2><span>The rose court</span> <span class="tag">FAIRY</span></h2><div class="body">
+      <div class="grid" id="fairybools"></div>
+      <div class="grid nums" id="fairynums" style="margin-top:8px"></div>
+      <h3>The 25 children <span style="color:var(--dim);text-transform:none;letter-spacing:0">(ids are their build order, 0&ndash;24)</span></h3>
+      <p class="note">Ticking children here sets <b>found</b> to match, because the milestones read <code>FAIRY.found</code> while the map and the compass read the children themselves. Milestones fire at 5 (Rose Rest), 10 (the compass, and the Queen's Tear), 15 (Petal Step), 20 (the grove opens) and 25 (the Rose Crown) &mdash; tick the matching flags above if you want them already granted rather than granted on your next child.</p>
+      <div class="chips"><button data-k="all">All 25</button><button data-k="none">None</button><button data-k="10">First 10</button><button data-k="20">First 20</button></div>
+      <div class="grid" id="kids" style="margin-top:6px;grid-template-columns:repeat(auto-fill,minmax(74px,1fr))"></div>
+    </div></section>
+
+    <section id="sec-player"><h2><span>Player</span> <span class="tag">hearts &middot; weapons &middot; tallies</span></h2><div class="body">
+      <div class="grid nums" id="pnums"></div>
+      <h3>Weapons</h3>
+      <div class="row" style="gap:14px;flex-wrap:wrap;align-items:flex-start"><div class="grid" id="owned" style="flex:1"></div><div class="fld" style="max-width:200px"><span>In hand</span><select id="weapon"><option>sword</option><option>spear</option><option>axe</option></select></div></div>
+      <h3>Odds and ends</h3>
+      <div class="grid" id="pbools"></div>
+    </div></section>
+
+    <section id="sec-bonus"><h2><span>Permanent upgrades</span> <span class="tag">P.bonus</span></h2><div class="body">
+      <p class="note">These are the keepsakes and relics, multiplied or added into the player once. Every range below is the game's own validator bound &mdash; a value outside it makes the whole key fail to load, silently, with only a console warning. <b>guard</b> is the one where lower is better: it scales every blow you take.</p>
+      <div class="grid nums" id="bonus"></div>
+    </div></section>
+
+    <section id="sec-sk"><h2><span>Skills</span> <span class="tag">SK</span></h2><div class="body">
+      <p class="note">The game raises skills to <b>30</b> and stops; the save validator permits up to 99, so a higher level loads and simply never grows. The hero level is the average of the five land skills, lifted by swimming when swimming runs ahead of them.</p>
+      <div class="grid nums" id="skills"></div>
+    </div></section>
+
+    <section id="sec-look"><h2><span>Name and appearance</span> <span class="tag">CUSTOM</span></h2><div class="body">
+      <p class="note">The name is sanitised on load: the six characters the game strips from every string are removed and it is cut to 24. An empty name falls back to a random one from the game's own list of thirty.</p>
+      <div class="grid nums" id="look"></div>
+    </div></section>
+
+    <section id="sec-items" class="closed"><h2><span>Satchel, pickups and herbs</span> <span class="tag">found &middot; items &middot; picked &middot; owed</span></h2><div class="body">
+      <p class="note">These are lists of strings the game matches by exact id or label. The ids with fixed names were read from the source; every other pickup takes an id of <code>type:index</code> built from its creation order, so those are free text here rather than guessed at.</p>
+      <h3>Picked up <span style="color:var(--dim);text-transform:none;letter-spacing:0">(pickups already taken)</span></h3>
+      <div class="grid" id="picked"></div>
+      <div class="fld" style="margin-top:8px"><span>Extra picked ids <b>one per line</b></span><textarea id="pickedExtra" placeholder="lore:0"></textarea></div>
+      <h3>Boss rewards still lying on the ground <span style="color:var(--dim);text-transform:none;letter-spacing:0">(owed)</span></h3>
+      <p class="note">A boss reward that dropped but was never walked over. The game re-drops it at the x and z given. Leave these off unless you know you want the orb waiting for you.</p>
+      <div class="grid nums" id="owed"></div>
+      <h3>Satchel text</h3>
+      <div class="fld"><span>found <b>upgrade labels, one per line</b></span><textarea id="foundTxt"></textarea></div>
+      <div class="fld" style="margin-top:8px"><span>items <b>lore and notes, one per line</b></span><textarea id="itemsTxt"></textarea></div>
+      <div class="fld" style="margin-top:8px"><span>herbsTaken <b>indices of picked moor-herbs, separated by spaces or commas</b></span><textarea id="herbsTxt" style="min-height:40px"></textarea></div>
+    </div></section>
+
+    <section id="sec-set" class="closed"><h2><span>Settings</span> <span class="tag">carried in the key</span></h2><div class="body">
+      <p class="note">The game overrides the three volume sliders, the mouse sensitivity and the spoken-dialogue box with this machine's own saved preferences straight after applying a key, so those are near enough cosmetic here. <code>gfx</code> is fixed at <b>3</b>, which is what the game writes and what makes it honour <b>hq</b> and <b>grass</b> at all.</p>
+      <div class="grid" id="setbools"></div>
+      <div class="grid nums" id="setnums" style="margin-top:8px"></div>
+    </div></section>
+
+    <section id="sec-raw" class="closed"><h2><span>Raw JSON escape hatch</span> <span class="tag">for anything this form does not cover</span></h2><div class="body">
+      <p class="note">Edit the payload directly and press Apply. This is the way to reach a field the form has no control for &mdash; the validator keeps only the keys it knows inside <code>ws</code>, <code>bonus</code>, <code>story</code> and <code>settings</code> and silently drops the rest, so adding one is harmless. Anything the form does know about is rewritten from the form on your next edit, so apply raw JSON last.</p>
+      <textarea id="rawjson" style="min-height:220px" spellcheck="false"></textarea>
+      <div class="chips" style="margin-top:6px"><button id="rawApply">Apply raw JSON</button><button class="ghost" id="rawReload">Reload from form</button></div>
+      <p class="note" id="rawStatus"></p>
+    </div></section>
+
+  </div>
+
+  <aside>
+    <section><h2><span>Minimap</span> <span class="tag">drag to teleport</span></h2><div class="body">
+      <canvas id="map" width="760" height="760" tabindex="0" aria-label="World map: click or drag to set the spawn position"></canvas>
+      <div class="mapbar"><b id="coord">0, 0</b><span style="color:var(--dim)">&mdash; arrow keys nudge, hold shift for ten metres</span></div>
+      <div class="goto" id="goto"></div>
+      <p class="note" id="notshown" style="margin-top:8px"></p>
+    </div></section>
+
+    <section><h2><span>The key</span></h2><div class="body">
+      <textarea id="key" readonly spellcheck="false"></textarea>
+      <div class="chips"><button class="big" id="copy">Copy key</button><button class="ghost" id="download">Save as .txt</button></div>
+      <div id="status"></div>
+      <hr>
+      <h3>Load a key back into the form</h3>
+      <textarea id="inkey" placeholder="Paste a WM1- key here" spellcheck="false" style="min-height:70px"></textarea>
+      <div class="chips"><button id="load">Load key</button><button class="ghost" id="roundtrip">Self-test round trip</button></div>
+      <div id="loadStatus" style="font-size:12px;margin-top:4px"></div>
+      <hr>
+      <h3>Live payload</h3>
+      <textarea id="json" readonly spellcheck="false"></textarea>
+    </div></section>
+  </aside>
+</div>
+<script>
+(function () {
+  "use strict";
+
+  /* ============================================================ the tables, all read out of the game source
+     nothing below is invented. quest titles are payload KEYS, so a single changed character would silently
+     drop that quest's state on load rather than error, which is why they are copied verbatim. */
+
+  var QUESTS = [
+    ["Fell three pale trees for the woodpile", "Woodcutter, kingdom"],
+    ["Prove the sword to Sir Corrin: five sheep and two deer", "Sir Corrin, kingdom"],
+    ["Drive off four goblins for the washing line", "Washerwoman, kingdom"],
+    ["Bring Ysolde's father a moor-herb for his sleep", "The miller, kingdom"],
+    ["Wear something better, for the weaver's sake", "Highreach weaver"],
+    ["Fetch the violet stone from the black pool", "Stonefold elder"],
+    ["Find Nim, who ran into the forest", "Nim's mother, Thornback"],
+    ["Three moor-herbs for the Cloudrest healer", "Cloudrest healer"],
+    ["Bring back the ring from the Old Beacon", "Grey Tor widow"],
+    ["Burst three slimes for the Ashfall smith", "Ashfall smith"],
+    ["Two pale trees for the Kestrel Rest kiln", "Kestrel Rest potter"],
+    ["Bring two of the queen's children home for Hollowmere", "Hollowmere ferryman"],
+    ["Bring the three children lost on the lookouts home", "Elder-tree lookout"],
+    ["The Rose Queen's lost children", "Queen Rosabel"]
+  ];
+
+  var DISCOVERIES = [
+    ["blackPool", "The Black Pool"], ["bearDen", "Old Bear's Den"], ["elderCrown", "Elder Crown"],
+    ["roseCourt", "The Rose Court"], ["beacon", "The Old Beacon"], ["hermitage", "The Hermit's Fire"],
+    ["kingsRoad", "The South Gate"], ["northwatch", "Northwatch Ruins"], ["shepherdsGrave", "Shepherd's Grave"],
+    ["drownedChapel", "The Drowned Chapel"], ["hollow", "The Hollow"], ["wolfDen", "The Wolf Den"],
+    ["emptyChurch", "The Abandoned Church"]
+  ];
+
+  var WS_BOOLS = [
+    ["marenFreed", "Maren is out of the stocks", "Hale takes her place; she goes back to gathering"],
+    ["haleExposed", "Inquisitor Hale is exposed", ""],
+    ["pyreDismantled", "The pyre is taken down", ""],
+    ["blackPoolAwake", "The black pool has woken", "act III; the valley starts to sour"],
+    ["hermitTold", "The hermit has been asked what woke", ""],
+    ["hermitWarned", "The hermit has told you how the old folk shut it", "act IV; the eight village errands unlock"],
+    ["kingTrusts", "The king believes you about the pool", ""],
+    ["goblinKingDefeated", "The Goblin King is dead", ""],
+    ["bearDefeated", "The Old Bear is beaten", ""],
+    ["finaleStarted", "The finale has begun", "the warden rises from the pool"],
+    ["wardenDead", "The Drowned Warden is dead", ""],
+    ["home", "You have been given the cottage", "builds the trophy shelf on load"],
+    ["guardsOut", "The guards have moved outside the walls", ""],
+    ["gehUnlocked", "The way down is open", "you can dive through the bed of the pool"]
+  ];
+
+  var RELICS = [
+    ["seal", "The King's Seal", "the king wants the Goblin King dead first"],
+    ["root", "The Root Word", "the crown of the elder tree"],
+    ["warden", "The Warden's Stone", "under the Old Bear's hoard"],
+    ["tear", "The Queen's Tear", "ten children home, then ask their mother"]
+  ];
+
+  var STORY_BOOLS = [
+    ["wick", "Wick has told you what he found", ""],
+    ["solved", "The murder is solved", "Maren freed, Hale in the stocks"],
+    ["reported", "You have told the king she is innocent", ""],
+    ["spear", "Sir Corrin's spear is yours", ""],
+    ["boots", "The beacon-keeper's boots are yours", ""],
+    ["bearHeart", "The Bear's Heart has been taken", ""],
+    ["kingTooth", "The Goblin King's Tooth has been taken", ""],
+    ["wolfDone", "The wolf-den errand is settled", ""]
+  ];
+
+  var EVIDENCE = [
+    ["cloth", "Torn black cloth", "fine wool, on a thorn by the road"],
+    ["ring", "A silver ring", "in the reeds, engraved H. to Y."],
+    ["diary", "Ysolde's diary page", ""],
+    ["ritual", "The ritual marks", "the same five-pointed mark as the pool"],
+    ["note", "Hale's private note", ""]
+  ];
+
+  /* validator bounds, copied from parseSaveKey. anything outside these makes the WHOLE key fail, so the
+     controls clamp to them rather than letting the player build a key the game silently refuses. */
+  var BONUS = [
+    ["air", "Air control", 0.5, 4, 0.05, 1, "higher is better"],
+    ["lung", "Breath", 0.5, 4, 0.05, 1, "higher is better"],
+    ["stam", "Bonus stamina", 0, 200, 1, 0, "flat, added to the pool"],
+    ["run", "Bonus run speed", 0, 20, 0.1, 0, ""],
+    ["dmg", "Damage", 0.5, 8, 0.01, 1, "multiplier on every blow"],
+    ["slime", "Damage to slimes", 0.5, 8, 0.01, 1, "multiplier; higher is better"],
+    ["jumps", "Air jumps", 1, 6, 1, 2, "2 normally, 3 with the Skyfeather"],
+    ["guard", "Damage taken", 0.2, 1, 0.01, 1, "LOWER is better"],
+    ["dash", "Dash distance", 1, 3, 0.05, 1, ""],
+    ["dashCost", "Dash stamina cost", 4, 15, 0.5, 15, "LOWER is better"]
+  ];
+
+  var SKILLS = ["attack", "strength", "agility", "speed", "endurance", "swimming"];
+  var HAIR = ["short", "long", "bun", "ponytail", "braid", "curly", "mohawk", "bob", "bald"];
+
+  /* pickup ids that are fixed in the source. every other pickup is id'd type:index from its build order,
+     so those belong in the free-text box below rather than in a list that would only be a guess. */
+  var PICKUPS = [
+    ["clue:cloth", "Evidence: torn black cloth"], ["clue:ring", "Evidence: the silver ring"],
+    ["clue:diary", "Evidence: the diary page"], ["clue:ritual", "Evidence: the ritual marks"],
+    ["clue:note", "Evidence: Hale's note"],
+    ["quest:stonefold", "The violet stone"], ["quest:greytor", "The ring at the beacon's foot"],
+    ["relic:root", "The Root Word"], ["relic:warden", "The Warden's Stone"],
+    ["relic:windstep", "Windstep (dash reaches half again as far)"],
+    ["grove:heart", "The Grove's Heart (a heart piece)"], ["grove:stone", "The stone in the grove"],
+    ["reward:bear", "Bear's Heart orb"], ["reward:king", "Goblin King's Tooth orb"]
+  ];
+
+  /* ============================================================ the world, for the map
+     SIZE, HALF, TOWN_R, PLATEAU and ELDER are literal constants in the game. POOL, BEACON and the eight
+     village centres are computed at world generation from the terrain noise, which is deterministic, so
+     they were recomputed here by running the game's own terrain code with nothing else attached. */
+  var SIZE = 1600, HALF = 800, BOUND = HALF - 4, TOWN_R = 62;
+
+  var PLACES = [
+    { n: "Kingdom", x: 0, y: 8, z: 0, k: "town", r: TOWN_R },
+    { n: "You start here", x: 0, y: 8, z: 74, k: "spawn" },
+    { n: "The South Gate", x: 0, y: 8, z: 62, k: "dot" },
+    { n: "Elder Tree", x: 0, y: 14, z: -175, k: "tree" },
+    { n: "The Black Pool", x: -80.05, y: 5.53, z: -192.77, k: "pool", r: 24 },
+    { n: "The Old Beacon", x: -486.25, y: 82.69, z: -561.71, k: "beacon" },
+    { n: "Highreach", x: -440, y: 113.92, z: -200, k: "vil" },
+    { n: "Stonefold", x: -464, y: 84.69, z: -536, k: "vil" },
+    { n: "Thornback", x: 472, y: 81.68, z: 424, k: "vil" },
+    { n: "Cloudrest", x: -152, y: 77.47, z: 520, k: "vil" },
+    { n: "Grey Tor", x: -296, y: 71.12, z: 424, k: "vil" },
+    { n: "Ashfall", x: -464, y: 66.44, z: 520, k: "vil" },
+    { n: "Kestrel Rest", x: -560, y: 55.19, z: 352, k: "vil" },
+    { n: "Hollowmere", x: -440, y: 44.09, z: 232, k: "vil" }
+  ];
+
+  var NOT_SHOWN = "Not drawn, because their positions are chosen during world generation after the roads " +
+    "and rivers are cut and cannot be worked out without running the whole game: <b>the Old Bear's cave</b>, " +
+    "<b>the Hermit's fire</b>, <b>the Rose Court</b>, and the sites behind the Northwatch, Shepherd's Grave, " +
+    "Drowned Chapel, Hollow, Wolf Den and Abandoned Church discoveries. Load one of your own keys to see " +
+    "where you actually were.";
+
+  /* ============================================================ the cipher, byte for byte as the game writes it */
+  function encodeKey(d) {
+    var raw = JSON.stringify(d), out = "", i;
+    for (i = 0; i < raw.length; i++) out += String.fromCharCode(raw.charCodeAt(i) ^ ((i * 7 + 13) & 31));
+    return "WM1-" + btoa(unescape(encodeURIComponent(out))).replace(/(.{48})/g, "$1\n");
+  }
+  function decodeKey(key) {
+    if (typeof key !== "string") return null;
+    key = key.trim();
+    if (key.indexOf("WM1-") !== 0) return null;
+    var enc = decodeURIComponent(escape(atob(key.slice(4).replace(/\s+/g, "")))), raw = "", i;
+    for (i = 0; i < enc.length; i++) raw += String.fromCharCode(enc.charCodeAt(i) ^ ((i * 7 + 13) & 31));
+    return JSON.parse(raw);
+  }
+
+  /* ============================================================ the game's validator, mirrored
+     the point is to fail here, loudly, rather than in the game, where a rejected key is one line in the
+     console and a shrug on screen. */
+  function validate(d) {
+    var bad = [], num = function (v, lo, hi) { return typeof v === "number" && isFinite(v) && v >= lo && v <= hi; };
+    var k, e, i;
+    if (!d || (d.v !== 3 && d.v !== 4)) bad.push("v must be 3 or 4");
+    if (!Array.isArray(d.pos) || d.pos.length !== 3 || !d.pos.every(function (v) { return num(v, -2000, 2000); })) bad.push("pos must be three numbers within +/-2000");
+    if (!num(d.day, 0, 1)) bad.push("day must be 0..1");
+    if (!num(d.hp, -1, 60)) bad.push("hp must be -1..60");
+    if (!num(d.maxHp, 1, 60)) bad.push("maxHp must be 1..60");
+    if (!num(d.stam, 0, 400)) bad.push("stam must be 0..400");
+    if (["sword", "spear", "axe"].indexOf(d.weapon) < 0) bad.push("weapon must be sword, spear or axe");
+    for (i = 0; i < BONUS.length; i++) { k = BONUS[i]; if (!num(d.bonus[k[0]], k[2], k[3])) bad.push("bonus." + k[0] + " must be " + k[2] + ".." + k[3]); }
+    if (!num(d.story.clues, 0, 5)) bad.push("story.clues must be 0..5");
+    if (!num(d.story.campLeft, -1, 3)) bad.push("story.campLeft must be -1..3");
+    if (!num(d.story.logsGiven, 0, 99)) bad.push("story.logsGiven must be 0..99");
+    if (!Array.isArray(d.story.evidence) || d.story.evidence.length > 5) bad.push("story.evidence must be at most five ids");
+    if (d.story.weaver0 !== undefined && !(typeof d.story.weaver0 === "string" && d.story.weaver0.length < 200)) bad.push("story.weaver0 must be a string under 200 characters");
+    if (!Array.isArray(d.flags) || d.flags.length !== 5 || !d.flags.every(function (v) { return typeof v === "boolean"; })) bad.push("flags must be exactly five booleans");
+    for (i = 0; i < SKILLS.length; i++) { e = d.sk[SKILLS[i]]; if (!Array.isArray(e) || !num(e[0], 1, 99) || !num(e[1], 0, 1e6)) bad.push("sk." + SKILLS[i] + " must be [level 1..99, xp 0..1000000]"); }
+    ["herbs", "logs", "kills", "gkills", "hits", "blocks", "swordSheep", "swordDeer"].forEach(function (n) { if (!num(d[n], 0, 1e6)) bad.push(n + " must be 0..1000000"); });
+    if (!num(d.fairy.found, 0, 25)) bad.push("fairy.found must be 0..25");
+    if (!num(d.fairy.hearts, 0, 10)) bad.push("fairy.hearts must be 0..10");
+    if (!d.fairy.kids.every(function (v) { return num(v, 0, 99); })) bad.push("fairy.kids must be numbers 0..99");
+    if (!num(d.ws.gehSeed, 0, 1e9)) bad.push("ws.gehSeed must be 0..1000000000");
+    if (!num(d.ws.awokeAt, 0, 1e9)) bad.push("ws.awokeAt must be 0..1000000000");
+    if (!(d.ws.ending === null || ["bind", "break", "fairy"].indexOf(d.ws.ending) >= 0)) bad.push("ws.ending must be null, bind, break or fairy");
+    if (!(d.ws.wolfChoice === null || ["wolves", "goblins", "leave"].indexOf(d.ws.wolfChoice) >= 0)) bad.push("ws.wolfChoice must be null, wolves, goblins or leave");
+    if (!d.picked.every(function (s) { return typeof s === "string" && s.length <= 40; })) bad.push("picked ids must be strings of 40 characters or fewer");
+    if (!d.found.every(function (s) { return typeof s === "string" && s.length <= 200; })) bad.push("found lines must be 200 characters or fewer");
+    if (!d.items.every(function (s) { return typeof s === "string" && s.length <= 2000; })) bad.push("items lines must be 2000 characters or fewer");
+    if (!d.herbsTaken.every(function (v) { return num(v, 0, 999); })) bad.push("herbsTaken must be indices 0..999");
+    if (!d.owed.every(function (o) { return Array.isArray(o) && ["reward:bear", "reward:king"].indexOf(o[0]) >= 0 && num(o[1], -2000, 2000) && num(o[2], -2000, 2000); })) bad.push("owed entries must be [reward:bear or reward:king, x, z]");
+    if (!num(d.settings.sfx, 0, 1) || !num(d.settings.music, 0, 1) || !num(d.settings.amb, 0, 1)) bad.push("settings volumes must be 0..1");
+    if (!num(d.settings.sens, 0, 5)) bad.push("settings.sens must be 0..5");
+    if (typeof d.custom.name !== "string") bad.push("custom.name must be a string");
+    if (HAIR.indexOf(d.custom.style) < 0) bad.push("custom.style is not one of the game's hair styles");
+    ["skin", "hair", "tunic", "cape"].forEach(function (n) { if (!num(d.custom[n], 0, 0xffffff)) bad.push("custom." + n + " must be a colour 0..16777215"); });
+    return bad;
+  }
+
+  /* ============================================================ state */
+  function fresh() {
+    var side = {}, sk = {}, i;
+    for (i = 0; i < QUESTS.length; i++) side[QUESTS[i][0]] = [false, false];
+    for (i = 0; i < SKILLS.length; i++) sk[SKILLS[i]] = [1, 0];
+    return {
+      v: 4,
+      ws: {
+        marenFreed: false, haleExposed: false, pyreDismantled: false, blackPoolAwake: false, awokeAt: 0,
+        hermitTold: false, hermitWarned: false, kingTrusts: false, goblinKingDefeated: false,
+        bearDefeated: false, finaleStarted: false, wardenDead: false, ending: null,
+        gehUnlocked: false, gehSeed: 0,
+        relics: { seal: false, root: false, warden: false, tear: false },
+        wolfChoice: null, home: false, guardsOut: false
+      },
+      disc: [],
+      pos: [0, 8, 74],
+      day: 0.27,
+      hp: 4, maxHp: 4, stam: 60,
+      weapon: "sword",
+      owned: { sword: true, spear: false, axe: false },
+      bonus: { air: 1, lung: 1, stam: 0, run: 0, dmg: 1, slime: 1, jumps: 2, guard: 1, dash: 1, dashCost: 15 },
+      herbs: 0, nimHome: false, swordSheep: 0, swordDeer: 0, flint: false, logs: 0,
+      kills: 0, gkills: 0, hits: 0, blocks: 0,
+      sk: sk,
+      story: {
+        logsGiven: 0, gobKills0: 0, clues: 0, evidence: [], campLeft: -1,
+        wick: false, solved: false, reported: false, spear: false, boots: false,
+        bearHeart: false, kingTooth: false, kingKills: 0, wolfDone: false,
+        smith0: 0, potter0: 0, ferry0: 0, wager0: [0, 0]
+      },
+      flags: [false, false, false, false, false],
+      side: side,
+      found: [], items: [], picked: [],
+      fairy: { found: 0, hearts: 0, accepted: false, complete: false, seen: false, compass: false, rest: false, petal: false, grove: false, crown: false, kids: [] },
+      custom: { name: "Wren", skin: 0xf0cdb0, hair: 0x5a2f16, style: "short", tunic: 0xc9ccd4, cape: 0x6d7280 },
+      bearDead: false,
+      owed: [],
+      herbsTaken: [],
+      settings: { fps: false, arrow: true, rose: false, gfx: 3, hq: true, grass: false, sfx: 0.8, music: 0.5, amb: 0.7, sens: 1, voice: true }
+    };
+  }
+
+  var S = fresh(), binds = [], quiet = false;
+
+  /* ============================================================ control helpers
+     every control is built the same way: it writes straight into S on input, then asks for a refresh; and it
+     registers a pull() so a preset or a pasted key can drive the whole form from S in one pass. */
+  function el(tag, cls) { var e = document.createElement(tag); if (cls) e.className = cls; return e; }
+  function $(id) { return document.getElementById(id); }
+
+  function mkChk(host, text, sub, get, set) {
+    var l = el("label", "ck"), i = el("input"), s = el("span");
+    i.type = "checkbox";
+    s.innerHTML = text + (sub ? "<small>" + sub + "</small>" : "");
+    l.appendChild(i); l.appendChild(s); host.appendChild(l);
+    i.addEventListener("change", function () { set(!!i.checked); refresh(); });
+    binds.push(function () { i.checked = !!get(); });
+    return i;
+  }
+
+  function mkNum(host, text, o, get, set) {
+    var f = el("div", "fld"), cap = el("span"), val = el("b"), wrap = el("div", "rng"),
+      n = el("input"), r = null;
+    cap.innerHTML = "<span>" + text + "</span>";
+    cap.appendChild(val);
+    n.type = "number";
+    if (o.min !== undefined) n.min = o.min;
+    if (o.max !== undefined) n.max = o.max;
+    n.step = o.step || 1;
+    if (o.slider) { r = el("input"); r.type = "range"; r.min = o.min; r.max = o.max; r.step = o.step || 1; wrap.appendChild(r); n.style.maxWidth = "88px"; }
+    wrap.appendChild(n);
+    f.appendChild(cap); f.appendChild(wrap); host.appendChild(f);
+    function commit(v) {
+      v = Number(v);
+      if (!isFinite(v)) v = o.min || 0;
+      if (o.min !== undefined) v = Math.max(o.min, v);
+      if (o.max !== undefined) v = Math.min(o.max, v);
+      if (o.int) v = Math.round(v);
+      set(v); refresh();
+    }
+    n.addEventListener("input", function () { commit(n.value); });
+    if (r) r.addEventListener("input", function () { commit(r.value); });
+    binds.push(function () {
+      var v = get();
+      if (n !== document.activeElement) n.value = v;
+      if (r && r !== document.activeElement) r.value = v;
+      val.textContent = o.fmt ? o.fmt(v) : "";
+    });
+    return n;
+  }
+
+  function mkSel(host, text, opts, get, set) {
+    var f = el("div", "fld"), cap = el("span"), s = el("select"), i;
+    cap.innerHTML = "<span>" + text + "</span>";
+    for (i = 0; i < opts.length; i++) {
+      var op = el("option");
+      op.value = String(i);
+      op.textContent = opts[i][1];
+      s.appendChild(op);
+    }
+    f.appendChild(cap); f.appendChild(s); host.appendChild(f);
+    s.addEventListener("change", function () { set(opts[+s.value][0]); refresh(); });
+    binds.push(function () {
+      var v = get(), j;
+      if (s === document.activeElement) return;
+      for (j = 0; j < opts.length; j++) if (opts[j][0] === v) { s.value = String(j); return; }
+      s.value = "0";
+    });
+    return s;
+  }
+
+  function mkColor(host, text, get, set) {
+    var f = el("div", "fld"), cap = el("span"), row = el("div", "rng"), c = el("input"), t = el("input");
+    cap.innerHTML = "<span>" + text + "</span>";
+    c.type = "color"; t.type = "text"; t.style.maxWidth = "110px";
+    row.appendChild(c); row.appendChild(t);
+    f.appendChild(cap); f.appendChild(row); host.appendChild(f);
+    function commit(hex) {
+      var v = parseInt(String(hex).replace(/^#/, ""), 16);
+      if (!isFinite(v)) return;
+      set(Math.max(0, Math.min(0xffffff, v))); refresh();
+    }
+    c.addEventListener("input", function () { commit(c.value); });
+    t.addEventListener("change", function () { commit(t.value); });
+    binds.push(function () {
+      var h = "#" + ("000000" + (get() >>> 0).toString(16)).slice(-6);
+      if (c !== document.activeElement) c.value = h;
+      if (t !== document.activeElement) t.value = h;
+    });
+  }
+
+  function inList(arr, v) { return arr.indexOf(v) >= 0; }
+  function toggleIn(arr, v, on) {
+    var i = arr.indexOf(v);
+    if (on && i < 0) arr.push(v);
+    if (!on && i >= 0) arr.splice(i, 1);
+  }
+
+  /* ============================================================ build the form */
+
+  function clock(t) {
+    /* the game's own clock: hour = floor(((dayT + 0.25) % 1) * 24), so dayT 0 is six in the morning */
+    var h24 = ((t + 0.25) % 1) * 24, h = Math.floor(h24), m = Math.floor((h24 - h) * 60);
+    var elev = Math.sin(t * Math.PI * 2);
+    return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m + (elev > 0.02 ? " (day)" : " (night)");
+  }
+
+  function buildPosition() {
+    var host = $("posnums");
+    mkNum(host, "x", { min: -BOUND, max: BOUND, step: 0.5, slider: true, fmt: function (v) { return v.toFixed(1); } },
+      function () { return S.pos[0]; }, function (v) { S.pos[0] = v; });
+    mkNum(host, "y (height)", { min: -2000, max: 2000, step: 0.5, fmt: function (v) { return v.toFixed(1); } },
+      function () { return S.pos[1]; }, function (v) { S.pos[1] = v; });
+    mkNum(host, "z", { min: -BOUND, max: BOUND, step: 0.5, slider: true, fmt: function (v) { return v.toFixed(1); } },
+      function () { return S.pos[2]; }, function (v) { S.pos[2] = v; });
+    mkNum(host, "Time of day", { min: 0, max: 0.999, step: 0.005, slider: true, fmt: clock },
+      function () { return S.day; }, function (v) { S.day = v; });
+    $("ynote").innerHTML = "The game does <b>not</b> snap you to the ground. It puts you exactly where the key says " +
+      "and lets physics take over, so a y above the local ground simply means you fall to it. A y more than " +
+      "<b>eight metres below</b> the ground trips the game's own recovery guard, which drops you at its last safe " +
+      "spot instead. The Go-to buttons beside the map fill in a height that is known to be good. A y under " +
+      "<b>&minus;200</b> is the seam into Gehenna, and the game deliberately wakes you on the rim of the Black Pool " +
+      "instead of trying to build the place below.";
+  }
+
+  function buildStory() {
+    var flagNames = [
+      ["You have met the hermit on the moor", "talkedOnce"],
+      ["You have brought the hermit his herbs", "gaveHerbs"],
+      ["The beacon is lit", "lit"],
+      ["You have reported to the king and been named Champion", "talkedKing &mdash; the act that grants the two extra hearts"],
+      ["You have presented yourself to the king", "metKing"]
+    ];
+    var host = $("flags"), i;
+    for (i = 0; i < 5; i++) (function (idx) {
+      mkChk(host, flagNames[idx][0], flagNames[idx][1],
+        function () { return S.flags[idx]; }, function (v) { S.flags[idx] = v; });
+    })(i);
+
+    host = $("storybools");
+    STORY_BOOLS.forEach(function (b) {
+      mkChk(host, b[1], b[2] || b[0], function () { return !!S.story[b[0]]; }, function (v) { S.story[b[0]] = v; });
+    });
+
+    host = $("storynums");
+    mkNum(host, "clues found", { min: 0, max: 5, step: 1, slider: true, int: true, fmt: function (v) { return v + "/5"; } },
+      function () { return S.story.clues; }, function (v) { S.story.clues = v; });
+    mkNum(host, "logsGiven", { min: 0, max: 99, step: 1, int: true }, function () { return S.story.logsGiven; }, function (v) { S.story.logsGiven = v; });
+    mkNum(host, "campLeft", { min: -1, max: 3, step: 1, int: true, fmt: function (v) { return v < 0 ? "no camp" : ""; } },
+      function () { return S.story.campLeft; }, function (v) { S.story.campLeft = v; });
+    mkNum(host, "gobKills0", { min: 0, max: 1e6, step: 1, int: true }, function () { return S.story.gobKills0; }, function (v) { S.story.gobKills0 = v; });
+    mkNum(host, "kingKills", { min: 0, max: 1e6, step: 1, int: true }, function () { return S.story.kingKills; }, function (v) { S.story.kingKills = v; });
+    mkNum(host, "smith0", { min: 0, max: 1e6, step: 1, int: true }, function () { return S.story.smith0; }, function (v) { S.story.smith0 = v; });
+    mkNum(host, "potter0", { min: 0, max: 1e6, step: 1, int: true }, function () { return S.story.potter0; }, function (v) { S.story.potter0 = v; });
+    mkNum(host, "ferry0", { min: 0, max: 99, step: 1, int: true }, function () { return S.story.ferry0; }, function (v) { S.story.ferry0 = v; });
+
+    host = $("evidence");
+    EVIDENCE.forEach(function (e) {
+      mkChk(host, e[1], e[2], function () { return inList(S.story.evidence, e[0]); },
+        function (v) { toggleIn(S.story.evidence, e[0], v); });
+    });
+
+    var w = $("weaver0");
+    w.addEventListener("input", function () {
+      if (w.value.trim()) S.story.weaver0 = w.value.slice(0, 199); else delete S.story.weaver0;
+      refresh();
+    });
+    binds.push(function () { if (w !== document.activeElement) w.value = S.story.weaver0 === undefined ? "" : S.story.weaver0; });
+  }
+
+  function buildWorldState() {
+    var host = $("wsbools");
+    WS_BOOLS.forEach(function (b) {
+      mkChk(host, b[1], b[2], function () { return !!S.ws[b[0]]; }, function (v) { S.ws[b[0]] = v; });
+    });
+    host = $("relics");
+    RELICS.forEach(function (r) {
+      mkChk(host, r[1], r[2], function () { return !!S.ws.relics[r[0]]; }, function (v) { S.ws.relics[r[0]] = v; });
+    });
+    host = $("wschoice");
+    mkSel(host, "ending <b>the valley's fate</b>", [
+      [null, "not chosen yet"], ["bind", "bind &mdash; hold it through the beacon"],
+      ["break", "break &mdash; bring the place down on it"], ["fairy", "fairy &mdash; give it to the rose court"]
+    ], function () { return S.ws.ending; }, function (v) { S.ws.ending = v; });
+    mkSel(host, "wolfChoice <b>the hunter's wolves</b>", [
+      [null, "not chosen yet"], ["wolves", "killed the wolves"], ["goblins", "killed the goblins instead"], ["leave", "drove them elsewhere"]
+    ], function () { return S.ws.wolfChoice; }, function (v) { S.ws.wolfChoice = v; });
+    mkNum(host, "gehSeed <b>0 lets the game roll one</b>", { min: 0, max: 1e9, step: 1, int: true },
+      function () { return S.ws.gehSeed; }, function (v) { S.ws.gehSeed = v; });
+    mkNum(host, "awokeAt <b>when the pool woke</b>", { min: 0, max: 1e9, step: 1, int: true },
+      function () { return S.ws.awokeAt; }, function (v) { S.ws.awokeAt = v; });
+  }
+
+  function buildQuests() {
+    var tb = $("quests");
+    QUESTS.forEach(function (q) {
+      var tr = el("tr"), td = el("td"), a = el("td", "c"), b = el("td", "c");
+      td.innerHTML = q[0].replace(/&/g, "&amp;").replace(/</g, "&lt;") + "<small>" + q[1] + "</small>";
+      var ia = el("input"), ib = el("input");
+      ia.type = "checkbox"; ib.type = "checkbox";
+      ia.setAttribute("aria-label", q[0] + " taken");
+      ib.setAttribute("aria-label", q[0] + " done");
+      a.appendChild(ia); b.appendChild(ib);
+      tr.appendChild(td); tr.appendChild(a); tr.appendChild(b); tb.appendChild(tr);
+      ia.addEventListener("change", function () { S.side[q[0]][0] = !!ia.checked; refresh(); });
+      ib.addEventListener("change", function () { S.side[q[0]][1] = !!ib.checked; if (ib.checked) { S.side[q[0]][0] = true; ia.checked = true; } refresh(); });
+      binds.push(function () { ia.checked = !!S.side[q[0]][0]; ib.checked = !!S.side[q[0]][1]; });
+    });
+    document.querySelectorAll("[data-q]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var m = btn.getAttribute("data-q");
+        QUESTS.forEach(function (q) { S.side[q[0]] = m === "all" ? [true, true] : m === "taken" ? [true, false] : [false, false]; });
+        pull(); refresh();
+      });
+    });
+  }
+
+  function buildDiscoveries() {
+    var host = $("disc");
+    DISCOVERIES.forEach(function (d) {
+      mkChk(host, d[1], d[0], function () { return inList(S.disc, d[0]); }, function (v) { toggleIn(S.disc, d[0], v); });
+    });
+    document.querySelectorAll("[data-d]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        S.disc = btn.getAttribute("data-d") === "all" ? DISCOVERIES.map(function (d) { return d[0]; }) : [];
+        pull(); refresh();
+      });
+    });
+  }
+
+  function buildFairy() {
+    var host = $("fairybools");
+    [["seen", "You have stood near the queen", "puts the Rose Court on the map"],
+     ["accepted", "Her errand is accepted", "the compass needs this and ten children"],
+     ["complete", "All her children are home", ""],
+     ["rest", "Rose Rest", "granted at 5: hearts mend slowly, wherever you are"],
+     ["compass", "Rose Compass", "granted at 10 once her errand is accepted"],
+     ["petal", "Petal Step", "granted at 15: dashes cost half the breath"],
+     ["grove", "The grove is open", "granted at 20"],
+     ["crown", "Rose Crown", "granted at 25: the court answers you at the pool"]
+    ].forEach(function (f) {
+      mkChk(host, f[1], f[2], function () { return !!S.fairy[f[0]]; }, function (v) { S.fairy[f[0]] = v; });
+    });
+    host = $("fairynums");
+    mkNum(host, "found", { min: 0, max: 25, step: 1, slider: true, int: true, fmt: function (v) { return v + "/25"; } },
+      function () { return S.fairy.found; }, function (v) { S.fairy.found = v; });
+    mkNum(host, "hearts", { min: 0, max: 10, step: 1, slider: true, int: true },
+      function () { return S.fairy.hearts; }, function (v) { S.fairy.hearts = v; });
+
+    host = $("kids");
+    var i;
+    for (i = 0; i < 25; i++) (function (id) {
+      mkChk(host, String(id), "", function () { return inList(S.fairy.kids, id); },
+        function (v) { toggleIn(S.fairy.kids, id, v); S.fairy.kids.sort(function (a, b) { return a - b; }); S.fairy.found = S.fairy.kids.length; });
+    })(i);
+    document.querySelectorAll("[data-k]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var m = btn.getAttribute("data-k"), n = m === "all" ? 25 : m === "none" ? 0 : +m, a = [], j;
+        for (j = 0; j < n; j++) a.push(j);
+        S.fairy.kids = a; S.fairy.found = n;
+        pull(); refresh();
+      });
+    });
+  }
+
+  function buildPlayer() {
+    var host = $("pnums");
+    mkNum(host, "maxHp <b>hearts</b>", { min: 1, max: 60, step: 1, slider: true, int: true },
+      function () { return S.maxHp; }, function (v) { S.maxHp = v; if (S.hp > v) S.hp = v; });
+    mkNum(host, "hp <b>current</b>", { min: -1, max: 60, step: 1, slider: true, int: true },
+      function () { return S.hp; }, function (v) { S.hp = v; });
+    mkNum(host, "stam <b>current stamina</b>", { min: 0, max: 400, step: 1, slider: true, int: true },
+      function () { return S.stam; }, function (v) { S.stam = v; });
+    [["herbs", "moor-herbs carried"], ["logs", "pale-wood bundles"], ["kills", "slimes killed"],
+     ["gkills", "goblins killed"], ["hits", "blows landed"], ["blocks", "blows blocked"],
+     ["swordSheep", "sheep killed with the sword"], ["swordDeer", "deer killed with the sword"]
+    ].forEach(function (p) {
+      mkNum(host, p[0] + " <b>" + p[1] + "</b>", { min: 0, max: 1e6, step: 1, int: true },
+        function () { return S[p[0]]; }, function (v) { S[p[0]] = v; });
+    });
+
+    host = $("owned");
+    [["sword", "Sword"], ["spear", "Sir Corrin's Spear"], ["axe", "Woodcutter's Axe"]].forEach(function (w) {
+      mkChk(host, w[1], "", function () { return !!S.owned[w[0]]; }, function (v) { S.owned[w[0]] = v; });
+    });
+    var sel = $("weapon");
+    sel.addEventListener("change", function () { S.weapon = sel.value; refresh(); });
+    binds.push(function () { if (sel !== document.activeElement) sel.value = S.weapon; });
+
+    host = $("pbools");
+    mkChk(host, "flint <b>taken from the southern lakeshore</b>", "needed to relight the beacon",
+      function () { return !!S.flint; }, function (v) { S.flint = v; });
+    mkChk(host, "nimHome <b>Nim is back in Thornback</b>", "moves the child's body as well as her flag",
+      function () { return !!S.nimHome; }, function (v) { S.nimHome = v; });
+    mkChk(host, "bearDead <b>the Old Bear's body is gone</b>", "separate from the worldstate flag: this is the carcass",
+      function () { return !!S.bearDead; }, function (v) { S.bearDead = v; });
+  }
+
+  function buildBonus() {
+    var host = $("bonus");
+    BONUS.forEach(function (b) {
+      mkNum(host, b[0] + " <b>" + b[1] + "</b>", { min: b[2], max: b[3], step: b[4], slider: true, int: b[4] === 1, fmt: function (v) { return b[6]; } },
+        function () { return S.bonus[b[0]]; }, function (v) { S.bonus[b[0]] = v; });
+    });
+  }
+
+  function buildSkills() {
+    var host = $("skills");
+    SKILLS.forEach(function (k) {
+      mkNum(host, k + " <b>level</b>", { min: 1, max: 99, step: 1, slider: true, int: true, fmt: function (v) { return v > 30 ? "past the game's cap" : ""; } },
+        function () { return S.sk[k][0]; }, function (v) { S.sk[k][0] = v; });
+      mkNum(host, k + " <b>xp toward the next</b>", { min: 0, max: 1e6, step: 1, int: true },
+        function () { return S.sk[k][1]; }, function (v) { S.sk[k][1] = v; });
+    });
+  }
+
+  function buildLook() {
+    var host = $("look"), n = el("div", "fld"), cap = el("span"), t = el("input");
+    cap.innerHTML = "<span>name</span>";
+    t.type = "text"; t.maxLength = 24;
+    n.appendChild(cap); n.appendChild(t); host.appendChild(n);
+    t.addEventListener("input", function () { S.custom.name = t.value; refresh(); });
+    binds.push(function () { if (t !== document.activeElement) t.value = S.custom.name; });
+
+    mkSel(host, "hair style", HAIR.map(function (h) { return [h, h]; }),
+      function () { return S.custom.style; }, function (v) { S.custom.style = v; });
+    [["skin", "skin"], ["hair", "hair colour"], ["tunic", "tunic"], ["cape", "cape"]].forEach(function (c) {
+      mkColor(host, c[1], function () { return S.custom[c[0]]; }, function (v) { S.custom[c[0]] = v; });
+    });
+  }
+
+  function buildItems() {
+    var host = $("picked");
+    PICKUPS.forEach(function (p) {
+      mkChk(host, p[1], p[0], function () { return inList(S.picked, p[0]); }, function (v) { toggleIn(S.picked, p[0], v); });
+    });
+    var known = PICKUPS.map(function (p) { return p[0]; });
+    var ex = $("pickedExtra");
+    ex.addEventListener("input", function () {
+      var extra = ex.value.split(/\n+/).map(function (s) { return s.trim(); }).filter(Boolean);
+      S.picked = S.picked.filter(function (id) { return inList(known, id); }).concat(extra);
+      refresh();
+    });
+    binds.push(function () {
+      if (ex === document.activeElement) return;
+      ex.value = S.picked.filter(function (id) { return !inList(known, id); }).join("\n");
+    });
+
+    host = $("owed");
+    [["reward:bear", "Bear's Heart orb"], ["reward:king", "Goblin King's Tooth orb"]].forEach(function (r) {
+      var f = el("div", "fld"), cap = el("span"), row = el("div", "rng"),
+        c = el("input"), x = el("input"), z = el("input");
+      cap.innerHTML = "<span>" + r[1] + "</span>";
+      c.type = "checkbox"; x.type = "number"; z.type = "number";
+      x.placeholder = "x"; z.placeholder = "z"; x.step = "0.5"; z.step = "0.5";
+      row.appendChild(c); row.appendChild(x); row.appendChild(z);
+      f.appendChild(cap); f.appendChild(row); host.appendChild(f);
+      function commit() {
+        S.owed = S.owed.filter(function (o) { return o[0] !== r[0]; });
+        if (c.checked) S.owed.push([r[0], Number(x.value) || 0, Number(z.value) || 0]);
+        refresh();
+      }
+      c.addEventListener("change", commit);
+      x.addEventListener("input", commit);
+      z.addEventListener("input", commit);
+      binds.push(function () {
+        var o = null, i;
+        for (i = 0; i < S.owed.length; i++) if (S.owed[i][0] === r[0]) o = S.owed[i];
+        c.checked = !!o;
+        if (x !== document.activeElement) x.value = o ? o[1] : 0;
+        if (z !== document.activeElement) z.value = o ? o[2] : 0;
+      });
+    });
+
+    function lines(id, get, set) {
+      var t = $(id);
+      t.addEventListener("input", function () { set(t.value.split(/\n/).map(function (s) { return s.trim(); }).filter(Boolean)); refresh(); });
+      binds.push(function () { if (t !== document.activeElement) t.value = get().join("\n"); });
+    }
+    lines("foundTxt", function () { return S.found; }, function (v) { S.found = v; });
+    lines("itemsTxt", function () { return S.items; }, function (v) { S.items = v; });
+    var h = $("herbsTxt");
+    h.addEventListener("input", function () {
+      S.herbsTaken = h.value.split(/[^0-9]+/).filter(Boolean).map(Number).filter(function (n) { return n >= 0 && n <= 999; });
+      refresh();
+    });
+    binds.push(function () { if (h !== document.activeElement) h.value = S.herbsTaken.join(" "); });
+  }
+
+  function buildSettings() {
+    var host = $("setbools");
+    [["fps", "Show frame rate"], ["arrow", "Guide arrow to the current task"], ["rose", "Rose Compass awake"],
+     ["hq", "High-quality shaders"], ["grass", "Tall grass and flowers"], ["voice", "Spoken dialogue"]
+    ].forEach(function (s) {
+      mkChk(host, s[1], s[0], function () { return !!S.settings[s[0]]; }, function (v) { S.settings[s[0]] = v; });
+    });
+    host = $("setnums");
+    [["sfx", "Sound effects", 0, 1, 0.05], ["music", "Music", 0, 1, 0.05], ["amb", "Ambience", 0, 1, 0.05],
+     ["sens", "Mouse sensitivity", 0, 5, 0.05]
+    ].forEach(function (s) {
+      mkNum(host, s[1], { min: s[2], max: s[3], step: s[4], slider: true, fmt: function (v) { return (+v).toFixed(2); } },
+        function () { return S.settings[s[0]]; }, function (v) { S.settings[s[0]] = v; });
+    });
+  }
+
+  /* ============================================================ the map
+     same projection as the game's own world map: +x to the right, +z downward, the whole 1600 m square. */
+  var cv = $("map"), g = cv.getContext("2d"), N = cv.width;
+
+  function w2p(v) { return ((v + HALF) / SIZE) * N; }
+  function p2w(v) { return (v / N) * SIZE - HALF; }
+
+  function drawMap() {
+    var i, p, x, y;
+    g.clearRect(0, 0, N, N);
+    g.fillStyle = "#151129";
+    g.fillRect(0, 0, N, N);
+
+    /* a hundred-metre grid, so a glance at the map is a glance at real distances */
+    g.strokeStyle = "#ffffff10";
+    g.lineWidth = 1;
+    for (i = -700; i <= 700; i += 100) {
+      g.beginPath(); g.moveTo(w2p(i), 0); g.lineTo(w2p(i), N); g.stroke();
+      g.beginPath(); g.moveTo(0, w2p(i)); g.lineTo(N, w2p(i)); g.stroke();
+    }
+    g.strokeStyle = "#ffffff28";
+    g.beginPath(); g.moveTo(w2p(0), 0); g.lineTo(w2p(0), N); g.stroke();
+    g.beginPath(); g.moveTo(0, w2p(0)); g.lineTo(N, w2p(0)); g.stroke();
+
+    /* the world edge, and inside it the tighter box the game's inBounds actually allows */
+    g.strokeStyle = "#695194"; g.lineWidth = 4; g.strokeRect(2, 2, N - 4, N - 4);
+    g.lineWidth = 2; g.setLineDash([11, 9]); g.strokeStyle = "#e0b45a80";
+    g.strokeRect(w2p(-BOUND), w2p(-BOUND), w2p(BOUND) - w2p(-BOUND), w2p(BOUND) - w2p(-BOUND));
+    g.setLineDash([]);
+
+    /* the canvas is drawn at 760 but sits in a column about 420 wide, so every size below is in units of
+       u and comes out at the intended number of SCREEN pixels rather than half of it */
+    var u = N / 420;
+    g.textAlign = "center";
+    g.font = Math.round(11 * u) + "px Georgia";
+
+    for (i = 0; i < PLACES.length; i++) {
+      p = PLACES[i]; x = w2p(p.x); y = w2p(p.z);
+      if (p.k === "town") {
+        g.fillStyle = "#e8e2d022"; g.strokeStyle = "#e8e2d0"; g.lineWidth = 2 * u;
+        g.beginPath(); g.arc(x, y, (p.r / SIZE) * N, 0, 7); g.fill(); g.stroke();
+        g.fillStyle = "#c8422f"; g.fillRect(x - 5 * u, y - 5 * u, 10 * u, 9 * u);
+        g.fillStyle = "#fff3d0"; g.font = "bold " + Math.round(13 * u) + "px Georgia"; g.fillText(p.n, x, y - 20 * u);
+        g.font = Math.round(11 * u) + "px Georgia";
+      } else if (p.k === "pool") {
+        g.fillStyle = "#1a0f2e"; g.strokeStyle = "#a06ad8"; g.lineWidth = 2 * u;
+        g.beginPath(); g.arc(x, y, (p.r / SIZE) * N, 0, 7); g.fill(); g.stroke();
+        g.fillStyle = "#d0a8ff"; g.fillText(p.n, x - 30 * u, y + 20 * u);
+      } else if (p.k === "tree") {
+        g.fillStyle = "#6a4a2a"; g.fillRect(x - 1.5 * u, y - 2 * u, 3 * u, 8 * u);
+        g.fillStyle = "#4f9a44";
+        [[0, -6, 6], [-5, -3, 4.5], [5, -3, 4.5]].forEach(function (b) {
+          g.beginPath(); g.arc(x + b[0] * u, y + b[1] * u, b[2] * u, 0, 7); g.fill();
+        });
+        g.fillStyle = "#9fe08f"; g.fillText(p.n, x + 34 * u, y + 12 * u);
+      } else if (p.k === "beacon") {
+        g.fillStyle = "#e8e2d0"; g.fillRect(x - 2.5 * u, y - 7 * u, 5 * u, 11 * u);
+        g.fillStyle = "#ffd23c"; g.beginPath(); g.arc(x, y - 9 * u, 3.2 * u, 0, 7); g.fill();
+        g.fillStyle = "#ffe9a8"; g.fillText(p.n, x, y - 15 * u);
+      } else if (p.k === "vil") {
+        g.fillStyle = "#e6dfcf"; g.fillRect(x - 4 * u, y - 2.5 * u, 8 * u, 6 * u);
+        g.fillStyle = "#c8422f";
+        g.beginPath(); g.moveTo(x - 5.5 * u, y - 2.5 * u); g.lineTo(x, y - 7.5 * u); g.lineTo(x + 5.5 * u, y - 2.5 * u); g.fill();
+        g.fillStyle = "#f1ecff"; g.fillText(p.n, x, y + 15 * u);
+      } else if (p.k === "spawn") {
+        g.strokeStyle = "#75e5c8"; g.lineWidth = 2 * u;
+        g.beginPath(); g.arc(x, y, 4 * u, 0, 7); g.stroke();
+        g.fillStyle = "#75e5c8"; g.textAlign = "left"; g.fillText("you start here", x + 8 * u, y + 4 * u); g.textAlign = "center";
+      } else {
+        g.fillStyle = "#bcb0d8"; g.beginPath(); g.arc(x, y, 2.5 * u, 0, 7); g.fill();
+        g.textAlign = "right"; g.fillText(p.n, x - 7 * u, y + 4 * u); g.textAlign = "center";
+      }
+    }
+
+    /* you. drawn last so nothing can hide it, and outlined in black so it reads over any icon */
+    x = w2p(S.pos[0]); y = w2p(S.pos[2]);
+    g.strokeStyle = "#000"; g.lineWidth = 5 * u;
+    g.beginPath(); g.moveTo(x - 13 * u, y); g.lineTo(x + 13 * u, y); g.moveTo(x, y - 13 * u); g.lineTo(x, y + 13 * u); g.stroke();
+    g.strokeStyle = "#e0b45a"; g.lineWidth = 2.5 * u;
+    g.beginPath(); g.moveTo(x - 13 * u, y); g.lineTo(x + 13 * u, y); g.moveTo(x, y - 13 * u); g.lineTo(x, y + 13 * u); g.stroke();
+    g.beginPath(); g.arc(x, y, 7 * u, 0, 7); g.stroke();
+    g.fillStyle = "#e0b45a"; g.beginPath(); g.arc(x, y, 2.5 * u, 0, 7); g.fill();
+  }
+
+  function setFromPointer(e) {
+    var r = cv.getBoundingClientRect();
+    var wx = p2w(((e.clientX - r.left) / r.width) * N);
+    var wz = p2w(((e.clientY - r.top) / r.height) * N);
+    S.pos[0] = Math.round(Math.max(-BOUND, Math.min(BOUND, wx)) * 10) / 10;
+    S.pos[2] = Math.round(Math.max(-BOUND, Math.min(BOUND, wz)) * 10) / 10;
+    pull(); refresh();
+  }
+
+  var dragging = false;
+  cv.addEventListener("pointerdown", function (e) {
+    dragging = true;
+    cv.setPointerCapture(e.pointerId);
+    cv.focus();
+    setFromPointer(e);
+    e.preventDefault();
+  });
+  cv.addEventListener("pointermove", function (e) { if (dragging) setFromPointer(e); });
+  cv.addEventListener("pointerup", function (e) { dragging = false; try { cv.releasePointerCapture(e.pointerId); } catch (_) {} });
+  cv.addEventListener("pointercancel", function () { dragging = false; });
+  cv.addEventListener("keydown", function (e) {
+    var step = e.shiftKey ? 10 : 1, dx = 0, dz = 0;
+    if (e.key === "ArrowLeft") dx = -step;
+    else if (e.key === "ArrowRight") dx = step;
+    else if (e.key === "ArrowUp") dz = -step;
+    else if (e.key === "ArrowDown") dz = step;
+    else return;
+    e.preventDefault();
+    S.pos[0] = Math.max(-BOUND, Math.min(BOUND, S.pos[0] + dx));
+    S.pos[2] = Math.max(-BOUND, Math.min(BOUND, S.pos[2] + dz));
+    pull(); refresh();
+  });
+
+  function buildGoto() {
+    var host = $("goto");
+    PLACES.forEach(function (p) {
+      if (p.k === "spawn" || p.k === "dot") return;
+      var b = el("button", "ghost");
+      b.textContent = p.n;
+      b.title = "x " + p.x.toFixed(1) + ", y " + p.y.toFixed(1) + ", z " + p.z.toFixed(1);
+      b.addEventListener("click", function () {
+        /* a metre above the known ground, so you land on it rather than start inside it */
+        S.pos = [p.x, p.y + 1, p.z];
+        pull(); refresh();
+      });
+      host.appendChild(b);
+    });
+    var s = el("button", "ghost");
+    s.textContent = "Opening spawn";
+    s.addEventListener("click", function () { S.pos = [0, 8, 74]; pull(); refresh(); });
+    host.appendChild(s);
+    $("notshown").innerHTML = NOT_SHOWN;
+  }
+
+  /* ============================================================ presets */
+  function allQuests(v) {
+    var o = {}, i;
+    for (i = 0; i < QUESTS.length; i++) o[QUESTS[i][0]] = v ? [true, true] : [false, false];
+    return o;
+  }
+  function allKids() { var a = [], i; for (i = 0; i < 25; i++) a.push(i); return a; }
+  function allDisc() { return DISCOVERIES.map(function (d) { return d[0]; }); }
+  function setSkills(d, lvl) { SKILLS.forEach(function (k) { d.sk[k] = [lvl, 0]; }); }
+
+  var PRESETS = {
+    fresh: function () { return fresh(); },
+
+    /* max stats only: the body of a finished playthrough on a world that has not heard of you */
+    stats: function () {
+      var d = fresh();
+      setSkills(d, 30);
+      d.maxHp = 20; d.hp = 20; d.stam = 400;
+      d.owned = { sword: true, spear: true, axe: true };
+      d.bonus = { air: 4, lung: 4, stam: 200, run: 20, dmg: 8, slime: 8, jumps: 6, guard: 0.2, dash: 3, dashCost: 4 };
+      d.herbs = 20; d.logs = 20; d.flint = true;
+      return d;
+    },
+
+    /* everything the valley can give you that a boss does not gate. the seal wants the Goblin King dead
+       and the Warden's Stone sits under the bear's hoard, so those two relics stay false and the story is
+       parked at the start of act IV with the whole valley already friendly. */
+    done: function () {
+      var d = fresh();
+      d.flags = [true, true, true, true, true];
+      d.ws.marenFreed = d.ws.haleExposed = d.ws.pyreDismantled = true;
+      d.ws.blackPoolAwake = d.ws.hermitTold = d.ws.hermitWarned = d.ws.kingTrusts = true;
+      d.ws.home = d.ws.guardsOut = true;
+      d.ws.relics.root = true; d.ws.relics.tear = true;
+      d.story.wick = d.story.solved = d.story.reported = d.story.spear = d.story.boots = true;
+      d.story.clues = 5;
+      d.story.evidence = EVIDENCE.map(function (e) { return e[0]; });
+      d.story.logsGiven = 3;
+      d.side = allQuests(true);
+      d.disc = allDisc();
+      d.fairy = { found: 25, hearts: 5, accepted: true, complete: true, seen: true, compass: true, rest: true, petal: true, grove: true, crown: true, kids: allKids() };
+      d.nimHome = true;
+      setSkills(d, 25);
+      d.maxHp = 10; d.hp = 10; d.stam = 200;
+      d.owned = { sword: true, spear: true, axe: true };
+      d.bonus = { air: 1.6, lung: 2.2, stam: 34, run: 1.5, dmg: 1.1, slime: 1.77, jumps: 3, guard: 0.8, dash: 1.5, dashCost: 8 };
+      d.herbs = 10; d.logs = 10; d.flint = true; d.kills = 40; d.gkills = 40;
+      d.picked = ["clue:cloth", "clue:ring", "clue:diary", "clue:ritual", "clue:note",
+        "quest:stonefold", "quest:greytor", "relic:root", "relic:windstep", "grove:heart", "grove:stone"];
+      d.settings.rose = true;
+      d.pos = [0, 9, 74];
+      return d;
+    },
+
+    /* the far end: every boss down, all four relics carried, the warden beaten and the way down open,
+       but no ending chosen, so the stone by the pool still has all its answers left. */
+    endgame: function () {
+      var d = PRESETS.done();
+      d.ws.goblinKingDefeated = d.ws.bearDefeated = true;
+      d.ws.finaleStarted = d.ws.wardenDead = d.ws.gehUnlocked = true;
+      d.ws.relics.seal = true; d.ws.relics.warden = true;
+      d.ws.ending = null;
+      d.ws.gehSeed = 0;
+      d.ws.wolfChoice = "goblins";
+      d.story.bearHeart = true; d.story.kingTooth = true; d.story.wolfDone = true;
+      d.bearDead = true;
+      setSkills(d, 30);
+      d.maxHp = 14; d.hp = 14; d.stam = 300;
+      d.bonus = { air: 1.6, lung: 2.2, stam: 46, run: 1.5, dmg: 1.46, slime: 1.77, jumps: 3, guard: 0.8, dash: 1.5, dashCost: 8 };
+      d.picked = d.picked.concat(["relic:warden", "reward:bear", "reward:king"]);
+      /* the rim of the pool, a metre up, which is also where the game itself puts you back after a dive */
+      d.pos = [-69.5, 7, -192.8];
+      d.day = 0.75;
+      return d;
+    }
+  };
+
+  /* ============================================================ output */
+  function pull() {
+    quiet = true;
+    for (var i = 0; i < binds.length; i++) binds[i]();
+    quiet = false;
+  }
+
+  function refresh() {
+    if (quiet) return;
+    $("coord").textContent = "x " + (+S.pos[0]).toFixed(1) + ", y " + (+S.pos[1]).toFixed(1) + ", z " + (+S.pos[2]).toFixed(1);
+    drawMap();
+    var key = "", problems = validate(S);
+    try { key = encodeKey(S); } catch (err) { problems.push("could not encode: " + err.message); }
+    $("key").value = key;
+    $("json").value = JSON.stringify(S, null, 1);
+    if ($("rawjson") !== document.activeElement) $("rawjson").value = JSON.stringify(S, null, 1);
+    var st = $("status");
+    if (problems.length) {
+      st.className = "bad";
+      st.innerHTML = "<b>The game would refuse this key:</b><br>" + problems.join("<br>");
+    } else {
+      st.className = "ok";
+      st.textContent = "Valid. " + key.replace(/\s/g, "").length + " characters. Paste it into the game's Load key box.";
+    }
+  }
+
+  /* merge a decoded payload over a fresh one, so a key from an older or newer build still fills the form
+     instead of leaving half of it undefined and throwing on the first bind */
+  function adopt(d) {
+    var base = fresh(), k;
+    for (k in base) if (d[k] !== undefined) base[k] = d[k];
+    base.v = 4;
+    if (d.ws) { base.ws = fresh().ws; for (k in d.ws) if (k !== "relics") base.ws[k] = d.ws[k]; if (d.ws.relics) for (k in d.ws.relics) base.ws.relics[k] = !!d.ws.relics[k]; }
+    if (d.story) { base.story = fresh().story; for (k in d.story) base.story[k] = d.story[k]; }
+    if (d.bonus) { base.bonus = fresh().bonus; for (k in d.bonus) base.bonus[k] = d.bonus[k]; }
+    if (d.owned) { base.owned = fresh().owned; for (k in d.owned) base.owned[k] = !!d.owned[k]; }
+    if (d.custom) { base.custom = fresh().custom; for (k in d.custom) base.custom[k] = d.custom[k]; }
+    if (d.fairy) { base.fairy = fresh().fairy; for (k in d.fairy) base.fairy[k] = d.fairy[k]; }
+    if (d.settings) { base.settings = fresh().settings; for (k in d.settings) base.settings[k] = d.settings[k]; }
+    if (d.sk) { base.sk = fresh().sk; for (k in d.sk) if (Array.isArray(d.sk[k])) base.sk[k] = [d.sk[k][0], d.sk[k][1]]; }
+    /* every one of the fourteen titles must exist or the checkbox binds have nothing to read; unknown titles
+       from another build are kept rather than dropped, because dropping them would quietly lose that state */
+    base.side = {};
+    if (d.side) for (k in d.side) if (Array.isArray(d.side[k])) base.side[k] = [!!d.side[k][0], !!d.side[k][1]];
+    QUESTS.forEach(function (q) { if (!base.side[q[0]]) base.side[q[0]] = [false, false]; });
+    ["disc", "found", "items", "picked", "herbsTaken", "owed"].forEach(function (n) { if (!Array.isArray(base[n])) base[n] = []; });
+    if (!Array.isArray(base.fairy.kids)) base.fairy.kids = [];
+    if (!Array.isArray(base.story.evidence)) base.story.evidence = [];
+    if (!Array.isArray(base.flags) || base.flags.length !== 5) base.flags = [false, false, false, false, false];
+    base.flags = base.flags.map(function (v) { return !!v; });
+    if (!Array.isArray(base.pos) || base.pos.length !== 3) base.pos = [0, 8, 74];
+    return base;
+  }
+
+  /* ============================================================ wiring */
+  document.querySelectorAll("[data-preset]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      S = PRESETS[b.getAttribute("data-preset")]();
+      pull(); refresh();
+      $("loadStatus").className = "";
+      $("loadStatus").textContent = "";
+    });
+  });
+
+  document.querySelectorAll("section > h2").forEach(function (h) {
+    h.addEventListener("click", function () { h.parentNode.classList.toggle("closed"); });
+  });
+  $("expand").addEventListener("click", function () {
+    document.querySelectorAll("section").forEach(function (s) { s.classList.remove("closed"); });
+  });
+  $("collapse").addEventListener("click", function () {
+    document.querySelectorAll("#left section").forEach(function (s) { s.classList.add("closed"); });
+  });
+
+  $("copy").addEventListener("click", function () {
+    var t = $("key");
+    t.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (_) {}
+    if (navigator.clipboard && !ok) navigator.clipboard.writeText(t.value).then(function () {
+      $("status").className = "ok"; $("status").textContent = "Copied.";
+    });
+    else { $("status").className = "ok"; $("status").textContent = ok ? "Copied." : "Select the box and copy by hand."; }
+  });
+
+  $("download").addEventListener("click", function () {
+    var blob = new Blob([$("key").value], { type: "text/plain" });
+    var a = el("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "peanits_save_key.txt";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  });
+
+  $("load").addEventListener("click", function () {
+    var out = $("loadStatus"), d;
+    try { d = decodeKey($("inkey").value); } catch (err) { d = null; }
+    if (!d) { out.className = "bad"; out.textContent = "That is not a readable WM1- key."; return; }
+    if (d.v !== 3 && d.v !== 4) { out.className = "bad"; out.textContent = "Key format v" + d.v + "; the game only accepts 3 or 4."; return; }
+    S = adopt(d);
+    pull(); refresh();
+    out.className = "ok";
+    out.textContent = "Loaded a v" + d.v + " key" + (d.v === 3 ? " and upgraded it to v4" : "") + ".";
+  });
+
+  $("roundtrip").addEventListener("click", function () {
+    var out = $("loadStatus"), before = JSON.stringify(S), back, after;
+    try { back = decodeKey(encodeKey(S)); after = JSON.stringify(back); } catch (err) {
+      out.className = "bad"; out.textContent = "Round trip threw: " + err.message; return;
+    }
+    if (before === after) { out.className = "ok"; out.textContent = "Round trip exact: encode then decode gives back the same payload, byte for byte."; }
+    else { out.className = "bad"; out.textContent = "Round trip differs. Check the payload below."; $("json").value = after; }
+  });
+
+  $("rawApply").addEventListener("click", function () {
+    var out = $("rawStatus"), d;
+    try { d = JSON.parse($("rawjson").value); } catch (err) {
+      out.className = "bad"; out.textContent = "That is not valid JSON: " + err.message; return;
+    }
+    S = adopt(d);
+    pull(); refresh();
+    out.className = "ok"; out.textContent = "Applied.";
+  });
+  $("rawReload").addEventListener("click", function () { $("rawjson").value = JSON.stringify(S, null, 1); $("rawStatus").textContent = ""; });
+
+  /* ============================================================ go */
+  buildPosition();
+  buildStory();
+  buildWorldState();
+  buildQuests();
+  buildDiscoveries();
+  buildFairy();
+  buildPlayer();
+  buildBonus();
+  buildSkills();
+  buildLook();
+  buildItems();
+  buildSettings();
+  buildGoto();
+  pull();
+  refresh();
+})();
+</script>
+</body>
+</html>

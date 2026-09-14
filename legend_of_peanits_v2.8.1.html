@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.8.0</title>
+<title>Legend of Peanits 2.8.1</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -378,7 +378,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.8.0</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.8.1</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -446,7 +446,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.8.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.8.1</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -576,7 +576,7 @@ const __boot = (async () => {
   //   berries: bushes gatherers work at; keep_it: the great hall's interior record; keepDark: the black box that hides its inside from outside; keepPush: props that slide away when the hall grows
   //   loop_bases: where the ring road meets each village spur; frameNo: frames since load; graded/road_samples: the road profile used to shape the ground; bridge_log/bridges/ladders: crossings and climbs
   //   bear_hoard: where the bear's treasure sits; canopy: the elder tree's crown; houseLamps: every window light; houses/interiors: the town's houses and every enterable room; nohelix: debug switch for the tree stair
-  var HERMIT_FIRE = null, ENEMY_NID = 0, EXTRA = [], GOB_ARROWS = [], POOL_WATER_MESH = null, POOL_HOLLOW = null, BEACON_THREAD = null, PYRE_GROUP = null, POOL_DARK = null, POOL_RUNE = null, POOL_STONE = null, WARDEN = null, WOLF_DENS = [], HALL_GUARD = null, CAVE_GROUP = null, caveK = 0, deepK = 0, CAVE_LIGHTS = [], CAVE_TUNNEL = null, BERRIES = [],
+  var POOL_WHIRL = null, HERMIT_FIRE = null, ENEMY_NID = 0, EXTRA = [], GOB_ARROWS = [], POOL_WATER_MESH = null, POOL_HOLLOW = null, BEACON_THREAD = null, PYRE_GROUP = null, POOL_DARK = null, POOL_RUNE = null, POOL_STONE = null, WARDEN = null, WOLF_DENS = [], HALL_GUARD = null, CAVE_GROUP = null, caveK = 0, deepK = 0, CAVE_LIGHTS = [], CAVE_TUNNEL = null, BERRIES = [],
     WREN_POS = null,
     KEEP_ROOM = null,
     keepDark = null,
@@ -8354,6 +8354,30 @@ const __boot = (async () => {
     scene.add(sheen);
     POOL.sheen = sheen;
     POOL_WATER_MESH.sheen = sheen;
+    // the whirlpool. hidden until the way down is open, and then it is the single most obvious thing in the valley —
+    // the player has to be able to see from the bank that the water has changed, or they will never think to get in.
+    // four cones nested point-down make the funnel, and the whole group turns; the throat is a black disc at the
+    // bottom of it that reads as a hole rather than as more water.
+    {
+      const spin = new THREE.Group();
+      for (let k = 0; k < 4; k++) {
+        const r = 6.6 - k * 1.5,
+          m = new THREE.Mesh(
+            new THREE.ConeGeometry(r, 1.1 + k * 0.75, 28, 1, true),
+            new THREE.MeshBasicMaterial({ color: k > 2 ? 0x0a0510 : 0x16102a, transparent: true, opacity: 0.42 + k * 0.14, side: THREE.DoubleSide, depthWrite: false })
+          );
+        m.rotation.x = Math.PI; // point down: this is a hole, not a hat
+        m.position.y = -(0.45 + k * 0.42);
+        spin.add(m);
+      }
+      spin.add(new THREE.Mesh(new THREE.CircleGeometry(1.5, 24), new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide })));
+      spin.children[spin.children.length - 1].rotation.x = -Math.PI / 2;
+      spin.children[spin.children.length - 1].position.y = -2.5;
+      spin.position.set(POOL.x, POOLW + 0.05, POOL.z);
+      spin.visible = false;
+      scene.add(spin);
+      POOL_WHIRL = spin;
+    }
     const wall = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(7.5, 6.6, 3.4, 40, 1, true), texMat(cloneTex(TEX.rock, 5, 1), 0x55554e)));
     wall.position.set(POOL.x, POOLW - 1.3, POOL.z);
     scene.add(wall);
@@ -15218,7 +15242,12 @@ const __boot = (async () => {
   function interact() {
     if ((P.interactCd || 0) > 0) return; // a moment between pickups: items and fairies are taken one by one
     if (GEH_SCRIPT && GEH_SCRIPT.interact()) return; // below the seam nothing in the valley is within reach
-    if (POOL_STONE && WORLDSTATE.wardenDead && !WORLDSTATE.ending && dist2D(P.pos, POOL_STONE) < 3.2) { chooseEnding(); return; }
+    // the stone no longer asks you to choose. there are no three endings: you killed a girl who could not let go, and
+    // what is left to do is carry her out of the water and put her in the ground. the stone just says so.
+    if (POOL_STONE && WORLDSTATE.wardenDead && !WORLDSTATE.ending && dist2D(P.pos, POOL_STONE) < 3.2) {
+      say(WORLDSTATE.ysoldeBuried ? "The stone is cold. Whatever it was for, it is finished with." : "The stone has nothing to say. She is still in the water.", 4200, true, "dark");
+      return;
+    }
     { const nim = npcs.find(n => n.lost && !n.found && dist2D(n.pos, P.pos) < 3.6);
       if (nim) { if (lit) { nim.found = true; speak(nim, "You lit it. I can see the light through the trees — I know the way from that. I'm going home. Tell Mother I'm coming.", "Nim", 5500); nim.stay = false; nim.post = false; nim.running = true; nim.runT = 0; nim.runTo = V3(villages[2].center.x + 3, villages[2].center.y, villages[2].center.z + 2); } else speak(nim, "I'm Nim, from Thornback. I came down here because I like it, and now it's all trees and I can't tell which way is up the mountain. If the old beacon were lit I could see it from here.", "Nim", 6500); return; } }
     // rescue takes priority over nearby furniture; vertical and room checks prevent remote pickups
@@ -17096,6 +17125,17 @@ const __boot = (async () => {
 
   // extracted from update: one job, run once per frame
   function updatePoolSurface(rdt) {
+    // the whirlpool only exists once the way down does, and it turns the whole time it is there. the spin is what tells
+    // the player from the bank that this water is not the water they swam in yesterday.
+    if (POOL_WHIRL) {
+      POOL_WHIRL.visible = !!WORLDSTATE.gehUnlocked && !WORLDSTATE.ending;
+      if (POOL_WHIRL.visible) {
+        POOL_WHIRL.rotation.y += rdt * 1.35;
+        POOL_WHIRL.position.y = POOLW + 0.05 + Math.sin(time * 0.9) * 0.05;
+        for (let k = 0; k < POOL_WHIRL.children.length - 1; k++) POOL_WHIRL.children[k].rotation.y = -time * (0.5 + k * 0.45);
+        if (Math.random() < rdt * 7) { const a = Math.random() * 6.28, r = 2 + Math.random() * 4.4; ripple(POOL.x + Math.cos(a) * r, POOL.z + Math.sin(a) * r, 1.1); }
+      }
+    }
   if (POOL.surf) {
         POOL.surf.position.y = POOLW + Math.sin(time * 0.5) * 0.04;
         POOL.sheen.position.y = POOL.surf.position.y + 0.02;
@@ -17460,8 +17500,23 @@ const __boot = (async () => {
       if (swimUp && !swimDown) P.pos.y = Math.min(vol.rest, P.pos.y + TUNE.player.swimRise * hdt);
       else if (swimDown && !swimUp) P.pos.y = Math.max(Math.max(g0, vol.floor) + 0.25, P.pos.y - TUNE.player.swimSink * hdt);
       else P.pos.y = lerp(P.pos.y, vol.rest, Math.min(1, hdt * 6));
-      // the way down, and the only one: hold the sink key on the bed of the black pool once the pool is open.
-      if (vol.geh && swimDown && !swimUp && WORLDSTATE.gehUnlocked && !P.gehDive && P.pos.y <= Math.max(g0, vol.floor) + 0.45) gehBeginDive();
+      // the way down. it used to need you to hold the sink key while within 45 cm of the bed, which is why it read as
+      // finnicky — most players never found it and the one who did found it by accident. the open pool is a whirlpool
+      // now: it takes hold anywhere in the water and drags you toward the middle and down, and once it has you far
+      // enough under it simply takes you. you can still fight it — holding rise beats the pull — so it is a current,
+      // not a trapdoor, and swimming the pool before it opens is completely unchanged.
+      if (vol.geh && WORLDSTATE.gehUnlocked && !P.gehDive) {
+        const bed = Math.max(g0, vol.floor),
+          toC = V3(POOL.x - P.pos.x, 0, POOL.z - P.pos.z),
+          rC = Math.hypot(toC.x, toC.z);
+        if (!swimUp) {
+          // dragged toward the eye of it, harder the nearer you are, and downward the whole time
+          if (rC > 0.6) { const pull = (1 - Math.min(1, rC / 7.5)) * 2.6 + 0.9; P.pos.x += (toC.x / rC) * pull * hdt; P.pos.z += (toC.z / rC) * pull * hdt; }
+          P.pos.y = Math.max(bed + 0.05, P.pos.y - (swimDown ? TUNE.player.swimSink : 1.9) * hdt);
+          P.heading += hdt * 1.1; // the spin, so it is visibly a whirlpool and not a lift
+        }
+        if (P.pos.y <= bed + 0.9 && rC < 4.5) gehBeginDive();
+      }
       P.air = Math.max(0, P.air - (hdt * 100) / airMax());
       gainXP("swimming", hdt * 1.2);
       if (P.air <= 0) {
