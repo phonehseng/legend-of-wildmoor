@@ -57,24 +57,34 @@
   const voiceOn = Voice.on; Voice.on = false; Voice.stop();
   for(let i=0;i<360 && !lucifer.armed;i++) { time += .05; gehUpdateLucifer(lucifer,P,0,0,0,.05); }
   check(lucifer.armed && lucifer.scenePhase === 'hold' && lucifer.bodyScale > 2.39 && /Slay Lucifer/.test(priorityQuest().text), 'Lucifer runs out and grows to hold the hand');
-  const tallHand = GEH.godHand.position.y;
-  damageEnemy(lucifer,45,P.pos,0,true);
-  for(let i=0;i<50;i++) gehUpdateLucifer(lucifer,P,0,0,0,.05);
-  check(lucifer.bodyScale < 1.52 && GEH.godHand.position.y < tallHand - 3, 'attacks shrink Lucifer and lower the hand');
-  damageEnemy(lucifer,100,P.pos,0,true);
-  check(WORLDSTATE.luciferDefeated && AFTERLIFE.phase==='fall', 'Lucifer starts hand drop');
-  updateAfterlife(1.95);
-  check(hero.scale.y < .1 && lucifer.mesh.scale.y < .1 && P.pos.distanceTo(lucifer.pos) < 1.3, 'hand crushes both Lucifer and player');
-  updateAfterlife(1.3); check(AFTERLIFE.phase==='credits', 'hand drop reaches credits');
+  const tallHand = GEH.godHand.position.y, playerAtHold = P.pos.clone(), playerHp = P.hp;
+  for (let phase = 1; phase <= 3; phase++) {
+    damageEnemy(lucifer,1000,P.pos,0,true);
+    const floor = 90 - phase * 30;
+    check(lucifer.hp === floor && lucifer.phase === phase && lucifer.holdPause > 0 && lucifer.alive, 'oversized blow stops at hold stage ' + phase);
+    damageEnemy(lucifer,1000,P.pos,0,true);
+    check(lucifer.hp === floor && lucifer.phase === phase && !WORLDSTATE.luciferDefeated, 'child and answer cannot be skipped at hold stage ' + phase);
+    for (let i = 0; i < 400 && lucifer.holdPause > 0; i++) { time += .05; gehUpdateLucifer(lucifer,P,0,0,0,.05); }
+    check(lucifer.pleaStep === 1 && lucifer.holdPause === 0, 'child and Lucifer finish exchange ' + phase);
+    if (phase < 3) check(lucifer.armed && !WORLDSTATE.luciferDefeated && !AFTERLIFE.phase, 'another deliberate attack is needed after exchange ' + phase);
+  }
+  check(lucifer.bodyScale < 1 && GEH.godHand.position.y < tallHand - 3, 'breaking the hold shrinks Lucifer and lowers the burden');
+  check(WORLDSTATE.luciferDefeated && AFTERLIFE.phase==='release' && lucifer.alive && !lucifer.armed && lucifer.noBar, 'Lucifer releases the hold alive');
+  const releaseHand = GEH.godHand.position.y;
+  updateAfterlife(3.1);
+  check(GEH.godHand.position.y > releaseHand && !GEH.prideShelter, 'aftermath lifts the hand without freeing anyone from a cage');
+  check(hero.scale.y === 1 && lucifer.mesh.scale.y > .6 && P.pos.equals(playerAtHold) && P.hp === playerHp, 'release preserves both bodies and leaves the player unharmed');
+  updateAfterlife(15); check(AFTERLIFE.phase==='credits' && GEH.prideChildren.every(c => c.visible), 'release reaches credits with every child still present');
+  check(GEH.prideChildren[0].position.x < GEH.prideChildren[1].position.x && GEH.prideChildren[1].position.x > GEH.prideChildren[2].position.x && GEH.prideChildren[1].scale.y < 1, 'children independently cross, rest and explore after the confrontation');
   Voice.on = voiceOn;
   updateAfterlife(15.1); check(CHOICE && AFTERLIFE.phase==='choice', 'credits reach Stay/Move on');
   const levelBefore=heroLevel(); answerChoice(0);
   check(WORLDSTATE.afterlife==='stay' && P.pos.y>DIVIDE && heroLevel()===levelBefore, 'Stay retains stats in valley');
-  check(hero.scale.y === 1, 'Stay restores normal ghost proportions');
-  let ghostMesh = false;
-  hero.traverse(o => { if (o.isMesh && o.material && o.material.opacity <= .42) ghostMesh = true; });
-  check(ghostMesh, 'Stay renders ghost');
-  gehBeginDive(); check(CHOICE && AFTERLIFE.phase==='choice', 'ghost pool revisit immediately asks choice');
+  check(hero.scale.y === 1, 'Stay keeps normal living proportions');
+  const livingMeshes = [];
+  hero.traverse(o => { if (o.isMesh && o.material) livingMeshes.push(o); });
+  check(livingMeshes.length > 0 && livingMeshes.every(o => o.material === o.userData.livingMaterials) && livingMeshes.some(o => o.material.opacity === 1), 'Stay restores the living materials without ghost transparency');
+  gehBeginDive(); check(CHOICE && AFTERLIFE.phase==='choice', 'living pool revisit immediately asks choice');
   answerChoice(1); check(AFTERLIFE.phase==='modern' && WORLDSTATE.afterlife==='moveOn', 'Move on opens modern slideshow');
   showModernEnding(2); check(AFTERLIFE.panel.textContent.includes('By the river') && !/Ysolde|reborn/.test(AFTERLIFE.panel.textContent), 'final storybook page leaves the absence unspoken');
   check(parseSaveKey(makeSaveKey()).ws.afterlife==='moveOn', 'ending choice survives portable save');

@@ -12,7 +12,7 @@ checked in edge with hardware webgl2 on an rtx 5080. these are focused checks of
 
 local webrtc was also tested with three complete game clients. a separate load run used one complete host and 15 small webrtc clients: all 16 ids reached each client, the extra player was rejected, and reliable events survived motion backpressure. the measured local host frame sample averaged 12.23 ms, with 14.6 ms at the 95th percentile. that does not measure internet latency or 16 full game clients on different computers.
 
-the kingdom and church screenshots come from the actual game camera and scene. shared fairy rescue is a known follow-up. signaling has no turn relay yet, so some networks may still fail to connect.
+the kingdom and church screenshots come from the actual game camera and scene. fairy rescues stay personal in 2.24.2. signaling has no turn relay yet, so some networks may still fail to connect.
 
 run the main checks with node and playwright:
 

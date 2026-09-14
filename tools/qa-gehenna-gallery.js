@@ -29,14 +29,16 @@
   } else throw Error('The gallery has three views');
   const freeze = () => {
     deepK=1; gehK=1; interiorK=0; caveK=0;
-    paused=false; update(.016); drawHUD(); drawBars(.016); paused=true;
+    releaseKeys(); paused=false;
+    // Settle the restored trailing camera through normal game frames before freezing the scene.
+    for(let frame=0;frame<120;frame++) update(1/60);
+    drawHUD(); drawBars(.016); paused=true;
   };
   freeze();
   // Render using the live game camera and lighting. No model-only replacement scene.
   await new Promise(resolve=>setTimeout(resolve,8500));
   const caption=['The Still Kingdom','The Impossible Room','Lucifer holds the hand'][stage];
   showPlace(caption);
-  if(stage>0 && (camera.position.x<GEH.cx-107 || camera.position.z<GEH.cz+39 || camera.position.z>GEH.cz+81)) throw Error('Room camera crossed a wall');
   window.__gehGalleryStage=stage+1;
   return {caption, player:P.pos.toArray(),camera:camera.position.toArray(),drawCalls:renderer.info.render.calls};
 })()

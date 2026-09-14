@@ -9,7 +9,7 @@
   if(Math.abs(BODY.mesh.rotation.x+Math.PI/2)>.01)throw Error('body must lie flat in the grave');
   animateHero(P,.2,time);hero.position.copy(P.pos);hero.rotation.y=P.heading;
   camYaw=.70;camPitch=.42;camDist=7;visY=P.pos.y;lastSafePos.copy(P.pos);
-  dayT=.22;dayElev=.8;drawHUD();drawBars(.016);
+  dayT=.22;dayElev=.8;paused=false;update(.016);drawHUD();drawBars(.016);paused=true;
   await new Promise(r=>setTimeout(r,8500));
   return{phase:BURIAL.phase,body:BODY.mesh.position.toArray(),player:P.pos.toArray(),kneel:P.burial};
 })()

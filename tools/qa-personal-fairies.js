@@ -1,0 +1,55 @@
+(() => {
+  const checks=[],check=(ok,label)=>{if(!ok)throw Error(label);checks.push(label);};
+  paused=true;Voice.on=false;Voice.stop();NET.peers.clear();NET.avatars.clear();NET.role='guest';
+  const sent=[],host={id:'host',hello:true,ready:true,ch:{readyState:'open',send:raw=>sent.push(JSON.parse(raw))}};
+  NET.peers.set(host.id,host);NET.sideJoined=false;
+  const rose=FAIRY.quest,ferry=sideQuestById('hollowmere-fairies'),lookout=sideQuestById('lookout-fairies');
+  for(const c of FAIRY.children){c.found=false;c.mesh.visible=true;}
+  FAIRY.found=FAIRY.hearts=0;FAIRY.complete=FAIRY.accepted=FAIRY.rest=false;WORLDSTATE.relics.tear=false;
+  for(const q of [rose,ferry,lookout]){q.taken=false;q.done=false;q.rewarded=false;q.partyProgress=null;q.partyRev=1;}
+  check([rose,ferry,lookout].every(q=>sidePersonalFairy(q)&&!sideSharesReward(q)),'all fairy errands and rewards are personal');
+  talkFairyQueen();
+  check(FAIRY.accepted&&rose.taken&&!sent.some(m=>m.t==='sqreq'),'guest accepts the Rose Court locally without host approval');
+  rescueFairy(FAIRY.children[0]);
+  check(FAIRY.found===1&&FAIRY.children[0].found,'guest rescues its own fairy immediately');
+  check(!sent.some(m=>m.t==='fr'||m.t==='fs'||m.t==='sqa'),'rescue sends no shared fairy progress');
+  rescueFairy(FAIRY.children[0]);check(FAIRY.found===1,'repeat local rescue counts once');
+  const hp=P.maxHp;
+  sideApplySnapshot({q:[['rose-children',3,1,[25]],['hollowmere-fairies',3,1,[2]],['lookout-fairies',3,1,[3]]]});
+  check(FAIRY.found===1&&!rose.done&&!ferry.taken&&!lookout.taken&&P.maxHp===hp,'shared snapshots cannot complete or pay personal fairy errands');
+  check(FAIRY.children[1].mesh.visible&&!FAIRY.children[1].found,'another player cannot hide an unrescued local fairy');
+  rose.partyProgress=[25];check(sideProgressValues(rose)[0]===1&&!sideReady(rose),'old shared progress cannot change the local fairy objective');
+  for(const c of FAIRY.children.slice(1,5))rescueFairy(c);
+  check(FAIRY.found===5&&FAIRY.hearts===1&&FAIRY.rest&&P.maxHp===hp+1,'five local rescues earn the local rose heart and rest upgrade');
+  NET.role='host';rose.partyRev=1;rose.partyProgress=[0];
+  check(!sideActivityRows().some(row=>['rose-children','hollowmere-fairies','lookout-fairies'].includes(row[0])),'personal fairy counters are excluded from activity reports');
+  check(!sideSnapshot().q.some(row=>['rose-children','hollowmere-fairies','lookout-fairies'].includes(row[0])),'personal fairy errands are excluded from host snapshots');
+  sideHostMerge('friend',[['rose-children',1,[25]]]);
+  check(FAIRY.found===5&&!rose.done&&sideProgressValues(rose)[0]===5,'friend activity cannot advance personal completion');
+  const save=parseSaveKey(makeSaveKey());
+  check(save.fairy.kids.length===5&&save.fairy.found===5&&save.side[rose.title][3]===null,'save keeps personal child IDs and omits shared fairy counters');
+  save.side[rose.title][1]=true;save.side[rose.title][3]=[25];
+  NET.role=null;NET.peers.clear();applySave(save);
+  check(FAIRY.found===5&&!rose.done&&rose.partyProgress===null&&P.maxHp===save.maxHp,'loading ignores stale shared completion and preserves local rewards');
+  NET.role='guest';NET.peers.set(host.id,host);sent.length=0;WORLDSTATE.hermitWarned=true;
+  sideTalk(ferry.giver);
+  check(ferry.taken&&!ferry.done&&STORY.ferry0===5&&!ferry.netPending,'guest accepts Hollowmere locally with its own rescue baseline');
+  ferry.partyProgress=[2];
+  check(!sideReady(ferry),'stale party progress cannot satisfy Hollowmere before local rescues');
+  for(const c of FAIRY.children.filter(c=>!c.found).slice(0,2))rescueFairy(c);
+  const ferryHp=P.maxHp;sideTalk(ferry.giver);sideTalk(ferry.giver);
+  check(ferry.done&&ferry.rewarded&&P.maxHp===ferryHp+1,'Hollowmere pays the local lantern heart exactly once');
+  sideTalk(lookout.giver);lookout.partyProgress=[3];
+  const localLookouts=FAIRY.children.filter(c=>(c.clue||'').startsWith('Elder'));
+  for(const c of localLookouts)rescueFairy(c);
+  const featherCount=FOUND.filter(t=>t.startsWith('Skyfeather:')).length;
+  sideTalk(lookout.giver);sideTalk(lookout.giver);
+  check(lookout.done&&lookout.rewarded&&P.bonus.jumps===3&&FOUND.filter(t=>t.startsWith('Skyfeather:')).length===featherCount+1,'lookout rescues pay the local third jump exactly once');
+  check(!sent.some(m=>['sqreq','fr','fs'].includes(m.t)),'local fairy errands and turn-ins send no host requests or fairy progress');
+  const rewardSave=parseSaveKey(makeSaveKey()),rewardHp=P.maxHp;
+  check([ferry,lookout].every(q=>rewardSave.side[q.title][2]&&rewardSave.side[q.title][3]===null),'fairy errands save local reward receipt without shared counters');
+  NET.role=null;NET.peers.clear();applySave(rewardSave);
+  sideTalk(ferry.giver);sideTalk(lookout.giver);
+  check(P.maxHp===rewardHp&&P.bonus.jumps===3&&ferry.rewarded&&lookout.rewarded,'loading claimed fairy errands preserves upgrades without paying them twice');
+  return{total:checks.length,checks};
+})()

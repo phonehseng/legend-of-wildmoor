@@ -1,8 +1,8 @@
 (async () => {
   const checks = [], check = (ok, label) => { if (!ok) throw Error(label); checks.push(label); };
   const sent = [], channel = { readyState: "open", send: s => sent.push(JSON.parse(s)) };
-  const peer = { id: "coop-guest", playerId: "coop-player", ready: true, ch: channel };
-  paused = true; NET.role = "host"; NET.peers.clear(); NET.avatars.clear(); NET.peers.set(peer.id, peer);
+  const peer = { id: "coop-guest", playerId: "coop-player", ready: true, ch: channel }, hostPlayerId = NET.myId;
+  paused = true; Voice.stop(); NET.role = "host"; NET.peers.clear(); NET.avatars.clear(); NET.peers.set(peer.id, peer);
   netAddAvatar("coop-player", netLook(), peer.id, 10, 10);
   const guest = NET.avatars.get("coop-player");
   guest.state.dead = false; guest.state.block = false; guest.state.grounded = true; guest.state.dodge = 0;
@@ -82,17 +82,30 @@
   check(lucRow.armed && lucRow.scenePhase === "hold" && lucRow.bodyScale === 2.1 && finaleSnapshot.hand, "snapshot mirrors Lucifer phase, scale, vulnerability and hand");
   gehLuciferDown();
   check(WORLDSTATE.luciferDefeated && GEH.netFinale.members.includes(guest.id) && !GEH.netFinale.members.includes(NET.myId), "shared finale membership excludes valley host");
-  check(!AFTERLIFE.phase && !NET.gehFinaleLocal && P.pos.distanceTo(posHost) === 0, "shared finale does not crush or show ending choice to valley host");
+  check(lucifer.alive && !lucifer.armed && lucifer.noBar && lucifer.scenePhase === "release", "shared victory releases Lucifer alive with the hold bar hidden");
+  check(!AFTERLIFE.phase && !NET.gehFinaleLocal && P.pos.distanceTo(posHost) === 0, "shared release does not show ending choice to valley host");
+  updateAfterlife(6);
+  check(GEH.netFinale.t === 6 && lucifer.scenePhase === "release" && !GEH.godHand.visible, "updateAfterlife advances shared release while host remains in valley");
+  check(!AFTERLIFE.phase && !CHOICE && P.pos.equals(posHost) && P.hp === hpHost, "release timeline leaves the valley host playable and unharmed");
+  const releaseSnapshot = netGehennaSnapshot();
   const uninvolvedSave = parseSaveKey(makeSaveKey());
   check(uninvolvedSave && uninvolvedSave.ws.luciferDefeated && uninvolvedSave.ws.gehFinaleWitnessed === false, "save whitelist preserves victory separately from local finale participation");
-  // Apply a host snapshot on a simulated guest; save progress must never be cast into booleans.
-  const guestSnap = netGehennaSnapshot(); NET.role = "guest"; NET.peers.clear(); NET.avatars.clear();
+  // Replay the held snapshot separately from the actual release snapshot.
+  const guestSnap = structuredClone(finaleSnapshot); NET.role = "guest"; NET.myId = guest.id; NET.peers.clear(); NET.avatars.clear();
   NET.peers.set("host", { id: "host", ready: true, ch: channel });
-  NET.gehState = guestSnap; // realm already built in this harness; normal first join rebuild is tested separately below.
-  P.pos.copy(lucifer.pos); NET.gehFinaleLocal = false;
-  guestSnap.finale = null; guestSnap.ws[4] = false;
+  P.pos.copy(lucifer.pos); NET.gehFinaleLocal = false; GEH.netFinale = null;
+  netBeginGehennaSession(); NET.gehState = guestSnap; NET.gehApplied = true; // this harness already built the shared world; normal entry is checked below.
   netApplyGehenna(guestSnap); netMirrorGehenna(0.016);
   check(lucifer.gehMirror && lucifer.scenePhase === "hold" && lucifer.bodyScale === 2.1, "guest mirror renders the authoritative Lucifer state");
+  const roomPosition = P.pos.clone(), childLine = LUCIFER_CHILDREN[0];
+  const childMessage = { t: "gsay", seed: guestSnap.seed, who: "A child", line: childLine, ms: 5200, lucifer: false, roomOnly: true };
+  P.pos.set(GEH.cx + 43, GEH.floor + 1, GEH.cz + 1);
+  const outsideSpeech = document.querySelector("#subs").textContent;
+  netHandleGehenna(NET.peers.get("host"), childMessage);
+  check(document.querySelector("#subs").textContent === outsideSpeech, "child's Pride-room speech does not reach a guest elsewhere in Gehenna");
+  P.pos.copy(roomPosition);
+  netHandleGehenna(NET.peers.get("host"), childMessage);
+  check(document.querySelector("#subs").lastElementChild.textContent.includes(childLine), "child's speech reaches a participant in Pride");
   const guestMat = GEH.enemies.find(e => e.kind === "matron"), guestHp = guestMat.hp;
   damageEnemy(guestMat, 9, P.pos, 1, true);
   check(guestMat.hp === guestHp && sent.some(m => m.t === "ged"), "guest hits are requests, never local boss damage");
@@ -112,14 +125,29 @@
   damageEnemy(guestResident, 8, P.pos, 0, true);
   check(guestResident.hp === 3 && GEH.woken === beforeWake, "guest resident hit is forwarded before the local seated-state branch");
   P.pos.set(POOL.x + 10, groundAt(POOL.x + 10, POOL.z, 1e9), POOL.z); P.gehDive = null;
-  NET.gehState = null;
+  netEndGehennaSession();
+  WORLDSTATE.gehSeed = 0; GEH_NET_FLAGS.forEach(k => WORLDSTATE[k] = false);
+  netBeginGehennaSession(); NET.gehAccess = true;
   netApplyGehenna(guestSnap);
-  check(!GEH.root && WORLDSTATE.gehSeed === seed && WORLDSTATE.gehDone, "first join replaces prior realm with host seed and progress without building it above ground");
+  check(!GEH.root && WORLDSTATE.gehSeed === 0 && !WORLDSTATE.gehDone && NET.gehState.seed === seed, "above-ground join caches the host world without granting personal Gehenna progress");
   check(gehBeginDive(), "joined guest can descend using the host seed");
   for (let i = 0; i < 300 && !GEH.netBuilt; i++) await new Promise(r => setTimeout(r, 20));
   check(GEH.netBuilt && GEH.seed === seed, "guest builds the host's seeded realm through normal descent");
   check(GEH.enemies.some(e => e.gehMirror && e.kind === "lucifer" && e.armed && e.scenePhase === "hold"), "fresh guest build restores in-progress Lucifer phase from latest snapshot");
-  NET.role = null; NET.peers.clear(); NET.avatars.clear(); P.gehDive = null;
+  P.gehDive = null; P.pos.copy(GEH.lucifer.pos); NET.gehFinaleLocal = false;
+  netApplyGehenna(releaseSnapshot);
+  check(AFTERLIFE.phase === "release" && NET.gehFinaleLocal && WORLDSTATE.gehFinaleWitnessed && GEH.netFinale.t === 6, "release snapshot starts the private ending for its listed guest participant");
+  check(GEH.lucifer.alive && !GEH.lucifer.armed && GEH.lucifer.noBar, "participant release keeps Lucifer alive and removes his hold bar");
+  const releasePos = P.pos.clone(), releaseHp = P.hp;
+  updateAfterlife(12);
+  check(AFTERLIFE.phase === "credits" && hero.scale.y === 1 && P.pos.equals(releasePos) && P.hp === releaseHp, "participant release reaches credits without harming the guest");
+  updateAfterlife(15.1);
+  check(CHOICE && AFTERLIFE.phase === "choice", "participant credits reach a private Stay or Move on choice");
+  answerChoice(0);
+  check(WORLDSTATE.afterlife === "stay" && P.pos.y > DIVIDE && !AFTERLIFE.phase, "guest can choose a living return to Wildmoor");
+  check(gehBeginDive() && CHOICE && AFTERLIFE.phase === "choice", "a participating guest who stayed can reopen their own ending choice");
+  answerChoice(0);
+  netEndGehennaSession(); NET.role = null; NET.myId = hostPlayerId; NET.peers.clear(); NET.avatars.clear(); P.gehDive = null;
   applySave(structuredClone(uninvolvedSave));
   updateAfterlife(0);
   check(!WORLDSTATE.gehFinaleWitnessed && !AFTERLIFE.phase, "reloading a nonparticipant victory does not open a private epilogue");
