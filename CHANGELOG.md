@@ -4,6 +4,130 @@ Every change, with the bug it fixes and how. Newest first.
 
 ---
 
+## 2.14.0 — A boss with no attack, and a log worth reading back
+
+### The Almoner
+
+The first of Gehenna's three bosses, and the first fight in the game that cannot
+hit you. He is the almshouse's relief officer, doing his rounds.
+
+**He has no attack state at all.** Measured across a whole fight: **zero calls to
+`hurtPlayer` and zero to `enemyStrike`**, both wrapped and counted. He is
+invulnerable while he is healing *you* — 25 ordinary blows and 25 heavy ones
+during `mend` moved him from 300.000 hp to 300.000 — and vulnerable only while he
+kneels over one of the Attached to unburden them. Every blow you land is struck
+into a hand reaching for somebody else.
+
+Phase 2 at two thirds puts his cart between you and him, and the roofs become the
+only answer. Phase 3 at a third: he kneels and does not get up again, and the
+last seventeen seconds of the fight have no combat in them at all.
+
+**Standing still does not kill you. It costs you all four people.** Fifty seconds
+of refusing: hp 8.000 to a minimum of 8.000, no damage taken, all four still
+seated — and then he follows you up the road, healing you, and never blocks it.
+
+Measured: phase 2 fired at hp 196.300 of 300, phase 3 at 95.9–97.5. The heavy
+interrupt stuns for a measured 1.457–1.484 s against a specified 1.4. The reward
+survives being re-granted twice. **+12 scene nodes** against a 500 budget, and
+frame time indistinguishable from the build without him — 10.5 ms median against
+10.6, p95 12.6 against 14.2.
+
+### Bug 119 — A living Gehenna boss could be teleported into the valley · FIXED
+
+`updateEnemyTells` relocates a distant boss to a ring around the player, and its
+depth guard is on **the player's** height rather than the enemy's. In the couple
+of seconds between surfacing and teardown, a living Gehenna boss therefore scores
+as "more than 55 m away", gets moved to a valley position computed from
+`terrainH`, and is set to `state = "chase"` — a state its switch has no case for,
+which is the exact freeze that stranded the Drowned Warden in a hillside in 2.5.0.
+
+**This is a live candidate for the unexplained "glitched from Gehenna back to the
+overworld" report, approached from the other side** — not the player being moved
+up, but the world below being moved up around them.
+
+### Bug 120 — A guest could not hurt anything in its own Gehenna, and its blows landed in the host's valley · FIXED
+
+Since 2.11.0 a guest simulates its own Gehenna. But `damageEnemy`'s guest branch
+still reported **every** blow upward by `e.nid` — and nid sequences are assigned
+per peer, so the host matched the number against whatever valley body happened to
+share it, while the guest's own Gehenna took no damage at all. The Kindly One was
+**unkillable from the guest side**, and a guest swinging underground was quietly
+damaging something on the moor.
+
+It now resolves locally below the seam and reports nothing, which is the same
+realm rule `netEnemySnapshot` and `nearestPlayerTo` already carry. The HUD boss
+bar got the same test, because it was chosen on 2D distance alone — a player
+standing at (600, 600) on the moor could read a Gehenna boss's name and health.
+
+### The dialogue log, on `L`, and worth opening
+
+**Reported:** *"in case the player misses a beat of dialogue and wants to listen
+to it back or read what was said."*
+
+`L` opens the log alone, full width. `J` still opens the whole book. Pressing the
+other key switches rather than closing; pressing the same key closes. Escape and
+P close the book instead of pausing behind it, and there is a `LOG` button beside
+`MAP` on touch.
+
+It does not look like the rest of the book any more: bone blocks with near-black
+bold type, gold name tabs welded above each line and skewed with the letters
+counter-skewed upright, panels set a degree off square with alternating insets so
+they overlap, the world's narration as dark bronze-ruled slabs, a diagonal stripe
+field in the header, and a staggered slide-in on the first fourteen entries.
+**No purple** — bone, gold, bronze and ink. Reduced motion is honoured.
+
+The cap is 400 now rather than 200, dropping the oldest, and every entry carries
+the in-world clock with a real-time "ago" tooltip. **400 entries render in 11 ms.**
+
+**It stays runtime-only and the code says why:** four edits to carry it, and a few
+hundred lines of prose would dwarf a key that people paste by hand.
+
+### Three logging bugs found while building it
+
+- **Every story line by a named speaker was logged twice** — once attributed by
+  `speak()` and once as narration, because `say(story = true)` logged it again
+  reading `"Name: line"`. That hit the King, Hale in the stocks, and every story
+  NPC.
+- **Gehenna had no attribution at all.** `gsay` passed `"Name: line"` as a single
+  string, so the entire after-story landed under a blank speaker.
+- **Choices were invisible.** The question and the player's answer both go in
+  now, the answer tabbed as *You*.
+
+Also: the HUD painted over the book at phone width, and the three-page view showed
+three unreadable slivers instead of stacking.
+
+### Claims from the boss design that did not hold, checked in the code
+
+- *"No boss in this game has ever had a health bar."* **Wrong.** `updateHealthBar`
+  hides the floating over-head bar for bosses, but there is a separate **HUD boss
+  bar** that shows for any living boss within 60 m. The Warden and the Kindly One
+  both have one. It matters most for the Unclaimed, whose whole premise is that
+  its tier *is* its health bar and that no subtitle ever names the rule — a live
+  220-hp bar undercuts that, and it is a decision still to be made.
+- *"`netApplyEnemies` has no EXTRA reconstruction path whatsoever."* The
+  conclusion was right and the reason was wrong: there is an EXTRA loop, and it
+  carries an explicit whitelist of wolf, wraith and warden. Unknown kinds are
+  dropped rather than mirrored.
+- *"`dashCost` is never written by anything."* The Great Fairy's Petal Step
+  already writes it, so the Unclaimed's reward is a **no-op for any player with
+  fifteen fairies** — still safe, still idempotent, and worth less than intended.
+
+### Known, and needing a decision
+
+**Gehenna's houses have no interiors.** They are three `InstancedMesh`es plus one
+solid box each. The Almoner's design calls for the door of his house standing
+open with a bed, a chair and a comb inside — and the Matron's design puts her
+room, with twenty-eight names cut into the wall, in one of those same houses.
+That room is the strongest single piece of writing available down there and it
+currently has nowhere to be.
+
+`insideInterior` cannot be reused: its table is keyed on x and z with no depth
+routing, so an interior registered at Gehenna's coordinates would also be a hole
+in the moor at (646, 610). The answer is four thin wall structs with a doorway
+gap — all axis-aligned, so `resolveStructs` having no rotation field does not
+matter — and the contents as plain meshes. Contained work, but arena building
+rather than combat, so it was correctly left rather than half-built.
+
 ## 2.13.0 — Goblins wade, Nim walks the roads, and the gem is on the ring
 
 ### Bug 116 — The gem was floating above the ring · FIXED

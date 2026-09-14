@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.13.0</title>
+<title>Legend of Peanits 2.14.0</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -372,13 +372,77 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   @media (max-height: 720px) { #panel { padding-top: 18px; padding-bottom: 18px; } .brand-lockup { margin-bottom: 14px; } .panel label { margin-top: 11px; } .intro-kicker { margin-bottom: 10px; } }
   @media (prefers-reduced-motion: reduce) { #loading .cube-mark { animation: none; } .btn, .sw button { transition: none; } }
 
+  /* ------------------------------------------------------------------ the words page
+     the log is the one place the book stops being a book. flat blocks of colour, a name tab welded to each line,
+     panels set a degree off square so no two edges agree, and a fast staggered entry. the shape is borrowed from a
+     game that does this well; the colours are not. this is the valley's own ink, bone and gold, because a third
+     page of the same purple was the thing this is meant to answer. */
+  #questbook .book { position: relative; }
+  #questbook .page.log { display: flex; flex-direction: column; padding: 0; overflow: hidden; background: #0d0918; color: var(--bone); }
+  #questbook .page.log h2 { margin: 0; padding: 0; border: 0; display: inline-block; font-size: 21px; font-weight: 900; letter-spacing: .26em; text-transform: uppercase; color: var(--bone); transform: skewX(-10deg); text-shadow: 3px 3px 0 #000; }
+  .log-head { flex: none; position: relative; overflow: hidden; padding: 15px 18px 12px; background: #0a0613; border-bottom: 3px solid var(--gold); }
+  /* the one unapologetic diagonal: stripes running off the right of the header, at the angle the panels lean */
+  .log-head::after { content: ""; position: absolute; inset: -12px -12px -12px 46%; background: repeating-linear-gradient(108deg, transparent 0 24px, rgba(224,180,90,.14) 24px 31px); pointer-events: none; }
+  .log-count { position: relative; z-index: 1; margin-top: 5px; font-size: 10px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--bronze); }
+  #qb-log { flex: 1; min-height: 0; overflow-y: auto; padding: 22px 16px 26px; }
+  #qb-log::-webkit-scrollbar { width: 9px; }
+  #qb-log::-webkit-scrollbar-track { background: #0a0613; }
+  #qb-log::-webkit-scrollbar-thumb { background: var(--bronze); }
+  .log-foot { flex: none; padding: 9px 16px 11px; background: #0a0613; border-top: 2px solid #2b200d; font-size: 11px; letter-spacing: .03em; color: #97886a; }
+  .log-foot b { color: var(--gold); }
+  /* entries lean opposite ways and step in and out from the edges, so the column reads as overlapping cards rather
+     than a table. the negative top margin is what makes them overlap. */
+  .w-e { position: relative; margin: 0 0 15px; }
+  .w-e + .w-e { margin-top: -4px; }
+  .w-e:nth-child(odd) { margin-right: 30px; }
+  .w-e:nth-child(even) { margin-left: 30px; }
+  .w-line { margin: 0; line-height: 1.34; }
+  .w-say .w-line { transform: skewY(-.9deg); background: var(--bone); color: #14101f; font-weight: 700; padding: 11px 14px 11px 15px; border-left: 6px solid var(--gold); box-shadow: 5px 5px 0 rgba(0,0,0,.45); }
+  .w-narr .w-line { transform: skewY(.7deg); background: #1b1628; color: #e3d9be; font-style: italic; padding: 10px 52px 10px 15px; border-left: 6px solid var(--bronze); box-shadow: 5px 5px 0 rgba(0,0,0,.4); }
+  /* the speaker is a solid tab attached to the line, not a prefix inside it. the inner span un-skews the letters so
+     only the block is a parallelogram. */
+  .w-tab { position: relative; z-index: 2; display: inline-block; max-width: calc(100% - 34px); margin: 0 0 -3px 8px; padding: 3px 13px 3px 11px; background: var(--gold); color: #1b1204; font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transform: skewX(-13deg); box-shadow: 3px 3px 0 rgba(0,0,0,.45); }
+  .w-tab > span { display: inline-block; transform: skewX(13deg); }
+  .w-when { position: absolute; right: 5px; top: 1px; font-size: 10px; font-weight: 700; letter-spacing: .1em; color: var(--bronze); }
+  .w-narr .w-when { top: 8px; right: 10px; z-index: 2; }
+  .w-empty { padding: 28px 18px; color: var(--bronze); font-style: italic; }
+  /* only the first few entries are staggered in. two hundred of them would still be arriving after the player had
+     read the one they opened the book for. */
+  @keyframes w-slide { from { opacity: 0; transform: translate3d(44px, 0, 0); } }
+  .w-fresh { animation: w-slide .19s cubic-bezier(.18,.86,.34,1) backwards; animation-delay: calc(var(--i, 0) * 26ms); }
+  @media (prefers-reduced-motion: reduce) { .w-fresh { animation: none; } }
+  /* l opens the log alone, full width, with the other two pages out of the way and room down both sides */
+  #questbook.words .page:not(.log) { display: none; }
+  #questbook.words .book { background: #0d0918; border-color: #3b2d13; box-shadow: 0 0 0 3px var(--gold), 0 14px 40px #000; height: min(720px, 90vh); }
+  #questbook.words .page.log { font-size: 14px; }
+  #questbook.words .log-head, #questbook.words .log-foot { padding-left: max(18px, calc(50% - 355px)); padding-right: max(18px, calc(50% - 355px)); }
+  #questbook.words #qb-log { padding-left: max(16px, calc(50% - 355px)); padding-right: max(16px, calc(50% - 355px)); }
+  #qb-close { background: #241a08; border-color: var(--gold); color: var(--gold); box-shadow: 0 3px 0 #100a02; }
+  #qb-close:hover { background: var(--gold); color: #1b1204; }
+  /* touch has no keyboard, so the log gets a button of its own beside the map */
+  #mb-log { right: 136px; top: 24px; width: 44px; height: 44px; font-size: 11px; }
+  /* a phone cannot read three columns of a book at once, so below this the pages stack and the log stops stepping
+     in and out from edges it no longer has room for */
+  @media (max-width: 760px) {
+    #questbook .book { flex-direction: column; width: 100%; max-width: 100vw; height: 100%; max-height: 100vh; border-radius: 0; }
+    #questbook .page { min-height: 0; }
+    #questbook .page + .page { border-left: 0; border-top: 1px solid #6b518e; }
+    /* the book fills the screen at this width, and every hud widget written after it in the page paints on top of
+       it. they are the ones to stand down, and they are exactly the ones this selector reaches. */
+    #questbook:not(.hidden) ~ * { visibility: hidden; }
+    #questbook.words .book { height: 100%; }
+    #questbook .page.log h2 { font-size: 18px; letter-spacing: .18em; }
+    .w-e:nth-child(odd) { margin-right: 0; }
+    .w-e:nth-child(even) { margin-left: 0; }
+    .w-say .w-line, .w-narr .w-line { box-shadow: 3px 3px 0 rgba(0,0,0,.45); }
+  }
 </style>
 </head>
 <body class="loading">
 <!-- game: game interface element -->
 <canvas id="game"></canvas>
 <!-- hud: game interface element -->
-<div id="mobile"><div id="look"></div><div id="joy"><div class="knob"></div></div><div class="mb" id="mb-atk">ATK</div><div class="mb" id="mb-jump">JUMP</div><div class="mb" id="mb-slide">SLIDE</div><div class="mb" id="mb-block">BLOCK</div><div class="mb" id="mb-e">E</div><div class="mb" id="mb-run">RUN</div><div class="mb" id="mb-pause">II</div><div class="mb" id="mb-map">MAP</div></div>
+<div id="mobile"><div id="look"></div><div id="joy"><div class="knob"></div></div><div class="mb" id="mb-atk">ATK</div><div class="mb" id="mb-jump">JUMP</div><div class="mb" id="mb-slide">SLIDE</div><div class="mb" id="mb-block">BLOCK</div><div class="mb" id="mb-e">E</div><div class="mb" id="mb-run">RUN</div><div class="mb" id="mb-pause">II</div><div class="mb" id="mb-map">MAP</div><div class="mb" id="mb-log">LOG</div></div>
 <div id="hud">
   <!-- loading, loadtext, loadbar: game interface element -->
   <div id="loading"><div class="boot-card"><svg class="cube-mark peanut" viewBox="0 0 64 72" aria-hidden="true"><path d="M32 6c9 0 14 7 14 15 0 5-2 8-3 11 3 3 5 8 5 13 0 10-7 19-16 19S16 55 16 45c0-5 2-10 5-13-1-3-3-6-3-11 0-8 5-15 14-15Z" fill="#d8a45a" stroke="#7a5122" stroke-width="2.5" stroke-linejoin="round"/><path d="M24 20c0-3 2-6 5-7M22 44c0-3 2-6 5-7" stroke="#7a5122" stroke-width="2" stroke-linecap="round" fill="none"/><circle cx="36" cy="18" r="1.6" fill="#7a5122"/><circle cx="38" cy="46" r="1.6" fill="#7a5122"/><circle cx="29" cy="50" r="1.4" fill="#7a5122"/><circle cx="27" cy="24" r="1.3" fill="#7a5122"/></svg><div class="edition">PROD. BY PHONE HSENG</div><h2>Legend of Peanits</h2><p id="loadtext">Waking the valley…</p><div class="track"><i id="loadbar"></i></div><div id="loadtip"></div></div></div>
@@ -387,7 +451,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.13.0</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.14.0</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -403,7 +467,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- enemy windup warning is a gameplay cue, independent of particles and texture quality -->
   <div id="zzz" class="hidden" style="position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);font-size:64px;color:var(--accent);text-shadow:3px 3px 0 #000;letter-spacing:.2em">Z z z</div>
   <div id="cool"><i style="width:100%"></i></div><div id="bcool"><i style="width:100%"></i></div>
-  <div id="questbook" class="hidden"><div class="book"><div class="page"><h2>The Story</h2><div id="qb-main"></div></div><div class="page"><h2>Errands</h2><div id="qb-side"></div></div><div class="page log"><h2>Words</h2><div id="qb-log"></div><p style="margin-top:14px;font-size:13px;opacity:.7">Click a quest to track it with the arrow. J closes.</p></div></div></div>
+  <div id="questbook" class="hidden"><div class="book"><button id="qb-close" class="xbtn" title="Close">✕</button><div class="page"><h2>The Story</h2><div id="qb-main"></div></div><div class="page"><h2>Errands</h2><div id="qb-side"></div></div><div class="page log"><div class="log-head"><h2>Words</h2><div id="qb-count" class="log-count"></div></div><div id="qb-log"></div><div id="qb-hint" class="log-foot"></div></div></div></div>
   <!-- place: game interface element -->
   <div id="place"></div>
   <!-- autosaveMark: game interface element -->
@@ -419,7 +483,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- hotbar: game interface element -->
   <div id="hotbar"></div>
   <!-- inv, invbody, invclose: game interface element -->
-  <div id="satchelTag"><div><span class="ikey">I</span> Satchel</div><div><span class="ikey">Tab</span> Stats</div><div><span class="ikey">M</span> Map</div><div><span class="ikey">J</span> Quests</div><div><span class="ikey">P</span> Pause</div></div>
+  <div id="satchelTag"><div><span class="ikey">I</span> Satchel</div><div><span class="ikey">Tab</span> Stats</div><div><span class="ikey">M</span> Map</div><div><span class="ikey">J</span> Quests</div><div><span class="ikey">L</span> Words</div><div><span class="ikey">P</span> Pause</div></div>
   <div id="inv" class="hidden"><div class="panel satchel"><button id="invX" class="xbtn" title="Close">✕</button><h2 style="font-size:28px;margin:0 0 12px">Satchel</h2><div class="satchel-body"><div id="invGrid"></div><div id="invDetail"><p class="hint">Hover a picture to read what you found.</p></div></div><p style="font-size:12px;opacity:.6;margin-top:10px">Press I to close</p></div></div>
   <!-- intro: game interface element -->
   <div id="title" class="hidden"><div class="title-card"><svg class="cube-mark peanut" viewBox="0 0 64 72" aria-hidden="true"><path d="M32 6c9 0 14 7 14 15 0 5-2 8-3 11 3 3 5 8 5 13 0 10-7 19-16 19S16 55 16 45c0-5 2-10 5-13-1-3-3-6-3-11 0-8 5-15 14-15Z" fill="#d8a45a" stroke="#7a5122" stroke-width="2.5" stroke-linejoin="round"/><path d="M24 20c0-3 2-6 5-7M22 44c0-3 2-6 5-7" stroke="#7a5122" stroke-width="2" stroke-linecap="round" fill="none"/><circle cx="36" cy="18" r="1.6" fill="#7a5122"/><circle cx="38" cy="46" r="1.6" fill="#7a5122"/><circle cx="29" cy="50" r="1.4" fill="#7a5122"/><circle cx="27" cy="24" r="1.3" fill="#7a5122"/></svg><h1>Legend of Peanits</h1><div class="edition" style="margin:-14px 0 22px;font-size:12px">PROD. BY PHONE HSENG</div><button id="play" class="btn">Play</button><button id="continueBtn" class="btn" disabled>Continue</button><p id="continueNote" style="font-size:12px;max-width:40ch;margin:12px auto 0;opacity:.72;line-height:1.5"></p></div></div>
@@ -442,7 +506,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
       <details class="field-guide"><summary>Controls &amp; field guide <span>+</span></summary>
       <p style="margin-top:16px"><b>W A S D</b> move · <b>Shift</b> run · <b>Space</b> jump, again to leap; jump into a tree trunk with speed to kick off it · <b>X</b> slide (hills are ramps) · <b>C</b> dash<br>
       <b>Left click</b> draw and swing; in the air, a spinning slash, then drop onto an enemy · <b>Right click</b> or <b>K</b> hold up the shield; a blow that lands on it costs no health and rests the shield a moment · <b>1 2 3</b> weapons you've found<br>
-      <b>E</b> talk / pick up / sleep in any bed · <b>M</b> big map · <b>Tab</b> stats · <b>I</b> satchel · <b>N</b> guide arrow · errands are marked <b>!</b> · <b>Esc</b> or <b>P</b> pause</p>
+      <b>E</b> talk / pick up / sleep in any bed · <b>M</b> big map · <b>Tab</b> stats · <b>I</b> satchel · <b>J</b> quest book · <b>L</b> every word anyone has said to you · <b>N</b> guide arrow · errands are marked <b>!</b> · <b>Esc</b> or <b>P</b> pause</p>
       <p>Slide is <b>X</b>. Ctrl slides too, but only in fullscreen (<b>F</b>), because outside fullscreen a browser may close the tab on Ctrl+W and Firefox never lets a page stop that.</p>
       <p>In deep water <b>Space</b> swims up and <b>X</b> swims down. Let go of both and you float back to the surface; at the surface <b>Space</b> still pulls you out.</p>
       <p><b>Movement rewards combat:</b> fast attacks knock enemies back, slide-attacks sweep wide, tree-kicks empower your next strike, and airborne hits restore a little stamina. Violet rings warn of incoming attacks; red means the attack is active.</p>
@@ -457,7 +521,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.13.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.14.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -550,7 +614,7 @@ const __boot = (async () => {
     "Hold the shield as long as you like; a blow that lands on it costs nothing but rests the shield a moment.",
     "Sleep in any bed to skip to dawn or dusk.",
     "Pale-barked trees are dead. The axe will take them.",
-    "Press J for the quest book, I for your satchel.",
+    "Press J for the quest book, L to read back anything you missed.",
     "Level every skill, swimming too, and blows land softer."
   ];
   let __tipN = Math.floor(Math.random() * __TIPS.length);
@@ -9731,8 +9795,7 @@ const __boot = (async () => {
         )
         .slice(0, 8)
         .join("") || "<p>All done.</p>");
-    const log = document.getElementById("qb-log");
-    if (log) log.innerHTML = TALK_LOG.length ? TALK_LOG.slice().reverse().map(e => `<div class="qb-line">${e.who ? `<b>${esc(e.who)}</b> ` : ""}${esc(e.text)}</div>`).join("") : "<p>Nobody has said anything to you yet.</p>";
+    renderWords();
     side.innerHTML =
       SIDE.filter(q => q.taken)
         .map(
@@ -9749,6 +9812,68 @@ const __boot = (async () => {
         }
         renderQuestBook();
       };
+  }
+  // the words page: everything anyone has said to you, newest first, because a player who opens this has just missed
+  // the last line and wants it at the top rather than a scroll away.
+  function renderWords() {
+    const log = document.getElementById("qb-log");
+    if (!log) return;
+    const count = document.getElementById("qb-count"),
+      hint = document.getElementById("qb-hint"),
+      alone = document.getElementById("questbook").classList.contains("words");
+    if (count) count.textContent = TALK_LOG.length ? `${TALK_LOG.length} of the last ${TALK_LOG_MAX}` : "";
+    if (hint)
+      hint.innerHTML = alone
+        ? `<b>L</b> closes · <b>J</b> opens the whole book`
+        : `Click a quest to track it with the arrow · <b>J</b> closes · <b>L</b> for these words alone`;
+    if (!TALK_LOG.length) {
+      log.innerHTML = `<p class="w-empty">Nobody has said anything to you yet.</p>`;
+      return;
+    }
+    log.innerHTML = TALK_LOG.slice()
+      .reverse()
+      .map(wordEntryHTML)
+      .join("");
+    log.scrollTop = 0;
+  }
+  // one entry. a name tab welded to the line when somebody said it, a plainer slab when the world did. only the
+  // first handful are marked fresh: staggering two hundred of them would still be arriving after the player had
+  // read the one they came for.
+  function wordEntryHTML(e, i) {
+    const fresh = i < 14;
+    const cls = "w-e " + (e.who ? "w-say" : "w-narr") + (fresh ? " w-fresh" : "");
+    const style = fresh ? ` style="--i:${i}"` : "";
+    const ago = e.wall ? ` title="${esc(agoText(Date.now() - e.wall))}"` : "";
+    const when = e.clock ? `<span class="w-when"${ago}>${esc(e.clock)}</span>` : "";
+    const tab = e.who ? `<div class="w-tab"><span>${esc(e.who)}</span></div>` : "";
+    return `<article class="${cls}"${style}>${when}${tab}<p class="w-line">${esc(e.text)}</p></article>`;
+  }
+  // two ways into the same book. j lays out all three pages; l throws the log up on its own, full width. whichever
+  // key opened it closes it, and the other one switches the view rather than slamming it shut under the player.
+  function toggleQuestBook(alone) {
+    const qb = document.getElementById("questbook");
+    if (!qb.classList.contains("hidden")) {
+      if (qb.classList.contains("words") === alone) return closeQuestBook();
+      qb.classList.toggle("words", alone);
+      renderQuestBook();
+      return;
+    }
+    qb.classList.toggle("words", alone);
+    renderQuestBook();
+    releaseKeys();
+    // the book frees the mouse so its pages can be clicked
+    if (document.pointerLockElement && document.exitPointerLock) document.exitPointerLock();
+    qb.classList.remove("hidden");
+  }
+  function closeQuestBook() {
+    const qb = document.getElementById("questbook");
+    if (qb.classList.contains("hidden")) return;
+    qb.classList.add("hidden");
+    tryLock();
+  }
+  function questBookOpen() {
+    const qb = document.getElementById("questbook");
+    return !!qb && !qb.classList.contains("hidden");
   }
   function anyInteractableNear() {
     if (FAIRY.queen && (FAIRY.queen.pos.distanceTo(P.pos) < 9 || FAIRY.children.some(fairyInReach))) return true;
@@ -12802,6 +12927,7 @@ const __boot = (async () => {
     document.getElementById("resume").onclick = () => setPaused(false);
     document.getElementById("pauseX").onclick = () => setPaused(false);
     document.getElementById("invX").onclick = () => closeInv();
+    document.getElementById("qb-close").onclick = () => closeQuestBook();
     // the autosave belongs to whatever run is being played, so a new run grows over the old one. saying so out loud
     // here is the cheapest honest answer: the alternative is a second slot nobody asked for, and a player who wants
     // to keep this run already has a Save key button two places along.
@@ -13555,6 +13681,12 @@ const __boot = (async () => {
       closeInv();
       return;
     }
+    // escape shuts the book rather than pausing behind it, the same bargain the satchel already makes
+    if ((k === "escape" || k === "p") && questBookOpen()) {
+      e.preventDefault();
+      closeQuestBook();
+      return;
+    }
     if (k === "escape" || k === "p") {
       e.preventDefault();
       if (e.stopPropagation) e.stopPropagation();
@@ -13614,12 +13746,10 @@ const __boot = (async () => {
       if (invOpen) closeInv();
       else openInv();
     }
-    if (k === "j") {
-      const qb = document.getElementById("questbook"),
-        opening = qb.classList.contains("hidden");
-      if (opening) { renderQuestBook(); releaseKeys(); if (document.pointerLockElement && document.exitPointerLock) document.exitPointerLock(); } else tryLock(); // the book frees the mouse so its pages can be clicked
-      qb.classList.toggle("hidden");
-    }
+    if (k === "j") toggleQuestBook(false);
+    // the same book opened straight onto the log, for a player who missed a line and wants it back. it sits beside j
+    // so it inherits every guard above it: a decision, a text field, the fitting room, the pause and the input lock.
+    if (k === "l") toggleQuestBook(true);
     if (k === "w" || k === "a" || k === "s" || k === "d") {
       if (e.ctrlKey) e.preventDefault();
     }
@@ -13843,6 +13973,10 @@ const __boot = (async () => {
     });
     hold("mb-map", () => {
       document.getElementById("minimap").classList.toggle("big");
+    });
+    // touch has no keyboard, so the log needs its own way in and its own way out; this button is both
+    hold("mb-log", () => {
+      if (started && !paused) toggleQuestBook(true);
     });
     canvas.style.touchAction = "none";
   })();
@@ -14207,13 +14341,24 @@ const __boot = (async () => {
     // while she is being drawn upward there is nothing of her to hit. this is not a mercy phase — it is the only
     // stretch of the fight where you are not fighting HER, and the drowned arrive the whole time you cannot.
     if (e.state === "ascend") { e.flash = 0.05; SFX.block(); if (from === P.pos && (e.ascSaid = (e.ascSaid || 0) + 1) === 1) say("Your blade goes through her. She is halfway out of the world.", 2600, true, "dark"); return; }
+    // the almoner cannot be hurt while he is healing you, and this has to sit HERE, in the warden's ascend position,
+    // rather than anywhere lower down: it returns before the stun assignment, before the knockback, before the xp
+    // grant and before hp is subtracted. every blow you land in his fight is struck into a hand reaching for somebody
+    // else, and this is the line that makes that literally true.
+    if (e.state === "mend") { e.flash = 0.05; SFX.block(); if (from === P.pos && !e.mendSaid) { e.mendSaid = true; say("Your blade goes through him. He does not notice. He is looking at your hands.", 3200, true, "geh"); } return; }
     if (e.shield && !big && from && e.alive) { // a shieldbearer turns blows that come at its face on the ground; the air, the flank and the heavy strokes get through
       const fx = from.x - e.pos.x, fz = from.z - e.pos.z, d = Math.hypot(fx, fz) || 1, facing = Math.sin(e.heading) * (fx / d) + Math.cos(e.heading) * (fz / d);
-      if (facing > 0.45 && (from === P.pos ? P.grounded : true)) { e.flash = 0.06; SFX.block(); if (from === P.pos) { hitstop = 0.05; say("Its shield! Go over it or around.", 900); } return; }
+      if (facing > 0.45 && (from === P.pos ? P.grounded : true)) { e.flash = 0.06; SFX.block(); if (from === P.pos) { hitstop = 0.05; say(e.shieldLine || "Its shield! Go over it or around.", 900); } return; }
     }
     if (e.wraith && e.alive && e.state !== "recover" && !big) dmg *= 0.5; // a wraith is only half there until it has struck
     if (e.guard) dmg *= e.guard; // the enraged king's hide
-    if (netGuest()) { // the host owns every enemy: your blow is reported there, and only your own blows count
+    // the host owns every enemy in the VALLEY, and only your own blows count there. gehenna is the exception and has
+    // to be one: since 2.11.0 a guest simulates its own, built from a seed the host does not have, and nothing under
+    // the seam is ever broadcast — so this message carries an id that the host would match against whatever valley
+    // body happened to share the number, while the guest's own gehenna took no damage at all and the kindly one
+    // could not be killed from that side. a guest resolves its own gehenna locally and reports nothing, which is the
+    // same realm rule netEnemySnapshot and nearestPlayerTo already carry.
+    if (netGuest() && e.pos.y >= DIVIDE) {
       if (from === P.pos) { e.flash = 0.12; if (e.kind === "bear" && !e.awake) return; for (const p of NET.peers.values()) netSend(p, { t: "ed", k: e.kind, id: e.kind === "goblin" ? e.nid : e.kind === "slime" ? slimes.indexOf(e) : e.kind === "bear" ? 0 : e.nid, dmg: +dmg.toFixed(2), kb: +kb.toFixed(1), big: !!big, fx: +P.pos.x.toFixed(1), fz: +P.pos.z.toFixed(1) }); }
       return;
     }
@@ -14300,6 +14445,21 @@ const __boot = (async () => {
       burst(e.pos.clone().add(V3(0, 1, 0)), 0x6a4038, 18, 4, 0.9, 0.16);
       if (!quiet) SFX.tone(150, 60, 1.4, 0.1, "sine", 0, 400);
       if (byPlayer && !quiet && window.GEHENNA) { try { GEHENNA.attachedDown(); } catch (err) { console.error("Gehenna: attachedDown threw", err); } }
+    } else if (e.kind === "almoner") {
+      // no strength, no tally, no kill line, for exactly the reason the attached branch above gives. nothing in
+      // gehenna pays out, and he never once hit you.
+      burst(e.pos.clone().add(V3(0, 1.2, 0)), 0x6a5a4a, 30, 5, 1.2, 0.18);
+      shake = Math.max(shake, 0.5);
+      // the cart goes over. what is in it is a shoe, a comb, a folded blanket and a child's wooden horse.
+      if (e.cart) { e.cart.rotation.z = 1.45; e.cart.position.set(0.7, 0.15, 0.95); }
+      // the survivors stop reaching. they follow instead, at six metres, for the rest of the descent, and they are
+      // standing in the road behind you when the clerk calls her sister.
+      for (const a of GEH.enemies || []) if (a.kind === "attached" && a.alive && a.state !== "sat" && a.state !== "seat") { a.state = "follow"; a.t = 0; }
+      // the Math.min form is load-bearing and so is the FOUND test. GRANTED is a Set that applySave never restores,
+      // so a reward guarded on it alone re-runs on a reload-and-re-earn; a min() cannot double, and the FOUND test
+      // stops the "Found:" line being said twice for the same blanket.
+      if (!FOUND.some(t => t === ALMONER_GIFT)) grant(ALMONER_GIFT, () => { P.bonus.guard = Math.min(P.bonus.guard || 1, 0.85); }, true, false, "geh:almoner");
+      if (window.GEHENNA) { try { GEHENNA.almonerDown(); } catch (err) { console.error("Gehenna: almonerDown threw", err); } }
     } else if (e.kind === "kindly") {
       // she does not drop anything and she is not worth anything. the after-story writes her death, because her
       // death is the argument the whole story is making and it is not a kill line.
@@ -15358,11 +15518,12 @@ const __boot = (async () => {
     // true while the chain is speaking. anything that fires on its own — a bark, a death rattle, a boss phase, a
     // thread being cut mid-sentence — holds off rather than talking over a scripted beat.
     const busy = () => !!(chain && chain.length);
-    // one subtitle, one voice, in gehenna's own colour. say() already logs story lines to the talk log, so nothing is
-    // logged twice here the way speak() does it
+    // one subtitle, one voice, in gehenna's own colour. the log is fed here rather than left to say(), because say()
+    // only ever sees "name: line" as one string and the log wants the name kept apart from the words
     function gsay(prof, who, line, ms) {
       if (!line) return;
-      const sub = say(who ? `${who}: ${line}` : line, Math.max(ms || 2600, line.length * 55), true, "geh");
+      logTalk(who, line);
+      const sub = say(who ? `${who}: ${line}` : line, Math.max(ms || 2600, line.length * 55), true, "geh", true);
       if (prof && !Voice.say(line, prof, 0, sub)) SFX.mumble(prof.voice, 0);
     }
     const gnarr = (line, ms) => gsay(null, "", line, ms);
@@ -15903,6 +16064,15 @@ const __boot = (async () => {
       }
       if (Math.random() < 0.25) gsay(V.held, "", HELD_DIE[Math.floor(Math.random() * HELD_DIE.length)], 1400);
     }
+    // he gets no death rattle, because he never said anything to you in the first place. the cart goes over and what
+    // is in it is the whole argument, and none of it is worth anything to anybody.
+    function almonerDown() {
+      chainSay([
+        [null, "", "The cart goes over.", 3200],
+        [null, "", "A shoe. A comb. A folded blanket. A child's wooden horse.", 4600],
+        [null, "", "None of it was worth anything to anybody.", 4200]
+      ], 1.2);
+    }
     function interactGeh() {
       if (!GEH.root || P.pos.y > DIVIDE) return false;
       // no talking over the arrival, her death, or any other unattended beat. the press is eaten, not queued.
@@ -16059,6 +16229,7 @@ const __boot = (async () => {
       threadHit,
       attachedBark,
       attachedDown,
+      almonerDown,
       get fight() {
         return state.fight;
       },
@@ -16330,6 +16501,9 @@ const __boot = (async () => {
       }
       bodyM.instanceMatrix.needsUpdate = headM.instanceMatrix.needsUpdate = true;
       g.add(bodyM, headM);
+      // the seated stay geometry and nothing else, but where they are is wanted twice: the almoner kneels among them
+      // in his last phase, and it is the list the matron's four are chosen out of. world coordinates, built once.
+      GEH.seats = SEATS.map(s => { const x = GEH.cx + s[0], z = GEH.cz + s[1]; return { x, y: gehH(x, z), z, face: s[2] }; });
     }
 
     // ---- ash in the air. one Points object that is MOVED to the player rather than animated, so the whole effect is
@@ -16437,6 +16611,9 @@ const __boot = (async () => {
 
     // ---- the attached. four of them, on the road, and not one of them will hurt you.
     for (const d of [[50, 1.6], [78, -2.2], [96, 2.4], [118, -1.4]]) gehSpawnAttached(GEH.cx + d[0], GEH.cz + d[1]);
+    // and the man who takes it off them. he stands on the road at the head of the rows doing nothing at all until
+    // the player is close enough to see what he is doing, which is what gehArmAlmoner decides.
+    gehSpawnAlmoner(GEH.cx + 44, GEH.cz + 1);
 
     let nodes1 = 0;
     scene.traverse(() => nodes1++);
@@ -16522,15 +16699,338 @@ const __boot = (async () => {
         e.pos.x += e.vel.x * dt; e.pos.z += e.vel.z * dt; e.vel.multiplyScalar(Math.pow(0.02, dt));
         if (e.t <= 0) { e.state = "let"; e.t = 3; }
         break;
+      // the four states below belong to the almoner's round and to nothing else. calm is being knelt over; seat is
+      // the walk to a chair afterwards; sat is the rest of the descent; follow is what the survivors do once he is
+      // down. none of them can reach hold, so an unburdened body can never take you by the arms again.
+      case "calm":
+        e.heading = Math.atan2(dx, dz);
+        if (e.t <= 0) { e.state = "wait"; e.t = 3; }
+        break;
+      case "seat": {
+        if (!e.seat) { e.state = "sat"; break; }
+        const sx = e.seat.x - e.pos.x, sz = e.seat.z - e.pos.z, sd = Math.hypot(sx, sz) || 1;
+        e.heading = Math.atan2(sx, sz);
+        if (sd > 0.4) { e.pos.x += (sx / sd) * 1.4 * dt; e.pos.z += (sz / sd) * 1.4 * dt; break; }
+        e.state = "sat";
+        e.heading = e.seat.face;
+        break;
+      }
+      case "sat":
+        e.heading = e.seat ? e.seat.face : e.heading;
+        break;
+      case "follow": {
+        e.heading = Math.atan2(dx, dz);
+        const d = dist || 1;
+        if (dist > 6) { e.pos.x += (dx / d) * 2.6 * dt; e.pos.z += (dz / d) * 2.6 * dt; }
+        break;
+      }
     }
     resolveStructs(e.pos, 0.5);
     e.pos.y = gehGroundAt(e.pos.x, e.pos.z, e.pos.y + 2);
     e.mesh.position.copy(e.pos);
     e.visH = turnToward(e.visH === undefined ? e.heading : e.visH, e.heading, dt * 6);
     e.mesh.rotation.y = e.visH;
-    const reach = e.state === "reach" || e.state === "hold" ? -1.25 : -0.4;
+    const settled = e.state === "calm" || e.state === "sat";
+    const reach = e.state === "reach" || e.state === "hold" ? -1.25 : settled ? -0.1 : -0.4;
     for (const a of e.arms) a.rotation.x = damp(a.rotation.x, reach, 7, dt);
+    // a seated body made out of the standing one rather than out of new geometry: the cone and the head come down
+    // together and the figure reads as sitting at the same height as the twenty on the instanced benches.
+    e.mesh.scale.y = damp(e.mesh.scale.y, e.state === "sat" ? 0.62 : 1, 3, dt);
   }
+
+  // ---- the almoner. he is the officer who distributes the relief: he walks the rows with a hand-cart and he takes
+  // from people the things that are weighing on them, and he has done it for eight hundred years and he is good at
+  // it. he is invulnerable while he is helping YOU and open only while he is helping somebody else, so every blow
+  // landed in this fight goes into a hand reaching for a stranger.
+  //
+  // he has NO attack state, in exactly the sense the attached have none. enemyStrike and hurtPlayer are not reachable
+  // from any line in this section by any path, and that is the whole design rather than an omission. the loss
+  // condition of the encounter is not death: it is the four people on the road.
+  const ALMONER_GIFT = "The Almoner's Blanket: every blow you take lands a little softer";
+  // where the four are re-sited when he arms: sixteen metres apart along the road, so his walk between them is about
+  // four seconds and a running player can always beat him to the next one.
+  const ALM_POSTS = [[46, -1.8], [62, 1.8], [78, -1.8], [94, 1.8]];
+  // and the chairs they are put in afterwards. dz 6.4 is outside the kerb at 3.2 and inside the house wall at 8.3,
+  // and it is deliberately not the 7.6 the instanced seated use, so an unburdened body can never sit inside one.
+  const ALM_SEATS = [[46, -6.4], [46, 6.4], [62, -6.4], [62, 6.4], [78, -6.4], [78, 6.4], [94, -6.4], [94, 6.4]];
+
+  function gehSpawnAlmoner(x, z) {
+    if (!GEH.root || !GEH.M) return null;
+    const grp = new THREE.Group();
+    // his OWN materials, for the reason gehSpawnAttached gives at length: the flash pass in updateExtraEnemies writes
+    // emissive on every material in a body that is not e.mat, and M.grey, M.skin, M.roof, M.wood and M.iron are each
+    // shared with the houses, the lamps, the desk or the four who speak. one blow on him would have lit the street.
+    const cloth = new THREE.MeshStandardMaterial({ color: toLin(0x4c4640), roughness: 1, metalness: 0 });
+    const skin = new THREE.MeshStandardMaterial({ color: toLin(0x7a6a60), roughness: 1, metalness: 0 });
+    const felt = new THREE.MeshStandardMaterial({ color: toLin(0x1d1a18), roughness: 1, metalness: 0 });
+    const timber = new THREE.MeshStandardMaterial({ color: toLin(0x33261c), roughness: 1, metalness: 0 });
+    const body = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.9, 8), cloth);
+    body.position.y = 0.95;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.26, 11, 8), skin);
+    head.position.y = 2.05;
+    const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.065, 1.05, 6), skin);
+    const armR = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.065, 1.05, 6), skin);
+    armL.position.set(-0.4, 1.5, 0.18); armR.position.set(0.4, 1.5, 0.18);
+    // a flat cap, and nothing else on him. no weapon and no shears: the kindly one's shears are the one tool in
+    // gehenna and they stay hers, and he must not be carrying anything that reads as a blade.
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.07, 10), felt);
+    cap.position.y = 2.26;
+    grp.add(body, head, armL, armR, cap);
+    // the hand-cart. it rides at his side while he walks, goes down in front of him when he kneels, and comes up
+    // between him and the player in phase two, which is what makes that phase legible without a word being said.
+    const cart = new THREE.Group();
+    const tray = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.5, 0.8), timber);
+    tray.position.y = 0.45;
+    const whA = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.08, 10), felt);
+    const whB = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.08, 10), felt);
+    whA.rotation.x = whB.rotation.x = Math.PI / 2;
+    whA.position.set(-0.5, 0.3, 0.42); whB.position.set(0.5, 0.3, 0.42);
+    cart.add(tray, whA, whB);
+    cart.position.set(0.95, 0, 0.3);
+    grp.add(cart);
+    grp.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
+    const y = gehGroundAt(x, z, GEH.floor + 60);
+    grp.position.set(x, y, z);
+    scene.add(grp);
+    const e = {
+      nid: ++ENEMY_NID, kind: "almoner", geh: true, boss: true, big: true, mesh: grp, pos: V3(x, y, z), vel: V3(),
+      hp: 300, maxHp: 300, r: 0.9, state: "walk", t: 0, alive: true, heading: -Math.PI / 2, flash: 0,
+      bar: makeHealthBar(), name: "The Almoner", born: time, arms: [armL, armR], cart,
+      phase: 1, armed: false, guard: 1, clearing: null, target: null, lastSeat: null,
+      cd: 5, mendT: 11, tendT: 0, clearDur: 3, mendSaid: false, thanked: false,
+      shieldLine: "The cart is in the way. He is not looking at you."
+    };
+    EXTRA.push(e);
+    GEH.enemies.push(e);
+    return e;
+  }
+
+  // he arms the first time the player is close enough to see what he is doing, and not one metre before. the four on
+  // the road are moved to the roadside in the same move, so his round becomes a line the player can run ahead of.
+  function gehArmAlmoner() {
+    const e = (GEH.enemies || []).find(x => x.kind === "almoner" && x.alive && !x.armed);
+    if (!e) return;
+    if (dist2D(e.pos, P.pos) > 18 || Math.abs(P.pos.y - e.pos.y) > 14) return;
+    e.armed = true;
+    GEH.almSeats = ALM_SEATS.map(s => {
+      const x = GEH.cx + s[0], z = GEH.cz + s[1];
+      return { x, y: gehGroundAt(x, z, GEH.floor + 60), z, face: s[1] < 0 ? Math.PI / 2 : -Math.PI / 2, taken: false };
+    });
+    const held = (GEH.enemies || []).filter(x => x.kind === "attached" && x.alive);
+    for (let i = 0; i < held.length && i < ALM_POSTS.length; i++) {
+      const a = held[i], px = GEH.cx + ALM_POSTS[i][0], pz = GEH.cz + ALM_POSTS[i][1];
+      a.pos.set(px, gehGroundAt(px, pz, GEH.floor + 60), pz);
+      a.mesh.position.copy(a.pos);
+      a.state = "wait";
+      a.t = 2 + i * 0.6;
+    }
+    // he is already working when you meet him, with a second of the first relief left to run. most players will not
+    // understand it in time and the road will have three people on it instead of four, and nobody will say anything
+    // about it. that is the cheapest and the best tutorial this fight can have.
+    const first = held[0];
+    if (first) {
+      const hx = first.pos.x - 1.3, hz = first.pos.z;
+      e.pos.set(hx, gehGroundAt(hx, hz, GEH.floor + 60), hz);
+      e.mesh.position.copy(e.pos);
+      e.state = "clear";
+      e.t = 1.8;
+      e.clearing = first;
+      first.state = "calm";
+      first.t = 2.2;
+    }
+    e.cd = 0;
+    e.mendT = 11;
+    SFX.dread();
+  }
+
+  // the nearest of the four who is still standing in the road and is not already under his hands
+  function gehAlmonerNext(e) {
+    let best = null, bd = 1e9;
+    for (const a of GEH.enemies || []) {
+      if (a.kind !== "attached" || !a.alive) continue;
+      if (a.state === "calm" || a.state === "seat" || a.state === "sat") continue;
+      const d = dist2D(a.pos, e.pos);
+      if (d < bd) { bd = d; best = a; }
+    }
+    return best;
+  }
+  // the nearest chair nobody has been put in yet
+  function gehClaimSeat(a) {
+    let best = null, bd = 1e9;
+    for (const s of GEH.almSeats || []) {
+      if (s.taken) continue;
+      const d = dist2D(s, a.pos);
+      if (d < bd) { bd = d; best = s; }
+    }
+    if (best) best.taken = true;
+    return best;
+  }
+  // and in his last phase, any of the twenty already sitting down, so long as it is not the one he has just left
+  function gehNextSeat(e) {
+    let best = null, bd = 1e9;
+    for (const s of GEH.seats || []) {
+      if (s === e.lastSeat) continue;
+      const d = dist2D(s, e.pos);
+      if (d < bd) { bd = d; best = s; }
+    }
+    e.lastSeat = best;
+    return best;
+  }
+  // the completion of a relief. the body is not dead and it is not hurt: it stands, it walks to a chair, it sits
+  // down, and it never says anything again.
+  function gehUnburden(a) {
+    a.seat = gehClaimSeat(a);
+    a.state = "seat";
+    a.t = 0;
+    a.said = true;
+  }
+
+  function gehAlmonerPhases(e) {
+    if (e.phase === 1 && e.hp < e.maxHp * 0.66) {
+      e.phase = 2;
+      e.clearDur = 2.2;
+      SFX.phase();
+      say("He turns the cart between you and the work.", 3400, true, "geh");
+    }
+    if (e.phase === 2 && e.hp < e.maxHp * 0.33) {
+      e.phase = 3;
+      if (e.clearing) { e.clearing.state = "wait"; e.clearing.t = 1.4; e.clearing = null; }
+      e.state = "tend";
+      e.tendT = 0;
+      e.target = null;
+      SFX.phase();
+      say("He kneels, and does not get up again.", 3400, true, "geh");
+    }
+  }
+  // nobody left on the road to help. he follows, at 4.2 m/s, at his own pace, forever. he is never in your way and he
+  // never chases: he has no attack to chase you with, and the only thing he ever does when he catches up is mend.
+  function gehAlmonerRest(e, tgt, dx, dz, dist, dt) {
+    // only if there is somebody left to thank. a player who killed all four themselves is told nothing at all, by
+    // anybody, and that silence is the whole of what that path is worth.
+    if (!e.thanked) {
+      e.thanked = true;
+      if ((GEH.enemies || []).some(a => a.kind === "attached" && a.alive && (a.state === "sat" || a.state === "seat"))) say("He thanks them one at a time, and tips his hat to you on the way past.", 4400, true, "geh");
+    }
+    if (dist < 5) return;
+    const d = dist || 1;
+    e.heading = Math.atan2(dx, dz);
+    e.pos.x += (dx / d) * 4.2 * dt;
+    e.pos.z += (dz / d) * 4.2 * dt;
+  }
+
+  function gehUpdateAlmoner(e, tgt, dx, dz, dist, dt) {
+    if (!e.armed) { e.mesh.position.copy(e.pos); e.mesh.rotation.y = e.heading; return; }
+    const local = tgt === P || tgt.pos === P.pos;
+    gehAlmonerPhases(e);
+    // damageEnemy stuns and shoves every boss that takes a heavy blow, for a quarter of a second, before any line
+    // here runs. mid-relief that is not long enough to be a window, so it is lengthened to 1.4 s and the person he
+    // was kneeling over is let go. in his last phase he is already on his knees and nothing puts him further down.
+    if (e.state === "stun") {
+      if (e.phase === 3) { e.state = "tend"; e.vel.set(0, 0, 0); }
+      else if (e.clearing) { e.t = 1.4; e.cd = 5; e.clearing.state = "wait"; e.clearing.t = 1.4; e.clearing = null; }
+    }
+    e.cd = Math.max(0, e.cd - dt);
+    e.mendT -= dt;
+    // he notices you are carrying far too much and begins, unasked, to help. it is deferred and never lost: if you
+    // are out of range, or behind a shield, the timer simply stays expired until you are not.
+    if (e.state === "walk" && e.mendT <= 0 && local && !P.block && !death && dist < 10) { e.state = "mend"; e.t = 2.2; }
+    switch (e.state) {
+      case "walk": {
+        const a = gehAlmonerNext(e);
+        if (!a) { gehAlmonerRest(e, tgt, dx, dz, dist, dt); break; }
+        e.target = a;
+        const ax = a.pos.x - e.pos.x, az = a.pos.z - e.pos.z, ad = Math.hypot(ax, az) || 1;
+        e.heading = Math.atan2(ax, az);
+        if (ad > 1.6 + e.r) { e.pos.x += (ax / ad) * 4.2 * dt; e.pos.z += (az / ad) * 4.2 * dt; break; }
+        if (e.cd > 0) break;
+        e.state = "clear";
+        e.t = e.clearDur;
+        e.clearing = a;
+        a.state = "calm";
+        a.t = e.clearDur + 0.6;
+        SFX.tone(196, 174, 0.7, 0.06, "sine", 0, 500);
+        break;
+      }
+      // the heal. no windup, because he does not wind up for a kindness, and no tell ring, because the ring only
+      // draws for a state named windup, swing or lunge and he must never have one.
+      case "mend": {
+        e.heading = Math.atan2(dx, dz);
+        if (!local || death) { e.state = "walk"; e.mendT = 4; break; }
+        if (dist > 4 + e.r) {
+          const d = dist || 1;
+          e.pos.x += (dx / d) * 4.2 * dt;
+          e.pos.z += (dz / d) * 4.2 * dt;
+          e.t = 2.2;
+          break;
+        }
+        // he will not mend a raised shield, and a player who rolls out of reach is simply started again. he has all
+        // day. the timer does not run, so nothing is spent.
+        if (P.block) { e.t = 2.2; break; }
+        P.hp = Math.min(P.maxHp, P.hp + 0.45 * dt);
+        if (e.t <= 0) {
+          P.stam = stamMax();
+          e.mendT = 11;
+          e.state = "walk";
+        }
+        break;
+      }
+      // the relief, and the only window there is on him. a non-big blow lands and hurts and does not stop him, and
+      // that difference is the one thing this fight teaches.
+      case "clear": {
+        const a = e.clearing;
+        if (!a || !a.alive) { e.clearing = null; e.cd = 5; e.state = "walk"; break; }
+        e.heading = Math.atan2(a.pos.x - e.pos.x, a.pos.z - e.pos.z);
+        if (e.t <= 0) {
+          gehUnburden(a);
+          e.clearing = null;
+          e.cd = 5;
+          e.state = "walk";
+          SFX.tone(261, 196, 1.1, 0.05, "sine", 0, 420);
+        }
+        break;
+      }
+      // the last phase. he goes among the ones already sitting down, straightens a collar, and stays. there is no
+      // combat in it at all and there must not be: seventeen seconds of a kneeling man with his back turned is
+      // exactly as long as this argument needs.
+      case "tend": {
+        e.tendT -= dt;
+        if (!e.target || e.tendT <= 0) { e.target = gehNextSeat(e); e.tendT = 6; }
+        const s = e.target;
+        if (!s) break;
+        const sx = s.x - e.pos.x, sz = s.z - e.pos.z, sd = Math.hypot(sx, sz) || 1;
+        e.heading = Math.atan2(sx, sz);
+        if (sd > 1.3) { e.pos.x += (sx / sd) * 2 * dt; e.pos.z += (sz / sd) * 2 * dt; e.tendT = 6; }
+        break;
+      }
+      case "stun":
+        e.pos.x += e.vel.x * dt;
+        e.pos.z += e.vel.z * dt;
+        e.vel.multiplyScalar(Math.pow(0.02, dt));
+        if (e.t <= 0) e.state = "walk";
+        break;
+    }
+    // the cart is what phase two IS, so the flag is derived from the state every frame rather than written in four
+    // places, and it is up in exactly ONE of them. the cart is on the ground for a relief, for a mend and for the
+    // stagger that follows an interrupt, which is what makes the punish window the 4.4 s it is supposed to be: with
+    // the cart back up during the 1.4 s stun the window collapsed to the relief alone.
+    const kneeling = e.state === "clear" || e.state === "tend";
+    const setDown = kneeling || e.state === "mend" || e.state === "stun";
+    e.shield = e.phase === 2 && !setDown;
+    resolveStructs(e.pos, 0.9);
+    e.pos.y = gehGroundAt(e.pos.x, e.pos.z, e.pos.y + 2);
+    e.mesh.position.copy(e.pos);
+    e.visH = turnToward(e.visH === undefined ? e.heading : e.visH, e.heading, dt * 4);
+    e.mesh.rotation.y = e.visH;
+    e.mesh.scale.y = damp(e.mesh.scale.y, kneeling ? 0.62 : 1, 5, dt);
+    const arms = e.state === "mend" ? -1.55 : kneeling ? -0.95 : -0.15;
+    for (const a of e.arms) a.rotation.x = damp(a.rotation.x, arms, 7, dt);
+    if (e.cart) {
+      e.cart.rotation.y = damp(e.cart.rotation.y, setDown ? -1.2 : 0, 5, dt);
+      e.cart.position.x = damp(e.cart.position.x, setDown ? 0.95 : e.shield ? 0 : 0.95, 5, dt);
+      e.cart.position.z = damp(e.cart.position.z, setDown ? 0.3 : e.shield ? 1.1 : 0.3, 5, dt);
+    }
+  }
+
 
   // ---- the kindly one. the after-story raises her through this, hands over her stat block, and owns every line she
   // speaks; this file owns only her body and her swing. the fight is deliberately not hard, and it is deliberately
@@ -16641,6 +17141,9 @@ const __boot = (async () => {
     }
     GEH.away = 0;
     GEH.exitArm += rdt;
+    // every per-frame system down here needs its own depth guard, and this one has it by construction: the branch
+    // above returns for a player above the seam, so nothing below this line runs in the valley.
+    gehArmAlmoner();
     // the six light slots follow the six nearest lamps. ten candidates, no allocation, and no touching of the global
     // vlights array, which updateLightPool already filters and fully sorts on every frame of the game.
     if (GEH.lampPos && GEH.lampPos.length) {
@@ -16724,6 +17227,8 @@ const __boot = (async () => {
     GEH.M = null;
     GEH.structs.clear();
     GEH.lampPos = [];
+    GEH.seats = [];
+    GEH.almSeats = null;
     GEH.motes = null;
     GEH.water = null;
     GEH.ledger = null;
@@ -17080,6 +17585,8 @@ const __boot = (async () => {
   let CHOICE = null;
   function askChoice(title, opts, cb) {
     if (CHOICE) return;
+    // a decision is a beat like any other: the question goes in the log, and the answer follows it
+    logTalk("", title);
     CHOICE = { opts, cb };
     releaseKeys();
     document.getElementById("choiceTitle").textContent = title;
@@ -17092,6 +17599,7 @@ const __boot = (async () => {
   function answerChoice(i) {
     if (!CHOICE || !CHOICE.opts[i]) return;
     const { opts, cb } = CHOICE; CHOICE = null;
+    logTalk("You", opts[i].label);
     document.getElementById("choice").classList.add("hidden");
     tryLock();
     cb(opts[i].key, opts[i]);
@@ -17232,8 +17740,28 @@ const __boot = (async () => {
     lastPlace = "";
   // display a timed subtitle and remove it after fading
   const esc = t => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); // text that came from a player or a save key is escaped before it is placed in html
-  const TALK_LOG = []; // everything anyone has said to you, newest last
-  function logTalk(who, text) { TALK_LOG.push({ who, text, at: time }); if (TALK_LOG.length > 200) TALK_LOG.shift(); }
+  // everything anyone has said to you, newest last.
+  // it is deliberately runtime-only and no part of it is written to a save. a key here is a text code the player
+  // pastes by hand; new persistent state costs four separate edits to carry at all, and several hundred lines of
+  // prose would be larger than the whole rest of the key put together. so a log lasts a session, not a reload, and
+  // that is the decision rather than an oversight.
+  const TALK_LOG = [];
+  // the ceiling is about what is worth building into one page of html, not about memory. dropping the oldest is the
+  // only sane end to lose, because the line the player just missed is always the newest one.
+  const TALK_LOG_MAX = 400;
+  // the in-world clock, so a remembered line can be placed in the day it was said. the hud reads the same function,
+  // or the two would drift apart the first time either was touched.
+  function clockText() {
+    const turned = (dayT + 0.25) % 1,
+      hour = Math.floor(turned * 24),
+      minute = Math.floor(((turned * 24) % 1) * 60);
+    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  }
+  function logTalk(who, text) {
+    if (!text) return;
+    TALK_LOG.push({ who: who || "", text, at: time, wall: Date.now(), clock: clockText() });
+    if (TALK_LOG.length > TALK_LOG_MAX) TALK_LOG.shift();
+  }
   // a subtitle's clock has two hands and a wall. the character count sets a FLOOR — the time a reader needs whether or
   // not a word is spoken, and the whole clock when voices are off or the browser has none. the voice that belongs to
   // the line then HOLDS the subtitle open past that floor until the browser reports the utterance finished, which is
@@ -17285,8 +17813,10 @@ const __boot = (async () => {
     sub.holding = false;
     subTick(sub);
   }
-  function say(t, ms = TUNE.ui.subtitle, story = false, kind = "") {
-    if (story && !/^(Found|Discovered|New errand|Errand done)/.test(t)) logTalk("", t);
+  // logged is for callers that have already put the line in the talk log with its speaker kept separate. without it
+  // every story line spoken by a named person went in twice: once attributed, once as narration reading "name: line"
+  function say(t, ms = TUNE.ui.subtitle, story = false, kind = "", logged = false) {
+    if (story && !logged && !/^(Found|Discovered|New errand|Errand done)/.test(t)) logTalk("", t);
     ms = Math.max(ms, story ? TUNE.ui.storySubtitle : TUNE.ui.subtitle);
     const box = document.getElementById("subs");
     const el = document.createElement("div");
@@ -17309,7 +17839,7 @@ const __boot = (async () => {
   function speak(n, line, who, ms = 4200) {
     const d = n.pos ? dist2D(n.pos, P.pos) : 0;
     logTalk(who, line);
-    const sub = say(`${who}: ${line}`, Math.max(ms, line.length * 55), n.kind === "story" || n.kind === "king" || n.kind === "stocks");
+    const sub = say(`${who}: ${line}`, Math.max(ms, line.length * 55), n.kind === "story" || n.kind === "king" || n.kind === "stocks", "", true);
     if (!Voice.say(line, n, d, sub)) SFX.mumble(n.voice, d);
   }
   // show a prominent timed reward or combat message
@@ -19194,10 +19724,10 @@ const __boot = (async () => {
       // fell through to the wraith fade, which does nothing without a material, and then lay on the ash for eight
       // seconds. they deliberately have no SHARED material either — a shared one would have faded all four of the
       // attached at once, because the flash pass below writes emissive on every material that is not e.mat.
-      if (!e.alive) { e.t += dt; if (e.kind === "wolf") { e.mesh.rotation.z = lerp(e.mesh.rotation.z, 1.5, Math.min(1, dt * 3)); e.mesh.position.y = e.pos.y - Math.max(0, e.t - 6) * 0.3; } else if (e.kind === "attached" || e.kind === "kindly") { e.mesh.rotation.z = lerp(e.mesh.rotation.z, 1.45, Math.min(1, dt * (e.kind === "kindly" ? 0.9 : 2.2))); e.mesh.position.y = e.pos.y - Math.max(0, e.t - (e.kind === "kindly" ? 6 : 1.6)) * 0.5; } else if (e.mat) { e.mat.opacity = Math.max(0, 0.55 - e.t * 0.5); } if (e.t > 8 || (e.wraith && e.t > 1.5) || (e.kind === "attached" && e.t > 4)) { removeEnemy(e); if (e.den) e.den.wolves = e.den.wolves.filter(w => w !== e); EXTRA.splice(i, 1); } continue; }
+      if (!e.alive) { e.t += dt; if (e.kind === "wolf") { e.mesh.rotation.z = lerp(e.mesh.rotation.z, 1.5, Math.min(1, dt * 3)); e.mesh.position.y = e.pos.y - Math.max(0, e.t - 6) * 0.3; } else if (e.kind === "almoner") { e.mesh.rotation.z = lerp(e.mesh.rotation.z, 1.4, Math.min(1, dt * 1.6)); e.mesh.position.y = e.pos.y - Math.max(0, e.t - 4.5) * 0.5; } else if (e.kind === "attached" || e.kind === "kindly") { e.mesh.rotation.z = lerp(e.mesh.rotation.z, 1.45, Math.min(1, dt * (e.kind === "kindly" ? 0.9 : 2.2))); e.mesh.position.y = e.pos.y - Math.max(0, e.t - (e.kind === "kindly" ? 6 : 1.6)) * 0.5; } else if (e.mat) { e.mat.opacity = Math.max(0, 0.55 - e.t * 0.5); } if (e.t > 8 || (e.wraith && e.t > 1.5) || (e.kind === "attached" && e.t > 4)) { removeEnemy(e); if (e.den) e.den.wolves = e.den.wolves.filter(w => w !== e); EXTRA.splice(i, 1); } continue; }
       const tgt = nearestPlayerTo(e.pos), dx = tgt.pos.x - e.pos.x, dz = tgt.pos.z - e.pos.z, dist = Math.hypot(dx, dz);
       e.t -= dt; e.flash = Math.max(0, e.flash - dt);
-      if (e.wraith) updateWraith(e, tgt, dx, dz, dist, dt); else if (e.kind === "wolf") updateWolf(e, tgt, dx, dz, dist, dt); else if (e.kind === "attached") gehUpdateAttached(e, tgt, dx, dz, dist, dt); else if (e.kind === "kindly") gehUpdateKindly(e, tgt, dx, dz, dist, dt);
+      if (e.wraith) updateWraith(e, tgt, dx, dz, dist, dt); else if (e.kind === "wolf") updateWolf(e, tgt, dx, dz, dist, dt); else if (e.kind === "attached") gehUpdateAttached(e, tgt, dx, dz, dist, dt); else if (e.kind === "kindly") gehUpdateKindly(e, tgt, dx, dz, dist, dt); else if (e.kind === "almoner") gehUpdateAlmoner(e, tgt, dx, dz, dist, dt);
       e.mesh.traverse(o => { if (o.isMesh && o.material.emissive && o.material !== e.mat) o.material.emissive.setHex(e.flash > 0 ? 0xffffff : 0); });
       updateHealthBar(e, e.kind === "wolf" ? 1.8 : e.warden ? 7 : 3);
     }
@@ -19552,7 +20082,12 @@ const __boot = (async () => {
         // buried five metres inside a hillside, with the only escape being a heavy hit, because the stun assignment
         // in damageEnemy is gated on !e.boss. it fires whenever she is 55m away, which is trivial: she moves at
         // 3.2 m/s and the player sprints.
-        if (!e.boss || !e.alive || e.kind === "bear" || e.wraith || P.pos.y < DIVIDE) continue; // belt and braces: the terrainH test below already finds nothing, but this stops ten wasted candidate rolls a frame
+        // e.geh is not belt and braces and it is not cosmetic. this routine RELOCATES a distant boss to a ring around
+        // the player and sets state = "chase", and every distance test in it is 2D. gehenna sits at (600, 600) inside
+        // the valley's own footprint, so for the two seconds between the player surfacing and the teardown a living
+        // gehenna boss scores as "55 m away" and is teleported into the moor, into a state its own switch has no case
+        // for. nothing built under the seam is ever relocated.
+        if (!e.boss || !e.alive || e.kind === "bear" || e.wraith || e.geh || P.pos.y < DIVIDE) continue;
         const d = dist2D(e.pos, P.pos);
         if (d > 55 && !P.swim) {
           for (let k = 0; k < 10; k++) {
@@ -20947,7 +21482,11 @@ const __boot = (async () => {
       let boss = null,
         bd = 60;
       for (const e of allEnemies())
-        if (e.boss && e.alive && !(e.kind === "bear" && !e.awake)) {
+        // the realm test is the same one nearestPlayerTo and the enemy snapshot carry, and for the same reason: the
+        // hud boss bar is chosen by a 2D distance, and gehenna's coordinates are also coordinates in the valley. a
+        // player standing at (600, 600) on the moor would otherwise read the name and the health of something three
+        // hundred metres under their feet.
+        if (e.boss && e.alive && !(e.kind === "bear" && !e.awake) && (e.pos.y < DIVIDE) === (P.pos.y < DIVIDE)) {
           const d = dist2D(e.pos, P.pos);
           if (d < bd) {
             bd = d;
@@ -21030,9 +21569,7 @@ const __boot = (async () => {
         ? `Pink fairies ${FAIRY.found}/25 · Rose hearts ${FAIRY.hearts}/5${FAIRY.healing ? " · Rose Rest: healing" : FAIRY.complete ? " · Rose Rest: mending" : ""}`
         : "";
     // the enemy rings carry the combat warning; there is no separate tip widget
-    const hour = Math.floor(((dayT + 0.25) % 1) * 24),
-      minute = Math.floor(((((dayT + 0.25) % 1) * 24) % 1) * 60);
-    clockEl.textContent = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")} · ${dayElev < -0.02 ? "night" : dayElev < 0.12 ? (dayT < 0.5 ? "dawn" : "dusk") : "day"} · wind ${windStrength > 1 ? "gusting" : windStrength > 0.6 ? "brisk" : "light"}`;
+    clockEl.textContent = `${clockText()} · ${dayElev < -0.02 ? "night" : dayElev < 0.12 ? (dayT < 0.5 ? "dawn" : "dusk") : "day"} · wind ${windStrength > 1 ? "gusting" : windStrength > 0.6 ? "brisk" : "light"}`;
     {
       const trackMain = tracked === null || tracked.done;
       const cur = objectives[st];
@@ -21044,7 +21581,7 @@ const __boot = (async () => {
         html +=
           `<li style="margin-top:8px;color:var(--gold);letter-spacing:.08em;font-size:12px">ERRANDS</li>` +
           open.map(q => `<li class="${tracked === q ? "tracked" : ""}">${q.title}<small>${q.progress()}</small></li>`).join("");
-      html += `<li style="margin-top:8px;font-size:12px;opacity:.6">J: quest book</li>`;
+      html += `<li style="margin-top:8px;font-size:12px;opacity:.6">J: quest book · L: what was said</li>`;
       document.getElementById("objectives").innerHTML = html;
     }
     document.getElementById("stats").textContent =
