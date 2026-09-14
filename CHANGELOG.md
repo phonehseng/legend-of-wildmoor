@@ -4,6 +4,122 @@ Every change, with the bug it fixes and how. Newest first.
 
 ---
 
+## 2.20.0 — The Unclaimed, a room behind the water, and three things that were never there
+
+### The Unclaimed
+
+Gehenna's second boss. Eight hundred years of surrendered property, heaped behind
+the yard — rooted, silent, faceless. **Its entire behaviour is a function of the
+damage taken in the last second.** Inert below about 3.5 dps; at the top tier it
+answers with a copy of your own last blow, at your own weapon's windup and reach.
+The Flurry rush is a trap and the optimal play is ninety seconds of deliberately
+playing badly.
+
+Every number in the design was measured rather than assumed. Regen exactly
+**0.500 hp/s**. Sustained damage of 1, 4, 8 and 14 dps produces heat 1.590,
+6.399, 12.936 and 22.504 — tiers 0 to 3, with boundaries crossed at 5.21, 11.49
+and 21.06 against a specified 5, 11 and 20, and hysteresis down at 14.96, 8.23
+and 3.74 against 15, 8.25 and 3.75. Stop hitting it and it is back to tier 0 in
+**2.566 s**.
+
+The sweep beats a stage-2 spear — **hit at 10.2 m, missed at 11.5** — which is
+the entire point of that reach. The echo copies the axe at dmg 6.000, wind 0.804
+and reach 4.052, and the spear at 6.000, 0.487 and 5.710: faster, lighter and
+longer, exactly as written. **Refusal works completely** — twenty seconds four
+metres away and a walk from dx 60 to 132 produced 0 hits, 8.000 hp, tier 0
+throughout.
+
+**`e.noBar` ships with it and only it.** Its premise is that its tier *is* its
+health bar, and a live 220-hp readout would hand the player the mechanic.
+
+**The reward is `P.bonus.run`,** the only bonus field nothing else writes — the
+third jump, the guard, the dash and the dash cost are all taken, so the design's
+original choice would have been a silent no-op for anyone with fifteen fairies.
+The reward for the one fight you never had to have is that you leave faster, and
+the grant text refuses to say why: *"…and eight hundred years of nothing you
+recognise. You walk quicker afterwards."*
+
+### Bug 125 — The first shield raise froze the heap for the rest of the descent · FIXED
+
+Found by the agent re-reading its own diff. `enemyStrike`'s block branch sets
+`e.state = "stun"` **from inside the heap's own update**, while it is resolving a
+hit — so the end-of-frame shadow latched "stun" and the restore fed it back to
+itself. **The first time anybody raised a shield, it stopped moving permanently.**
+Verified after: blocked a sweep, state `recover`, and five of five attack cycles
+completed afterwards.
+
+### Sixty meshes became twelve
+
+Sixty individual meshes cost about **1.2 ms of median frame time** for one prop —
+unacceptable in a file that had just spent a version reclaiming 11% of the frame.
+Rebuilt as twelve `InstancedMesh`es, one per material per shape, keeping all
+sixty pieces and the colour variety, with the spill animated through instance
+matrices. **Node delta +70 → +18**, and frame time now disagrees in direction
+between samples, which is to say it is inside the noise.
+
+### The waterfalls, and the seat behind one
+
+**Two causes, not one.** The boulder scatter was blind — a radius starting at
+4.2 m against a ribbon 3.4–3.8 m wide, and it ran over the fall's own mid-air
+chain points, putting rocks on the cliff face **inside the sheet**. But the
+throw was also wrong: a flat 4.2 m for every fall, so a 12.9 m drop came down
+almost vertically and the dry strip behind it was under two metres. **No room
+could ever have fitted there.**
+
+The scatter proposes and then measures now — every candidate tested in 3D against
+every ribbon in the valley, chain points skipped outright, and any stone more
+than 5 m from its own water surface rejected so nothing perches on a cliff.
+
+**Measured on the same seed: intersections 4 → 0, worst penetration 2.98 m →
+0.00.**
+
+Behind the deepest fall there is a room. Four worn steps up out of the plunge
+pool, 2.8 × 2.0 m inside with 3.2 m of headroom, a seat worn into the rock, a
+bowl with rain in it, seven small stones, and a clue in two hands that names
+nothing. It is a discovery — *The Seat Behind the Water*.
+
+**It touches the heightfield nowhere.** Carving was tried first and cannot be
+made safe: a flat wide enough to stand in reaches either the lip, leaving the top
+of the fall in mid-air, or the channel below, damming the river. The pocket under
+the arc is already real ground. Every collider is a **disc**, because the room
+points wherever its waterfall points and `resolveStructs` has no rotation field.
+
+**And a Heart Piece was inside solid rock.** Fall 0's existing pickup sat 4 m
+behind the foot — several metres inside the cliff, unreachable. It is at 2.2 m
+now, in the dry pocket.
+
+### Picked-up things come to you
+
+`launchPickupFlight`: 0.32 s, accelerating, a hop on the way, shrinking to
+nothing. The target is read **fresh each frame**, so walking away cannot strand
+an item, and the parametric clock lands it inside 0.32 s however far it has to
+come. Herbs fly too. Cleared in `die()` and at the top of `applySave`, outside
+its `try`.
+
+Measured: 50 concurrent flights all settle with nothing left in the scene, at
+**0.40 ms for 50 flights across 20 frames**.
+
+### The hanged
+
+Five trees, gated at `dread() >= 0.75` — **the same band the dialogue already
+claimed**, so the comment in the line pools stops being a lie.
+
+Silhouettes high under the canopy on a rope that disappears into the leaves. No
+faces, nothing to study, a slow turn and nothing else. **No dialogue was added
+anywhere**, which is the point: nobody in the valley remarks on it.
+
+Placement is lazy so it can read villager homes: 11–30 m from a road, at least
+132 m from the town and 147 m from any village, **at least 55 m from any adult's
+door and 140 m from any child's.** Built once, then only added to and removed
+from the scene — absent at dread 0, present at 0.80, absent again at 0.70 and
+after the ending, with the node count back to baseline.
+
+### Pickup ids
+
+The implicit block is byte-identical before and after. The one new pickup carries
+an **explicit** `falls:seat` id and sits after every implicit one, where the
+church's own comment says new pickups must go.
+
 ## 2.19.0 — The purple is gone
 
 **Reported twice:** the satchel and the quest log are too purple.
