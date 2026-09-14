@@ -240,15 +240,9 @@ Source tags: **[user]** = reported from play. **[agent]** = found by a standing 
 - A location reachable only by swimming. The mechanic is fully built — `P.swim`, speed and
   breath scaling at 601–606, hero swim pose at 4601–4622 — and rewards nothing.
 
-### 31. Condense `project notes` and fold the 3.0 plan into it [user]
-- **Who/when:** user, current backlog.
-- **Size:** M · **Deps:** none; **blocker for item 32**
-- 2,098 lines today. The 3.0 track works out of this brief, so it is worth condensing
-  before Gehenna work goes deep rather than after.
-
 ### 32. 3.0 Gehenna — the whole update [user]
 - **Who/when:** user, current backlog.
 - **Size:** XL (epic) · **Deps:** item 12 (shared geometries, explicitly before the
-  church) and item 31 (condensed brief)
+  church)
 - A separate track is already running on this. Kept here as a single line so the backlog
   stays honest about what is outstanding; it is not broken down here.

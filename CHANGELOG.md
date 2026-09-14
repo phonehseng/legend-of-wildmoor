@@ -4,6 +4,44 @@ Every change, with the bug it fixes and how. Newest first.
 
 ---
 
+## 2.24.0 — The Still Kingdom
+
+Gehenna now leads through six chapters into a quiet golden kingdom and an impossible white room. Lucifer cares for lost children, speaks about Ysolde's absence, and grows to hold back God's hand. Each attack makes him smaller. The hand finally falls on both him and the player.
+
+[Screenshots and short update notes](docs/updates/2.24.0.md) · [Verification](docs/QA_2.24.0.md)
+
+### Gehenna and the ending
+
+- Replaced the scattered story progression with clear boss objectives, shorter conversations, and restrained markers for the next important person. The quest book commands the killings while the characters' behavior gives them weight.
+- Added the Still Kingdom: a long central road, monumental architecture, and eight unmoving residents who can be pushed and have brief, unsettling conversations.
+- Added a central portal into Lucifer's white room, with children playing beside a living riverbank. Lucifer has pale skin, simple black eyes, and a clasped robe matching the game's character style.
+- Clipped the valley out of Gehenna's expanded view and separated overlapping pavement surfaces to remove floor flicker.
+- Lucifer begins at human size. After his invitation, he runs toward the approaching hand and grows to support it. Damage lowers both his size and the hand; his final attempt to shelter the player leads into credits and the Stay / Move on ending.
+- Lucifer uses text-to-speech with the player's voice setting. Other Gehenna conversations remain silent. Stay returns a translucent player to Wildmoor with their skills; the pool offers the ending again. Move on shows a modern life without Ysolde.
+- Added a walkable exit staircase, unlimited Gehenna stamina, maximum view distance, and a quest/log view confined to the current realm. Halved the Almoner's health.
+
+### Movement, combat, and the valley
+
+- The camera's wall avoidance, shake, and bob could steer the view against movement. A stable arm now keeps the chosen angle, with an occlusion silhouette and a distance cap inside Lucifer's sealed room.
+- Wraiths and goblins now separate from one another. Distant wraiths return near the player. Removed the opacity flicker and corrected the sky/prompt rendering order.
+- Night slime respawns use a smaller pool. Accepting the three-slime errand creates its targets, and quest markers follow the nearest slime or the current outfit errand destination.
+- Guests now request their quest slimes from the host; requests are acknowledged and deduplicated instead of being discarded by the guest's spawn guard.
+- Ambient goblin/slime spawning stops during the Drowned Warden encounter. Removed her healing, added a nearby fairy ring, and added voiced ascent and Fairy Queen lines.
+- Endurance now grows from stamina actually recharged. Blocking practice gradually reduces shield cooldown. Rose Rest becomes substantially stronger as more fairies return.
+- The tarnished ring no longer counts as Hale evidence. The third-clue line now requires crossing the evidence threshold, preventing repetitions after later pickups.
+- Corrected the gathering shawl's bend, reserved Wren's home, standardized tents, and removed hunters' sleeping routine. Hunters return to campfires to cook and sit.
+- Gave the Rose Compass a compass icon and special satchel badge, plus a recommendation in its quest dialogue. Updated the map/satchel shortcuts and Logs label.
+
+### Procession, menus, and saves
+
+- Hid the grave until the Warden aftermath. Carrying Ysolde now extends the player's arms, moves her forward, disables equipment/shield controls and side quests, and turns children away.
+- The procession guide overrides other tracking: rear entrance, Hale, grave, an open bed, then the pool. These steps survive saves. Wick gives carrying instructions; the hermit speaks at the burial.
+- Slowed the arrest exchange so lines finish, and switched to the slower overworld music after the Warden fight. Corrected the father's bed orientation/height and player bed height; his house closes after the fight.
+- Menus and choices now pause solo play without opening the pause screen. Applied the angular menu treatment consistently.
+- Added save fields for the new progression and Blocking practice. Older Gehenna rewards restore their canonical labels and completed stages, preventing apostrophe sanitization from losing victory recognition or reopening earlier objectives.
+
+---
+
 ## 2.23.0 — Three ways to ruin a save, all of them reachable by accident
 
 Eight hunters swept the file and an adversarial verifier checked every finding.
