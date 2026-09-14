@@ -4,6 +4,98 @@ Every change, with the bug it fixes and how. Newest first.
 
 ---
 
+---
+
+## 2.9.2 — The story, written to the theme
+
+Twenty-seven edits. Dialogue only; no system changes, no save-format changes.
+
+### Ysolde is gone from Gehenna
+
+She was on a bench down there, wearing the Warden's bob, and she told you her
+name. That is the opposite of what the theme says happened to her: killing her
+did not send her onward, it unmade her, and **her absence is the horror**.
+
+The bench slot survives, because the machinery expects a speaker registered as
+`bench` and removing it was far riskier than changing who sits on it. The
+occupant is now **a rope seller from three hundred miles away who has never
+heard of her**. Every line of hers is gone, along with the `bob` branch, the
+`revealed` field, and the stale line about being buried under the elder tree —
+stale twice over, since the grave moved to the front of the kingdom.
+
+**The absence is delivered by the Clerk instead, as a filing problem**, which is
+the only register in which it could be borne:
+
+> "I have every last person who ever held on to her. They're all here."
+> "I do not have her."
+> "There's no page. There isn't a blank page. There's no place a page would go."
+> "You didn't send her on, love. You put an end to her."
+> "I'm not accusing you of a thing. I'm reading you what's on the paper."
+
+### The reveal is aimed at the player, not the character
+
+Per the correction to the brief: the character **has always known** they were a
+king who walked away; the player has not. So nobody in Gehenna informs them of
+their own past. The rope seller recognises them — *"Ha. It's you. I've had that
+face in my hand — the little silver one, from off east."* — and when they flinch,
+*"Don't look like that. Half the country had you in a pocket."*
+
+What **is** news is that they are failing, and they do not take it:
+
+> "You'd have got there. You stopped to help. You will not get there now."
+> "You're not taking it. I can see you not taking it, and I'll not say it twice."
+> "You kill, love. Gently, and for good reasons, and you kill."
+> "I've nowhere to file that either. I have decided not to mind."
+
+### Hale's story is in the church, in his own hand
+
+Seven new pages, laid door-to-altar in writing order: the measurements, the
+letters to the See that nothing ever answers, the moment the question changes —
+*"I asked why He is silent. The answer is that the house is empty… we have all
+been keeping the hours for nobody"* — the arithmetic that follows from it, *"If
+no one is holding the door, then somebody must pay the rent. I will begin with
+the sheep"*, the emptying of the church (*"I emptied the font last. I could not
+make myself pour it on the ground, so I drank it."*), and *"This is what faith
+turns into if you leave it out in the weather."*
+
+Scratched behind the altar, by somebody lying flat on the flags to reach:
+**A SHEEP IS NOT A PRICE. IT WAS NEVER GOING TO BE A SHEEP.**
+
+His one line in the stocks became four states, including the first one after the
+burial: *"They put her in the ground. I heard the spades from here, and I was
+glad, and I have no right to be."*
+
+### The Fairy Queen is inverted
+
+She used to grieve and count them and call it the price. She is the one being in
+the game who has it right, and the game still never says so:
+
+> "No, I am not looking for them. I stopped looking a very long while ago."
+> "If not one of them came back I should sit here exactly like this."
+> "Why did I ask you, then. Because they are small and the valley is large."
+> "There is nothing on me for them to take. Do not admire that."
+
+She names what is wrong with the player exactly once — *"You catch on
+everything, dear wanderer. On everyone."* — and refuses to help: *"I am not
+telling you to stop. I would not know how to begin."*
+
+### Also
+
+Two reputation pools wired to `bearSlain` and `manyFairies`, which `repTags()`
+has been computing since 2.0 and nothing has ever read. Narration for leaving
+Gehenna early, which was silent.
+
+**One bug found and fixed inside the patch:** the early-leave beat fired *during
+the descent*, because the dive spends six seconds above `DIVIDE` with Gehenna
+already built underneath, so a bare `y > DIVIDE` test spoke over the arrival.
+
+### Still true, and it is the one thing in the way
+
+**Gehenna is unreachable in normal play.** `ysoldeBuried` and `gehUnlocked` have
+readers and no writers: the burial chain does not exist in code yet. Everything
+above the seam — the church, Hale, the Queen, the reputation pools — is live
+today. Everything below it lights up the moment those two booleans get set.
+
 ## 2.9.1 — A save key can name a place, and the Ledger can be reached
 
 ### Bug 98 — A hand-made save key teleported you to the opening moor · FIXED

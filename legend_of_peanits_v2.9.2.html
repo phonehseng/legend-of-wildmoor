@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.9.1</title>
+<title>Legend of Peanits 2.9.2</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -378,7 +378,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.9.1</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.9.2</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -446,7 +446,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.9.1</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.9.2</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -1821,7 +1821,8 @@ const __boot = (async () => {
   // the walk is deliberately a LINE and not a loop: you surface in the water at 0, the sweeper meets you at 24, the
   // rows run 36 to 96, the bench is at 70 among them, the yard is swept at 104, and the clerk's desk is on the one
   // hill at 136. that is the order the after-story's own dialogue assumes — "down past the bench" — and it is why
-  // the girl on the bench is something you walk past on the way up and have to walk past again on the way back.
+  // the man on the bench is somebody you walk past on the way up and have to walk past again on the way back, and
+  // why his empty bench is the last thing in gehenna you see.
   // everything is inside a radius of 156, and the world is walkable to 196 (inBounds passes at 600+190 and fails at
   // 600+196), so there is forty metres of margin between the furthest thing built and the edge of the coordinates.
   const GEH_L = {
@@ -5403,6 +5404,10 @@ const __boot = (async () => {
       if (r.kingSlain && Math.random() < 0.5) return pick(["The guards stand outside the gate now, if you can believe it. The roads are safer than they've been in years.", "Killed the goblin king, they say. The carters are singing about it already, badly."]);
       if (r.haleExposed && Math.random() < 0.5) return pick(["Hale in the stocks and the herbalist walking free. I threw the first turnip. I'm not sorry.", "I believed him. About the witch. I'd have carried a torch. I don't know what to do with that.", "The pyre's gone. Good. I never liked walking past it."]);
       if (r.champion && Math.random() < 0.4) return pick(["The beacon's lit. First time in my life. My father would have wept.", "Champion, they call you. The king doesn't hand that out for nothing.", "You lit the beacon. Now every goblin in the valley knows where the kingdom is. I'm joking. Mostly."]);
+      // bearSlain and manyFairies were computed by repTags and read by nothing at all. they are the two kindest
+      // things the player does and the valley had no words for either of them.
+      if (r.bearSlain && Math.random() < 0.35) return pick(["The old bear's dead. My grandfather feared that animal and now it's a rug story.", "West wood's quiet. Quieter than I wanted, if I'm honest.", "Whatever it was sleeping on up there, you left it. That says something about you."]);
+      if (r.manyFairies && Math.random() < 0.35) return pick(["My daughter says she saw a pink light go past the window, going home. Going home, she said.", "The little ones are coming back. Nobody asked you to do that and you did it anyway.", "Fifteen of them, they say. Who counts a thing like that? You, apparently."]);
     }
     if (n.kind === "villager" && n.village !== 1 && !n.kid && Math.random() < 0.18) { // the purple folk of stonefold: a rumour to most, a memory to some
       const seen = hash(n.vi || 0, 31) < 0.4;
@@ -9950,14 +9955,29 @@ const __boot = (async () => {
         }
       });
 
-      // the reading. four things, and not one of them says what happened — they say what the people who were here
-      // were doing while it happened, which is the only way a building this empty can talk. explicit ids, so that
-      // nothing later in worldgen can ever renumber them.
+      // the reading. four things the BUILDING says — none of which name what happened, because that is the only way
+      // a place this empty can talk — and then seven pages in one man's hand, laid out door to altar in the order he
+      // wrote them, so walking up the nave walks you through him. explicit ids, so that nothing later in worldgen can
+      // ever renumber them.
+      //
+      // this is the only place in the game where hale's story is written down, and the only place it is allowed to
+      // be: he never says it aloud, he lies about it in his own confession, and the note in the keep is him telling
+      // himself the pool took her. a player who never comes out here meets a witch-hunter. a player who does meets a
+      // parish priest who measured a thing rising in the water, wrote to his superiors, kept the hours for years,
+      // and worked out that nobody was ever going to answer. he is not redeemed by any of it. he is explained, and
+      // the explanation is worse.
       const book = (lx, lz, id, text) => addPickup(V3(wX(lx, lz), FY + 1, wZ(lx, lz)), "clue", text, () => {}, { noCount: true, shape: "book", id });
       book(0, -(CD - 2.9), "church:altar", "The altar is bare and the sockets are cold. Cut into the edge of the slab, small, by somebody kneeling: WE KEPT THE HOURS. NOBODY CAME.");
       book(-2.6, CD - 3.6, "church:font", "The font is dry and has been dry a long time. Dust in the bottom of it, one feather, and no green ring where water stands. It was emptied. Nobody empties a font by accident.");
       book(3.9, CD + CT - 0.9, "church:door", "Scratched into the doorpost at shoulder height, hard enough to skip: IT IS NOT THAT HE CANNOT HEAR. GO HOME.");
       book(-4.1, -2, "church:ledger", "A visitation ledger, swollen shut and prised open. The last dozen pages are one name in one hand, years of it: Hale. Hale. Hale. He kept the hours here long after everybody else had stopped.");
+      book(4.3, CD - 1.7, "church:hale1", "A page in the Inquisitor's hand, folded into a psalter by the door: 'The water in the black pool stands higher than the rain accounts for. I have measured it four nights running. I have written to the See, and I will keep the hours until they answer.'");
+      book(-4.3, 5, "church:hale2", "The same hand, later, the letters grown large: 'No answer from the See. None from the Archdeacon. None from anyone at all. I am a patient man. I have been patient in this building for most of my life.'");
+      book(4.3, 2.2, "church:hale3", "A page pressed flat under a fallen pew: 'I have been asking the wrong question. I asked why He is silent. The answer is that the house is empty, and has been empty a very long while, and we have all been keeping the hours for nobody.'");
+      book(-4.3, -0.6, "church:hale4", "Torn from the ledger, burnt at one corner: 'There is nothing above the thing under that water. There is only us. If no one is holding the door, then somebody must pay the rent. I will begin with the sheep, and I will do it alone.'");
+      book(4.3, -3.6, "church:hale5", "A page weighted under a stone: 'I carried out the plate myself, and the candlesticks, and the good cloth, so nobody could say the place was robbed. I emptied the font last. I could not make myself pour it on the ground, so I drank it.'");
+      book(-4.3, -6.6, "church:hale6", "The last loose page, pinned under the altar slab: 'I still say the hours. I say them walking, in the dark, on the road. Nobody hears them and I cannot stop. This is what faith turns into if you leave it out in the weather.'");
+      book(0, -(CD - 0.8), "church:hale7", "Scratched into the back of the altar, low down, by somebody lying flat on the flags to reach: A SHEEP IS NOT A PRICE. IT WAS NEVER GOING TO BE A SHEEP.");
     }
   }
   // the ysolde mystery: logs delivered to the woodcutter, goblin kills when the errand began, clues found at the pool, the lamp wick, whether the case is solved and reported, and the two rewards
@@ -14134,7 +14154,7 @@ const __boot = (async () => {
       clerk: { voice: 300, pitch: 0.93, rate: 0.9, vi: 3, female: true, kind: "geh", pos: null },
       sweep: { voice: 150, pitch: 0.6, rate: 0.76, vi: 7, female: false, kind: "geh", pos: null },
       kind: { voice: 285, pitch: 1.04, rate: 0.95, vi: 1, female: true, kind: "geh", pos: null },
-      girl: { voice: 360, pitch: 1.24, rate: 1.02, vi: 5, female: true, kind: "geh", pos: null },
+      rope: { voice: 168, pitch: 0.72, rate: 0.88, vi: 4, female: false, kind: "geh", pos: null },
       still: { voice: 220, pitch: 0.88, rate: 0.84, vi: 9, female: false, kind: "geh", pos: null },
       held: { voice: 88, pitch: 0.42, rate: 1.18, vi: 2, female: false, kind: "geh", pos: null }
     };
@@ -14145,6 +14165,9 @@ const __boot = (async () => {
     // tracked chain. starting a chain cancels the one before it, so nothing can ever overlap.
     let chain = null,
       chainT = 0;
+    // this one survives reset() on purpose. state.surfaced goes back to false every time gehenna is torn down, so
+    // without a separate flag the leaving-early beat would play on every trip back up, which is a nag and not a beat.
+    let leftEarly = false;
     // lead is how long to wait before the FIRST line of the chain. it is never zero by accident: every caller here is
     // triggered by something that has just spoken, and a chain starting at zero fires on the very next frame, which
     // cancels the utterance that summoned it. the default is one full line's worth.
@@ -14270,6 +14293,7 @@ const __boot = (async () => {
       L("A thread's a person still holding you. Most come down with three or four.");
       L("Mine went years ago. I can't call their faces up and it doesn't trouble me.");
       L("That's the point, see. Not troubled. It's exactly what was promised.");
+      L("You've come a long way to get here. Longer than most. It's in your feet.");
       L("I stayed on to sweep. Couldn't tell you why. There's no why left in me.");
       L("You want the Clerk. Down past the bench. She'll read you.");
       L("Don't be frightened of her. She's sorry about all of it.");
@@ -14285,44 +14309,49 @@ const __boot = (async () => {
       ];
     }
 
+    // the man on the bench. the most ordinary person in the game, carrying the heaviest single fact in it, which he
+    // does not think is a fact worth carrying. he died a long way off — gehenna is one place for everybody — so he
+    // knows the player's face the way anyone knows a face off money, and he is not impressed by it, because nobody
+    // down here is impressed by anything.
+    //
+    // he is not delivering a revelation. the CHARACTER has always known who they are; it is the person at the
+    // keyboard hearing it for the first time. so he says it the way you say a thing to somebody who obviously knows
+    // it already — flatly, in passing, on his way back to the queue — and the line that matters is the one he has
+    // no idea is a diagnosis: still walking, and stopping, and walking.
     function buildBench() {
       const b = [];
       const L = t => b.push({ t });
-      L("Hello. You can sit if you like, nobody's using it.");
-      L("I'm waiting. They said it'd be a bit and I didn't want to make a fuss.");
-      L("I don't mind waiting. I minded the cold, before. Not this.");
-      L("My dad's a miller. He isn't well. He doesn't sleep.");
-      L("I keep thinking that if he'd only sleep he'd be alright.");
-      if (sideDone("Bring Ysolde's father a moor-herb for his sleep"))
-        L("Somebody brought him a herb for it. I felt him go quiet, all the way down here.");
-      else L("Nobody's helped him with it. He's stubborn about that sort of thing.");
-      L("Sorry. You didn't come down here about my dad. What's your name?");
-      b.push({ t: () => `${NM()}. That's nice. I'll keep hold of it while I'm sat here.` });
-      b.push({ t: "Go on, then. She'll be expecting you, I expect.", loop: true });
+      L("Sit if you like. I've the whole bench and I don't want it.");
+      L("They called my name once and meant a different man. I've stopped listening for it.");
+      L("I sold rope. Forty years of it. Waiting is the easy half of anything.");
+      L("You've still got your threads on, though. I can hear them from here.");
+      L("Hold on. Turn your head a moment.");
+      L("Ha. It's you. I've had that face in my hand — the little silver one, from off east.");
+      L("Don't look like that. Half the country had you in a pocket.");
+      L("Whole trade talked of nothing else for a season. My guess was a ditch.");
+      L("And here you are. Still walking, and stopping, and walking.");
+      L("The Clerk's at the top of the hill. Mind the step, it's worn through.");
+      b.push({ t: "I'll be here. Where else.", loop: true });
       return b;
     }
+    // nobody has been called since she died, and he is the only one down here who noticed, because he is the only
+    // one still counting anything. the bench is empty afterwards, and it is the last thing the player walks past on
+    // the way back to the water.
     function benchAfter(s) {
       const b = [];
       const L = t => b.push({ t });
-      L("You look different. Did she read you?");
-      L("I heard her through the wall. She was a long time.");
-      L("That's an awful lot of people. That must be heavy.");
-      L("I'm getting up now. I think I've waited enough.");
+      L("Something's happened. Nobody's been called since you went up that hill.");
+      L("The queue hasn't moved. Not one step. It has never once not moved.");
+      L("You did that, did you. Well.");
+      L("Then nobody's coming to fetch me. Which is what I was afraid of.");
+      L("And I find I don't much want to be fetched. That's new.");
+      L("Right. I'm getting up. First thing I've decided in a long while.");
       b.push({
-        t: "It's Ysolde, by the way. You never asked and I never said.",
-        go: () => {
-          s.revealed = true;
-        }
-      });
-      if (WORLDSTATE.gehUnlocked) L("Somebody put me in the ground under the elder tree. I felt the weight go.");
-      L("Tell my dad I wasn't cold. That's the bit he gets wrong.");
-      L("You can't. I know you can't. You're going back up and I'm not.");
-      L("Tell him anyway.");
-      b.push({
-        t: "Go on. Don't make it a thing.",
+        t: "Go on up. I never had anywhere to be. You always did.",
         loop: true,
         go: () => {
           s.leaving = true;
+          if (s.mesh) s.mesh.visible = false;
         }
       });
       return b;
@@ -14339,12 +14368,28 @@ const __boot = (async () => {
       L("Right. Hand.");
       L("Oh.");
       L("Oh, you poor thing.");
+      L("And it's you. Of course it's you. That explains the walking.");
       L("I'll read them out. Sit back. This will take a while.");
       const T = buildThreads();
       for (const th of T) for (const line of th.lines) L(line);
       L("That's not all of them.");
       L("I have done this for eight hundred years. That is not all of them.");
       b.push({ t: () => `There are ${restCount()} more, and my hands are shaking.` });
+      // the miller's girl. every soul who ever held on to her is on this list and she is not, because she is not
+      // anywhere: the player took her out of the water and out of the world, and does not know that is what they
+      // did. the clerk does not accuse and is not angry. she has a blank where a page goes, she says so plainly,
+      // and then she goes back to work, which is the worst available response and the only one in character.
+      L("Stop a moment. There's a name I can't place.");
+      L("The miller's girl. I have her father. I have his sleep, and who mended it.");
+      L("I have the children she gave apples to. I have the tree she liked to sit in.");
+      L("I have every last person who ever held on to her. They're all here.");
+      L("I do not have her.");
+      L("There's no page. There isn't a blank page. There's no place a page would go.");
+      L("Everybody is somewhere. Eight hundred years, and that has always been true.");
+      L("You didn't send her on, love. You put an end to her.");
+      L("She isn't waiting anywhere. There is nowhere she went.");
+      L("I'm not accusing you of a thing. I'm reading you what's on the paper.");
+      L("Right. Where was I.");
       L("You were supposed to come down here with three.");
       L("Do you understand? You cannot be finished. Not while they hold on.");
       L("It isn't wickedness. It's arithmetic.");
@@ -14371,7 +14416,32 @@ const __boot = (async () => {
       L("She cut your end. She never could reach theirs.");
       L("Everyone down here was let go of. Nobody down here was forgotten.");
       L("Eight hundred years of it, and not one of them was forgotten.");
-      L("I have a blank page. Say the names to me. Slowly.");
+      // the ending, and it is arithmetic rather than judgement. the character knows perfectly well that they walked
+      // out of a kingdom to put everything down. what they do not know is that they have failed, and the clerk is
+      // the only soul in either world who can see it written out. she tells them. they do not take it, and the not
+      // taking is the whole tragedy — so it is written as two answers and both of them are wrong, because a person
+      // who spent forty hours helping everyone they met does not have a right answer available.
+      L("Sit down. You know all of this and I'm going to say it anyway.");
+      L("You walked out of your own hall and left the crown on the chair.");
+      L("That is the hard part. Almost nobody gets that far.");
+      L("Then you came through a valley and you were kind in it.");
+      L("Every good turn tied a knot. Every single one, and you tied them yourself.");
+      b.push({
+        t: "You'd have got there. You stopped to help. You will not get there now.",
+        go: () => {
+          askChoice("She waits for an answer. Nobody down here waits for anything.", [
+            { key: "worth", label: "It was worth it", text: "Every one of those people needed something doing, and I was the one who was there." },
+            { key: "after", label: "I will put it down afterwards", text: "The valley is nearly settled. When it is, I will set all of it down and go on." }
+          ], key => { state.answer = key; });
+        }
+      });
+      b.push({ t: () => (state.answer === "after" ? "Afterwards. Everybody says afterwards." : "I know it was. That was never in question, love.") });
+      b.push({ t: () => (state.answer === "after" ? "There are a hundred of them on that road who said afterwards." : "And you're still at it. You answered me about them, not about you.") });
+      L("You're not taking it. I can see you not taking it, and I'll not say it twice.");
+      L("And there's the girl. Still blank. It will stay blank.");
+      L("You kill, love. Gently, and for good reasons, and you kill.");
+      L("I've nowhere to file that either. I have decided not to mind.");
+      L("Now. I have a blank page and a good pen. Say the names to me, slowly.");
       L("Not to process them. I want somebody to have written it down.");
       b.push({ t: "There. That's a life, that is.", go: giveLedger });
       L("Go up. The water will let you this time.");
@@ -14390,7 +14460,10 @@ const __boot = (async () => {
       "My daughter — no. Sorry. That was somebody else's.",
       "This is the good part. They told us this was the good part.",
       "I'd offer you a drink but I don't think I drink.",
-      "You keep looking at me like I've lost something."
+      "You keep looking at me like I've lost something.",
+      "Somebody helped me once. That's all that's left of it. That somebody did.",
+      "You've a kind face. I used to have opinions about faces.",
+      "Everyone here chose this. I'm told I did. I'd not argue either way."
     ];
     // the attached: the doctrine's failures, the ones who would not let go and calcified around it. not demons. people
     // still standing at a door, thirty years on.
@@ -14402,7 +14475,7 @@ const __boot = (async () => {
     const SCR = {
       sweeper: { v: V.sweep, name: () => "The Sweeper" },
       clerk: { v: V.clerk, name: () => "The Clerk" },
-      bench: { v: V.girl, name: s => (s.revealed ? "Ysolde" : "A girl on the bench") },
+      bench: { v: V.rope, name: () => "A man on the bench" },
       still: { v: V.still, name: () => "One of the Unburdened" },
       kindly: { v: V.kind, name: () => "The Kindly One" }
     };
@@ -14412,7 +14485,7 @@ const __boot = (async () => {
       if (!id || !SCR[id] || !pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y) || !Number.isFinite(pos.z)) return null;
       let s = speakers.find(s => s.id === id);
       if (!s) {
-        s = { id, pos: V3(pos.x, pos.y, pos.z), beat: 0, script: null, builtFor: "", prompt: null, revealed: false, leaving: false, last: -1 };
+        s = { id, pos: V3(pos.x, pos.y, pos.z), beat: 0, script: null, builtFor: "", prompt: null, mesh: null, leaving: false, last: -1 };
         speakers.push(s);
       } else s.pos.set(pos.x, pos.y, pos.z);
       if (opts && opts.mesh) s.mesh = opts.mesh;
@@ -14462,7 +14535,7 @@ const __boot = (async () => {
     // is nothing to be sorry for, and she is right about suffering and wrong about what to do next. the fight is not
     // meant to be hard. every blow she lands takes a name off you and says it out loud, which is why it hurts.
     const BOSS = { hp: 60, dmg: 1, speed: 3.2, windup: 0.9, reach: 2.6 };
-    const state = { fight: false, done: false, called: false, cut: 0, beat: 0, cutT: 0, fallbackT: 0, barkT: 0, threads: [], surfaced: false, thanked: false, held: 0 };
+    const state = { fight: false, done: false, called: false, cut: 0, beat: 0, cutT: 0, fallbackT: 0, barkT: 0, threads: [], surfaced: false, thanked: false, held: 0, answer: null };
     const CUT_LINES = [
       w => `${w}. There. Lighter already.`,
       w => `${w}. Gone. You can't miss what you can't hold.`,
@@ -14560,11 +14633,12 @@ const __boot = (async () => {
     }
     // one line per phase of her health, at most once each, and only ever on the way down
     const BEATS = [
-      [0.78, "You've never lost one, have you. Not one person."],
-      [0.6, "Do you know what the queue outside is? It's people who were tired."],
-      [0.42, "I gave them quiet. What would you have given them?"],
-      [0.26, "Stop. Please. I am trying to help you."],
-      [0.12, "I have never had to ask before."]
+      [0.8, "You've done this before. Look how good you are at it."],
+      [0.64, "Do you know what the queue outside is? It's people who got tired."],
+      [0.48, "I gave them quiet. What is it you're giving them?"],
+      [0.32, "There's a girl who isn't in my sister's book. That was you."],
+      [0.18, "Stop. Please. I am trying to help you."],
+      [0.08, "I have never had to ask before."]
     ];
     // the enemy layer may call this every frame. one line per threshold, and never inside another line's breath.
     function bossBeat(frac) {
@@ -14735,6 +14809,24 @@ const __boot = (async () => {
         ], 1.4);
         return;
       }
+      // climbing back out before it is finished. the surfacing above is gated on the after-story being over, so
+      // until now a player who left early came up in total silence, which read as the game losing the thread.
+      //
+      // the two extra terms are not belt and braces. the dive spends six seconds ABOVE the seam with gehenna
+      // already built underneath it, so a bare y > DIVIDE test fires this on the way DOWN — measured, it spoke
+      // over the arrival. exitArm only counts seconds spent under the seam and outside the dive, so requiring
+      // three of them means the player has actually stood down there.
+      if (!state.done && !state.surfaced && !P.gehDive && GEH.exitArm > 3 && P.pos.y > DIVIDE) {
+        state.surfaced = true;
+        if (!leftEarly) {
+          leftEarly = true;
+          chainSay([
+            [null, "", "Valley air. It is far too loud, after that.", 4600],
+            [null, "", "There is a woman at the top of that hill with your hand written out on a page.", 5200]
+          ], 1.4);
+        }
+        return;
+      }
       if (P.pos.y > DIVIDE) return;
       ensureStage();
       // the fallback encounter, used only when no enemy layer raised her: she cuts three names, fails, and stops.
@@ -14772,6 +14864,7 @@ const __boot = (async () => {
       state.threads = [];
       state.held = 0;
       state.thanked = false;
+      state.answer = null;
       state.done = !!WORLDSTATE.gehDone;
       state.surfaced = state.done;
     }
@@ -14890,7 +14983,6 @@ const __boot = (async () => {
       grey: mat(new THREE.MeshStandardMaterial({ color: toLin(0x4c4640), roughness: 1, metalness: 0 })),
       pale: mat(new THREE.MeshStandardMaterial({ color: toLin(0x6e6a64), roughness: 1, metalness: 0 })),
       skin: mat(new THREE.MeshStandardMaterial({ color: toLin(0x7a6a60), roughness: 1, metalness: 0 })),
-      hair: mat(new THREE.MeshStandardMaterial({ color: toLin(0x2a1a10), roughness: 0.95, metalness: 0, side: THREE.DoubleSide })),
       wood: mat(new THREE.MeshStandardMaterial({ color: toLin(0x33261c), roughness: 1, metalness: 0 })),
       paper: mat(new THREE.MeshStandardMaterial({ color: toLin(0xa8a090), roughness: 1, metalness: 0 })),
       sweep: mat(new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.5, depthWrite: false })),
@@ -15070,9 +15162,13 @@ const __boot = (async () => {
     //
     // the geography is the after-story's own: the sweeper meets you as you come out of the water, the bench is
     // among the rows so that his "down past the bench" is literally true, and the clerk is at the top of the hill
-    // so that the walk to her IS the ascent. the girl on the bench is the one thing here placed for a reason
-    // nobody says out loud: she wears the same bob, in the same colour, built the same way, as the thing that came
-    // up out of the pool, so the player recognises her before the after-story ever gives her a name.
+    // so that the walk to her IS the ascent.
+    //
+    // the man on the bench is nobody, on purpose, and that is the single most important decision in this room. the
+    // miller's girl is not down here and there is nothing down here that resembles her: she was taken out of the
+    // water and out of the world, and a place that keeps everybody has no page for her. so the bench holds a rope
+    // seller from three hundred miles away who has never heard of her, and the only person who can tell you what
+    // you did is the clerk, reading a list with a hole in it.
     {
       const fig = (dx, dz, opts) => {
         const x = GEH.cx + dx, z = GEH.cz + dz, y = gehH(x, z);
@@ -15085,13 +15181,6 @@ const __boot = (async () => {
         const head = new THREE.Mesh(new THREE.SphereGeometry(0.235 * s, 10, 8), M.skin);
         head.position.y = (seat ? 1.19 : 1.92) * s;
         grp.add(body, head);
-        if (opts.bob) {
-          const bob = new THREE.Mesh(new THREE.CylinderGeometry(0.25 * s, 0.29 * s, 0.32 * s, 14, 1, true, Math.PI * 0.12, Math.PI * 1.76), M.hair);
-          bob.position.y = head.position.y - 0.05 * s;
-          const cap = new THREE.Mesh(new THREE.SphereGeometry(0.24 * s, 12, 9, 0, Math.PI * 2, 0, Math.PI * 0.62), M.hair);
-          cap.position.y = head.position.y + 0.02 * s;
-          grp.add(bob, cap);
-        }
         if (opts.broom) {
           const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.9, 5), M.wood);
           shaft.position.set(0.34, 0.95, 0.12);
@@ -15123,9 +15212,10 @@ const __boot = (async () => {
       bench.add(seatTop, back, lg1, lg2);
       bench.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
       g.add(bench);
-      const girl = fig(GEH_L.benchX + 0.3, 6.4, { seated: true, bob: true, scale: 0.86, face: Math.PI * 0.92 });
-      girl.grp.position.y += 0.4; // sitting on the bench rather than in the ash
-      girl.pos.y += 0.4;
+      // raised the height of the seat, so he is sitting on the bench rather than in the ash
+      const sitter = fig(GEH_L.benchX + 0.3, 6.4, { seated: true, face: Math.PI * 0.92 });
+      sitter.grp.position.y += 0.4;
+      sitter.pos.y += 0.4;
       const api = window.GEHENNA;
       if (api && typeof api.register === "function") {
         try {
@@ -15142,7 +15232,7 @@ const __boot = (async () => {
           // the tie goes to, which is exactly the intended order of events.
           api.register("kindly", V3(GEH.cx - 150, gehH(GEH.cx - 150, GEH.cz - 150), GEH.cz - 150));
           api.register("sweeper", sweeper.pos);
-          api.register("bench", girl.pos);
+          api.register("bench", sitter.pos, { mesh: sitter.grp });
           api.register("clerk", clerk.pos);
           api.register("still", still.pos);
         } catch (err) { console.error("Gehenna: a speaker would not register", err); }
@@ -15818,8 +15908,16 @@ const __boot = (async () => {
   // choose story dialogue and investigation responses for an important character
   function storyTalk(n) {
     if (n === HALE) {
-      if (STORY.solved)
-        return speak(n, "Take your eyes off me. I did what the pool asked. You'll understand one day, when it asks you.", "Hale", 6000);
+      // he is not a cultist and he never was. he was a parish priest who measured a thing rising in the water and
+      // wrote to his church about it for years and was never once answered, and the conclusion he came to is the
+      // true one. what he did with it is the crime, and he does not think of it as one. these lines walk him from
+      // defiance to the thing that is actually eating him, which is that nobody has ever told him he was wrong
+      // about the silence — only about the girl.
+      if (STORY.solved) {
+        if (WORLDSTATE.ysoldeBuried) return speak(n, "They put her in the ground. I heard the spades from here, and I was glad, and I have no right to be.", "Hale", 6000);
+        if (WORLDSTATE.blackPoolAwake) return speak(n, "You've felt it now. Then say it out loud: there is nobody above that water, and never was.", "Hale", 6000);
+        return speak(n, "I kept the hours in that church for thirty years and nobody ever came. Somebody had to hold the door.", "Hale", 6000);
+      }
       if (STORY.clues >= 3) {
         STORY.solved = true;
         freeMaren();
@@ -16643,27 +16741,34 @@ const __boot = (async () => {
     const notes = short ? [1318, 1568, 2093] : [1046, 1318, 1568, 2093, 1568, 2637];
     notes.forEach((f, i) => SFX.tone(f, f, 0.22, 0.05, "sine", i * 0.11));
   }
-  // the queen is this valley's buddha and she refuses her own teaching. she sits under a tree, she has sat under it
-  // since before the kingdom, she knows exactly what would end her suffering, and she will not do it — because the
-  // thing that would end it is the counting. gehenna's whole argument is answered up here, by a fairy, two short
-  // sentences at a time, and she never once states the parallel out loud.
+  // she is the one being in the valley who has it right, and nothing in the game ever says so. she is not looking
+  // for her children and she is not waiting for them: she sits, she has sat since before the kingdom, and if not
+  // one of them ever came back she would sit exactly the same way. she asked the player to find them because they
+  // are small and the valley is large, and for no other reason at all. that distinction — wanting a good thing
+  // without being held by it — is the whole of her character and the only correct answer the game contains.
+  //
+  // she is an example and never a teacher. she can see precisely what is wrong with the player, says so once, and
+  // then declines to explain it, because a wise woman sitting the hero down and laying out the rules would hand
+  // them the one thing they must not be given. the doctrine is never named up here either.
   const QUEEN_TEACH = [
-    "I have sat under this tree since before your kingdom had a name.",
-    "In all that time I have learned one thing, and refused it.",
-    "They tell me I would suffer less if I stopped counting them.",
-    "I know that it is true. I count them anyway.",
-    "Grief is the price of the thing, dear wanderer. I will pay it.",
-    "You could put it down. All of it. You could, you know.",
-    "I tell you so that when you do not, it is a choice.",
-    "Something under that black water knows my argument better than I do.",
-    "It is not wrong. It is only wrong about what to do next."
+    "Sit if you like. I am not doing anything, and I have not been for a long time.",
+    "No, I am not looking for them. I stopped looking a very long while ago.",
+    "That is not coldness. I would simply rather they were home than not.",
+    "If not one of them came back I should sit here exactly like this.",
+    "I know how that sounds. It is the truest thing about me.",
+    "Why did I ask you, then. Because they are small and the valley is large.",
+    "You catch on everything, dear wanderer. On everyone. I can see it from here.",
+    "I am not telling you to stop. I would not know how to begin.",
+    "Something under that black water worked the same thing out, long ago.",
+    "It was right. And then it did something appalling about it."
   ];
   const QUEEN_AFTER = [
-    "You have been somewhere very tidy. I can smell it on you.",
-    "Did they offer? They always offer. Did you say no?",
-    "Good. Sit with me. We shall be unwise together.",
-    "My children would not have let go of you either. They are terrible at it.",
-    "So am I. It is the only thing about myself I am proud of."
+    "You have been somewhere very tidy. It is all over you.",
+    "Did they offer to take them off you? They always offer.",
+    "You said no. Of course you did.",
+    "There is nothing on me for them to take. Do not admire that.",
+    "It is only quiet. Quiet is not a prize, dear wanderer.",
+    "Sit down a while. I am extremely good at sitting."
   ];
   function talkFairyQueen() {
     fairyTune(false);
@@ -16673,12 +16778,12 @@ const __boot = (async () => {
     if (FAIRY.found >= 10 && !WORLDSTATE.relics.tear) {
       WORLDSTATE.relics.tear = true;
       grant("The Queen's Tear: a drop of pink glass, warm as a hand", () => {});
-      qsay("Ten of them home. I have wept for each, and I would not give the weeping back.");
+      qsay("Ten home. Here. This came off me a long time ago, when I still did that.");
       return;
     }
     if (WORLDSTATE.relics.tear && !FAIRY.tearTold) {
       FAIRY.tearTold = true;
-      qsay("Take the tear. It is the only part of me that understands what you are.");
+      qsay("Keep it close. It is the only part of me that still understands you.");
       return;
     }
     if (!FAIRY.accepted) {
@@ -16690,7 +16795,7 @@ const __boot = (async () => {
         qsay("You brought every little light home before we had even met. My resting blessing is already yours.");
         return;
       }
-      qsay("Twenty-five little ones, scattered over the whole valley. Homes, waterfalls, rooftops, high branches.");
+      qsay("Twenty-five little ones are loose in the valley. Homes, waterfalls, rooftops, high branches.");
       return;
     }
     if (!FAIRY.told2 && !FAIRY.complete) {

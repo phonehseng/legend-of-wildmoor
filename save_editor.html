@@ -578,8 +578,9 @@
       "Further out than that the tool has no ground height to give you, so it leaves y alone and says so above. " +
       "The game does <b>not</b> snap you to the ground. It puts you exactly where the key says " +
       "and lets physics take over, so a y above the local ground simply means you fall to it. A y more than " +
-      "<b>eight metres below</b> the ground trips the game's own recovery guard, which drops you at its last safe " +
-      "spot instead. The Go-to buttons beside the map fill in a height that is known to be good. A y under " +
+      "<b>eight metres below</b> the ground is treated as a body inside the hill: the game lifts you onto the " +
+      "ground at that x and z, so you keep the place you asked for but not the height. The Go-to buttons beside " +
+      "the map fill in a height that is known to be good. A y under " +
       "<b>&minus;200</b> is the seam into Gehenna, and the game deliberately wakes you on the rim of the Black Pool " +
       "instead of trying to build the place below.";
   }
@@ -967,15 +968,18 @@
     var p = nearestGround(S.pos[0], S.pos[2]);
     if (p) { S.pos[1] = p.y + 1; posNote = ""; return; }
     posNote = "No known ground height here &mdash; y is still " + (+S.pos[1]).toFixed(1) +
-      ". Use a Go-to button, or the game will drop you at its last safe spot if that is far below the ground.";
+      ". Use a Go-to button for a height that is known to be good. If this one turns out to be well under the " +
+      "real ground, the game lifts you onto it rather than leaving you at the y you asked for.";
   }
 
-  /* the one height mistake the tool can actually prove, whichever control made it */
+  /* the one height mistake the tool can actually prove, whichever control made it. the game no longer strands
+     you for it &mdash; applySave lifts a buried body onto the ground it named &mdash; but the y in the key is still
+     not the y you wake at, so the tool says so rather than calling the key clean */
   function buriedNote() {
     var p = nearestGround(S.pos[0], S.pos[2]);
     if (!p || S.pos[1] >= p.y - 8) return "";
     return "y " + (+S.pos[1]).toFixed(1) + " is more than eight metres under the ground at " + p.n +
-      " (" + p.y.toFixed(1) + "). The game will refuse the position and wake you at its last safe spot instead.";
+      " (" + p.y.toFixed(1) + "). The game will lift you onto that ground instead, so you will not wake at this y.";
   }
 
   function setFromPointer(e) {
