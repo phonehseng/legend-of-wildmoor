@@ -4,6 +4,118 @@ Every change, with the bug it fixes and how. Newest first.
 
 ---
 
+## 2.12.0 — The hush never happened, the mourners never went home, and subtitles wait for the voice
+
+### Bug 113 — Beat two of the 3.0 chain was dead code · FIXED
+
+**The Warden dies and nothing happens.** No "She goes under. Not onward — under",
+no `Music.silence`, no crickets, none of the three hush lines, no accelerated
+daybreak, and the pool stone never relit.
+
+`killEnemy` sets `e.alive = false` and `WORLDSTATE.wardenDead = true` **in the
+same synchronous call**, and the transition that owns the whole of beat two tests
+`finaleStarted && !WORLDSTATE.wardenDead && WARDEN && !WARDEN.alive`. That
+condition could never be true. It has never run once.
+
+And because that line is the **only call site of `releaseWatchers()` in the
+file**, it took the children with it: `gatherWatchers()` does run, so the four
+village kids really are moved to the pool with their homes overwritten, `stay`
+and `post` set and `job = "idle"` — and then nothing ever released them. They
+stood at the black pool with no jobs for the rest of the session.
+
+A runtime one-shot owns the presentation now. The flag keeps being set exactly
+where it always was, so nothing that reads it changes behaviour.
+
+### Bug 114 — The burial retired every villager who mourned · FIXED
+
+**Reported by four independent sweeps, and confirmed by reading both ends.**
+
+Recruiting a mourner writes **six** fields: `mourning`, `stay`, `post`,
+`job = "idle"`, `target` and `work`. Releasing them cleared **two**, under a
+comment that said in so many words *"the two flags this clears are the only two
+it ever set."* It was wrong by four.
+
+With `job` left at `"idle"` the villager work state machine is unreachable —
+`} else if (!n.fight && n.job !== "idle" && n.kind === "villager") {` — and **no
+line anywhere else in the file assigns a job after worldgen.** So every villager
+the player passed within 16 m during the carry stopped working permanently:
+washers, gatherers, woodcutters, water carriers, wagoners left standing in the
+street with their carts, and the two town hunters who shoot goblins at night.
+
+**Maren is genuinely caught.** `freeMaren` gives her `job = "gatherer"` and a
+home 13.6 m from waypoint seven of the procession route.
+
+`mourning` was never cleared either, so nobody could be recruited a second time.
+The state is stashed on recruit and restored in full on release.
+
+### Bug 115 — A guest could be left permanently unable to lift or bury her · FIXED
+
+`ysoldeLifted` travels over the wire; `P.carry` deliberately does not. So a guest
+takes the flag off a peer, their copy of the body is hidden where it lies, and
+they are not carrying anything — which is correct while the host is there.
+
+If that host then quits, `netDrop` makes the ex-guest a solo player, and **both
+doors are already shut**: the lift refused because the flag was set, and the
+burial refused because `P.carry` was false. The main quest sticks on "Carry her
+through the kingdom" for the rest of the session, and Gehenna with it.
+
+The gate tests `P.carry` now instead of the flag. She is also made visible again
+for anybody left holding that flag alone, because otherwise they would have been
+standing over an invisible body with no reason to press anything.
+
+### Subtitles wait for the voice
+
+Reported from play: a slow speaker outlasts their own subtitle.
+
+`say()` returns a handle with three hands — a **floor** (the character-count
+estimate, which is also the whole clock when there is no voice), a **hold** the
+utterance takes until the browser fires `end` or `error`, and a **cap** so a
+stuck speech queue cannot pin a line on screen.
+
+**Measured in a real browser voice at rate 0.6: the utterance ended at 7,178 ms
+and the subtitle now lives 7,217 ms. The old estimate pulled it at 4,730 ms** —
+two and a half seconds of someone talking to an empty screen.
+
+**A pre-existing bug fell out of it.** `Voice.stop()` called a bare `cancel()`
+without bumping the generation, so the chain stayed alive: pausing mid-line
+silenced the current chunk and then **spoke the next one over the pause menu**.
+
+### Autosave, done honestly
+
+No new save state. It stores the existing `makeSaveKey()` output verbatim in
+`wildmoor.auto`, so the four-edit rule has nothing to catch, and **every write is
+proved through `parseSaveKey` before it commits** — a key that will not read back
+leaves the previous autosave standing.
+
+It fires on waking from a sleep, an errand completing, opening the pause menu,
+leaving the page, and a three-minute backstop. It **refuses**, and the pause menu
+says which, during the Gehenna descent (the `P.gehDive.rim` precedent), during
+death, during sleep, with a choice open, under `inputLock`, during the Warden
+fight — because that fight pins `dayT` to 0.75 and the key would record a time
+the clock never reached — and for any session that has ever been a guest.
+
+The title screen gets **Continue**, with the save's age and the reason it was
+taken, and disabled with the reason written underneath when there is nothing.
+
+**A real multiplayer bug came out of that guest rule.** `applyMainProgress` folds
+the host's story into the guest's own globals, and when a host drops `NET.role`
+goes null — so the next write would have put a run the player never played over
+their own. The guest state is latched now and never cleared.
+
+### Housekeeping
+
+Three mid-line `//` comments that landed in 2.11.0 are moved onto their own
+lines. They swallowed nothing, and the rule exists because the ones that do look
+exactly like the ones that do not.
+
+### Refuted, and worth recording
+
+A reviewer reported that the debug save key stopped loading in this build. **It
+loads.** The Continue button moved `<body>` nine lines down the file, and the
+test harness injected its localStorage stub at a hardcoded line number that now
+lands inside a `<style>` block. The harness reads the `<body>` line out of the
+file now rather than assuming it.
+
 ## 2.11.0 — The descent was impossible, the glitch is found, and Gehenna has a map
 
 ### Bug 108 — The whirlpool could never pull you down · FIXED

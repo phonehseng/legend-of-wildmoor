@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.11.0</title>
+<title>Legend of Peanits 2.12.0</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -132,6 +132,15 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   #place { position: absolute; left: 50%; top: 22px; transform: translateX(-50%); font-size: 22px; opacity: 0; transition: opacity .6s; z-index: 5; }
   /* appearance and layout for #place.show */
   #place.show { opacity: 1; }
+  /* appearance and layout for #autosaveMark: a quiet corner note, because an autosave the player cannot see is a rumour.
+     it sits under the minimap rather than in the bottom-right, where it would blank the stats readout on every write */
+  #autosaveMark { position: absolute; right: 18px; top: 300px; max-width: 40vw; text-align: right; background: var(--box); border: 1px solid var(--edge); border-radius: 8px; padding: 6px 12px; font-size: 12px; letter-spacing: .04em; opacity: 0; transition: opacity .5s ease; pointer-events: none; z-index: 5; }
+  /* appearance and layout for #autosaveMark.show */
+  #autosaveMark.show { opacity: .92; }
+  /* appearance and layout for .btn:disabled: Continue with nothing to continue stays visible and says why underneath.
+     pointer-events rather than an undo of :hover, because .btn is restyled three times further down and each skin's
+     hover sets different things — taking the button out of hit testing answers all three at once */
+  .btn:disabled { opacity: .4; cursor: default; filter: grayscale(.7); pointer-events: none; }
   #place.plain { background: none !important; border: 0 !important; box-shadow: none !important; clip-path: none !important; padding: 6px 12px !important; min-width: 0 !important; font-size: 19px !important; font-weight: normal !important; font-style: italic !important; text-transform: none !important; letter-spacing: .02em !important; color: var(--bone) !important; transform: translateX(-50%) !important; }
   /* appearance and layout for #stats */
   #stats { position: absolute; right: 18px; bottom: 18px; font-size: 13px; text-align: right; line-height: 1.5; color: rgba(229,219,255,.7); }
@@ -378,7 +387,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.11.0</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.12.0</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -397,6 +406,8 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="questbook" class="hidden"><div class="book"><div class="page"><h2>The Story</h2><div id="qb-main"></div></div><div class="page"><h2>Errands</h2><div id="qb-side"></div></div><div class="page log"><h2>Words</h2><div id="qb-log"></div><p style="margin-top:14px;font-size:13px;opacity:.7">Click a quest to track it with the arrow. J closes.</p></div></div></div>
   <!-- place: game interface element -->
   <div id="place"></div>
+  <!-- autosaveMark: game interface element -->
+  <div id="autosaveMark"></div>
   <!-- vitals, hearts, stam, air, speed: game interface element -->
   <div id="vitals"><div id="heroName">Wanderer</div><div id="hearts"></div><div id="stam" class="bar"><i></i></div><div id="air" class="bar"><i></i></div><div id="speed"></div><div id="fairy-status"></div></div>
   <!-- subs: game interface element -->
@@ -411,7 +422,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="satchelTag"><div><span class="ikey">I</span> Satchel</div><div><span class="ikey">Tab</span> Stats</div><div><span class="ikey">M</span> Map</div><div><span class="ikey">J</span> Quests</div><div><span class="ikey">P</span> Pause</div></div>
   <div id="inv" class="hidden"><div class="panel satchel"><button id="invX" class="xbtn" title="Close">✕</button><h2 style="font-size:28px;margin:0 0 12px">Satchel</h2><div class="satchel-body"><div id="invGrid"></div><div id="invDetail"><p class="hint">Hover a picture to read what you found.</p></div></div><p style="font-size:12px;opacity:.6;margin-top:10px">Press I to close</p></div></div>
   <!-- intro: game interface element -->
-  <div id="title" class="hidden"><div class="title-card"><svg class="cube-mark peanut" viewBox="0 0 64 72" aria-hidden="true"><path d="M32 6c9 0 14 7 14 15 0 5-2 8-3 11 3 3 5 8 5 13 0 10-7 19-16 19S16 55 16 45c0-5 2-10 5-13-1-3-3-6-3-11 0-8 5-15 14-15Z" fill="#d8a45a" stroke="#7a5122" stroke-width="2.5" stroke-linejoin="round"/><path d="M24 20c0-3 2-6 5-7M22 44c0-3 2-6 5-7" stroke="#7a5122" stroke-width="2" stroke-linecap="round" fill="none"/><circle cx="36" cy="18" r="1.6" fill="#7a5122"/><circle cx="38" cy="46" r="1.6" fill="#7a5122"/><circle cx="29" cy="50" r="1.4" fill="#7a5122"/><circle cx="27" cy="24" r="1.3" fill="#7a5122"/></svg><h1>Legend of Peanits</h1><div class="edition" style="margin:-14px 0 22px;font-size:12px">PROD. BY PHONE HSENG</div><button id="play" class="btn">Play</button></div></div>
+  <div id="title" class="hidden"><div class="title-card"><svg class="cube-mark peanut" viewBox="0 0 64 72" aria-hidden="true"><path d="M32 6c9 0 14 7 14 15 0 5-2 8-3 11 3 3 5 8 5 13 0 10-7 19-16 19S16 55 16 45c0-5 2-10 5-13-1-3-3-6-3-11 0-8 5-15 14-15Z" fill="#d8a45a" stroke="#7a5122" stroke-width="2.5" stroke-linejoin="round"/><path d="M24 20c0-3 2-6 5-7M22 44c0-3 2-6 5-7" stroke="#7a5122" stroke-width="2" stroke-linecap="round" fill="none"/><circle cx="36" cy="18" r="1.6" fill="#7a5122"/><circle cx="38" cy="46" r="1.6" fill="#7a5122"/><circle cx="29" cy="50" r="1.4" fill="#7a5122"/><circle cx="27" cy="24" r="1.3" fill="#7a5122"/></svg><h1>Legend of Peanits</h1><div class="edition" style="margin:-14px 0 22px;font-size:12px">PROD. BY PHONE HSENG</div><button id="play" class="btn">Play</button><button id="continueBtn" class="btn" disabled>Continue</button><p id="continueNote" style="font-size:12px;max-width:40ch;margin:12px auto 0;opacity:.72;line-height:1.5"></p></div></div>
   <div id="intro" class="hidden">
     <!-- panel: game interface element -->
     <div id="panel" class="panel">
@@ -446,7 +457,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.11.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.12.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -473,6 +484,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
       <span id="found" class="hidden"></span>
       <!-- resume: game interface element -->
       <button id="resume" class="btn">Resume</button><button id="saveBtn" class="btn">Save key</button><button id="loadBtn" class="btn">Load key</button><button id="restartBtn" class="btn">Restart</button>
+      <p id="autoNote" style="font-size:12px;margin:12px 0 0;opacity:.8;line-height:1.55"></p>
       <div id="saveBox" class="hidden" style="margin-top:10px"><p style="font-size:13px">Copy this key somewhere safe. Paste it back with <b>Load key</b> to resume.</p><textarea id="saveKey" style="width:100%;height:70px;font-size:11px;user-select:text;-webkit-user-select:text"></textarea></div>
       </div><div>
       <label>Play with a friend — no server, straight between your browsers</label>
@@ -1465,6 +1477,8 @@ const __boot = (async () => {
     seq: 0,
     on: true,
     voices: [],
+    // the subtitle the line now being spoken belongs to, so that a cancel can hand it back to its own reading clock
+    held: null,
     // discover english browser speech voices and refresh the list when voices load
     load() {
       if (!window.speechSynthesis) return;
@@ -1489,34 +1503,69 @@ const __boot = (async () => {
       if (!this.female.length) this.female = this.voices;
       if (!this.male.length) this.male = this.voices;
     },
+    // stop whatever is being said and make sure the chain that was saying it cannot carry on. bumping the generation
+    // is the whole of it: cancel() fires end on the utterance it kills, and without a new generation that end event
+    // cheerfully speaks the next chunk of a line the player has already left — over the pause menu, over the next
+    // conversation, or after the voice was switched off entirely.
+    stop() {
+      this.seq++;
+      this.current = null;
+      const held = this.held;
+      this.held = null;
+      if (held) subRelease(held);
+      if (window.speechSynthesis) speechSynthesis.cancel();
+    },
     // select and play a browser speech voice for the current speaker when enabled
-    say(text, n, dist = 0) {
+    say(text, n, dist = 0, sub = null) {
       if (!this.on || !window.speechSynthesis) return false;
       if (!this.female) this.load2();
       const volNow = () => {
         const d = n.pos ? dist2D(n.pos, P.pos) : dist;
         return clamp(1 - Math.max(0, d - TUNE.ui.voiceFadeStart) / (TUNE.ui.voiceSilent - TUNE.ui.voiceFadeStart), 0, 1);
       };
+      // too far away to be heard. the line is still handled, but nothing will speak, so the subtitle is left on its
+      // own reading clock rather than held open waiting for an utterance that was never queued
       if (volNow() < 0.06) return true;
-      speechSynthesis.cancel();
+      this.stop();
       const pool = n.female ? this.female : this.male,
         voice = pool && pool.length ? pool[n.vi % pool.length] : null;
       const chunks = (text.match(/[^.!?,;:]+[.!?,;:]*\s*/g) || [text]).map(c => c.trim()).filter(Boolean);
       const id = ++this.seq;
+      // the hold belongs to THIS generation and to this subtitle. every exit from the chain below releases the one it
+      // was handed and no other, so a late end event from a line the player walked away from can neither extend nor
+      // resurrect the line that replaced it.
+      if (sub) {
+        this.held = sub;
+        subHold(sub);
+      }
+      // both halves are idempotent and scoped by identity, which is why this needs no generation guard of its own:
+      // an old chain reaching here finds this.held pointing at a newer subtitle, and subRelease on a line already
+      // released, dropped or closed does nothing at all.
+      const done = () => {
+        if (this.held === sub) this.held = null;
+        subRelease(sub);
+      };
       const next = i => {
-        if (i >= chunks.length || id !== this.seq) return;
+        if (id !== this.seq || i >= chunks.length) return done();
         const v = volNow();
-        if (v < 0.06) return;
+        if (v < 0.06) return done();
         const u = new SpeechSynthesisUtterance(chunks[i]);
         u.pitch = clamp(n.pitch, 0.1, 2);
         u.rate = clamp(n.rate, 0.5, 1.6);
         u.volume = 0.95 * v * v;
         if (voice) u.voice = voice;
         this.current = u;
-        u.onend = () => {
+        // end and error are the same step, and some browsers fire both for one cancelled utterance, so the step is
+        // spent once. a browser that reports nothing at all leaves the subtitle to its cap.
+        let stepped = false;
+        const step = () => {
+          if (stepped) return;
+          stepped = true;
           if (this.current === u) this.current = null;
           next(i + 1);
         };
+        u.onend = step;
+        u.onerror = step;
         speechSynthesis.speak(u);
       };
       next(0);
@@ -11550,7 +11599,8 @@ const __boot = (async () => {
     // and that enemy would walk off after somebody 280 metres above its own ceiling. this is the same two-realm test
     // the enemy snapshot already uses, applied where the chasing is decided.
     const realm = q => (q.y < DIVIDE) === (p.y < DIVIDE);
-    let best = { pos: P.pos, id: null }, bd = death || !realm(P.pos) ? 1e9 : dist2D(P.pos, p); // a dead host is no prey
+    // a dead host is no prey, and neither is one standing in the other world
+    let best = { pos: P.pos, id: null }, bd = death || !realm(P.pos) ? 1e9 : dist2D(P.pos, p);
     for (const a of NET.avatars.values()) { if (a.state.dead || !realm(a.state.pos)) continue; const d = dist2D(a.state.pos, p); if (d < bd) { bd = d; best = { pos: a.state.pos, id: a.id }; } }
     return best;
   }
@@ -12193,12 +12243,16 @@ const __boot = (async () => {
       CUSTOM.style = e.target.value;
       rebuildHero();
     };
+    // switching the voice off has to stop the line in progress too, or the speaker finishes their sentence with the
+    // setting already off and no subtitle waiting on them
     document.getElementById("c-voice").onchange = e => {
       Voice.on = e.target.checked;
       document.getElementById("s-voice").checked = e.target.checked;
+      if (!Voice.on) Voice.stop();
     };
     document.getElementById("s-voice").onchange = e => {
       Voice.on = e.target.checked;
+      if (!Voice.on) Voice.stop();
     };
     document.getElementById("s-sfx").oninput = e => SFX.setVol(+e.target.value, SFX.ambVol);
     document.getElementById("s-amb").oninput = e => SFX.setVol(SFX.sfxVol, +e.target.value);
@@ -12247,8 +12301,11 @@ const __boot = (async () => {
     document.getElementById("resume").onclick = () => setPaused(false);
     document.getElementById("pauseX").onclick = () => setPaused(false);
     document.getElementById("invX").onclick = () => closeInv();
+    // the autosave belongs to whatever run is being played, so a new run grows over the old one. saying so out loud
+    // here is the cheapest honest answer: the alternative is a second slot nobody asked for, and a player who wants
+    // to keep this run already has a Save key button two places along.
     document.getElementById("restartBtn").onclick = () => {
-      if (confirm("Start over from the south gate?")) location.reload();
+      if (confirm("Start over from the south gate? The autosave on this device will be replaced as the new run goes on — copy the Save key first if you want to keep this one.")) location.reload();
     };
     document.getElementById("saveBtn").onclick = () => {
       const box = document.getElementById("saveBox");
@@ -12329,6 +12386,9 @@ const __boot = (async () => {
   }
   addEventListener("beforeunload", e => {
     if (started) {
+      // the last chance to write anything down. localStorage is synchronous, so this finishes before the page goes,
+      // and it is what stops a closed tab costing the whole interval since the last write.
+      autoSave("as you left");
       e.preventDefault();
       e.returnValue = "";
     }
@@ -12440,6 +12500,178 @@ const __boot = (async () => {
     let out = "";
     for (let i = 0; i < raw.length; i++) out += String.fromCharCode(raw.charCodeAt(i) ^ ((i * 7 + 13) & 31));
     return "WM1-" + btoa(unescape(encodeURIComponent(out))).replace(/(.{48})/g, "$1\n");
+  }
+  // ============================================================ the autosave
+  // this adds NO new state to the save format. it writes the very same key makeSaveKey already produces into this
+  // device's storage, so the four-edit rule — payload, rb whitelist, applySave, WS_SHARED — has nothing to catch here,
+  // and a build that never heard of an autosave still reads every key one produced.
+  // the key the pause menu hands you stays the authoritative, portable save. this is a convenience on top of it: it
+  // lives in one browser, it can be wiped by clearing site data, and it says so wherever it is shown.
+  const AUTOSAVE_SLOT = "wildmoor.auto";
+  // seconds of unpaused play between backstop writes. three minutes is the most a player who never sleeps, never
+  // finishes an errand and never opens the menu can lose, and long enough that the note on screen reads as a rhythm
+  // rather than a nag.
+  const AUTOSAVE_EVERY = 180;
+  // and how soon the backstop tries again when the gate refused it, so a minute inside a boss fight does not cost a
+  // whole fresh interval afterwards
+  const AUTOSAVE_RETRY = 15;
+  // storage that has refused this many times in a row is not going to relent, and a key rebuilt every fifteen seconds
+  // for the rest of the session is noise in the console and work in the frame for nothing
+  const AUTOSAVE_GIVE_UP = 3;
+  let autoSaveT = 0,
+    autoSaveMarkTimer = 0,
+    autoSaveFails = 0;
+  // latched by applyMainProgress the first time this page takes another valley's story as a guest, and never cleared
+  let guestedThisSession = false;
+  // the one place that decides whether a snapshot taken right now would be a true one. it names a reason rather than
+  // returning a boolean, because the pause menu has to be able to say WHY nothing was written: an autosave that goes
+  // quiet without explaining itself is exactly the dishonest kind.
+  function autoSaveBlocked() {
+    if (!started || titleMode) return "the game has not begun";
+    // the descent is the precedent this gate exists for. makeSaveKey already names P.gehDive.rim rather than the
+    // falling body, but the fall is also six seconds in which the world below has not been built and the body is
+    // between two of them, so nothing is written at all until the player is standing somewhere.
+    if (P.gehDive) return "you are falling to Gehenna";
+    if (death) return "you are dead";
+    if (sleepT > 0) return "you are asleep";
+    if (CHOICE) return "a decision is waiting on you";
+    if (inputLock) return "the world has the reins";
+    // the warden fight pins dayT to 0.75 and holds it there, so a key taken during it records a time of day the clock
+    // never reached, and restores into a midnight that jumps the moment the fight ends
+    if (WORLDSTATE.finaleStarted && !WORLDSTATE.wardenDead && !WORLDSTATE.ending) return "the Warden is in the water";
+    // a guest's valley is the host's: their goblins, their bear, their clock, and a story folded into this player's
+    // own globals by applyMainProgress. writing that down as this machine's progress would hand the guest a save of a
+    // game they did not play. netGuest() is a LIVE check and the folding is permanent, so the latch is what actually
+    // holds: NET.role goes null the moment the host drops, and without it the very next pause would write the whole
+    // borrowed run over this player's own. a HOST keeps writing, because a host's valley is still their own valley
+    // even when a friend has moved the story along inside it.
+    if (netGuest() || guestedThisSession) return "this run has been joined to someone else's valley";
+    if (autoSaveFails >= AUTOSAVE_GIVE_UP) return "this browser will not store anything";
+    return "";
+  }
+  // write a snapshot, but only one that reads back. makeSaveKey is the authoritative format and parseSaveKey is the
+  // only thing entitled to call a key loadable, so the autosave proves its own key through the same door a pasted one
+  // goes through before it commits. a key that fails leaves the previous autosave standing, because an older honest
+  // save beats a newer broken one — that is the whole difference between a convenience and a trap.
+  function autoSave(why) {
+    if (autoSaveBlocked()) return false;
+    let key = null;
+    try {
+      key = makeSaveKey();
+    } catch (e) {
+      autoSaveFails++;
+      console.warn("autosave could not build a key; the last good one is kept.", e);
+      return false;
+    }
+    if (!parseSaveKey(key)) {
+      autoSaveFails++;
+      console.warn("autosave built a key it could not read back; the last good one is kept.");
+      return false;
+    }
+    // a key taken below the seam loads, but applySave deliberately wakes the player on the rim of the pool, because
+    // gehenna is built during the fall and does not exist at load time. that is a real difference between what was
+    // saved and what comes back, so it goes on the note rather than being discovered on Continue.
+    const told = P.pos.y < DIVIDE ? why + " (you will wake at the pool)" : why;
+    try {
+      localStorage.setItem(AUTOSAVE_SLOT, JSON.stringify({ v: 1, key, at: Date.now(), why: told }));
+    } catch (e) {
+      autoSaveFails++;
+      console.warn("autosave could not be stored on this device.", e);
+      return false;
+    }
+    autoSaveFails = 0;
+    autoSaveT = 0;
+    showAutoSaveMark("Progress saved" + (told ? " — " + told : ""));
+    return true;
+  }
+  // read the slot back through the same validator a pasted key meets, and say plainly which of the several nothings
+  // it is when there is no save to offer
+  function autoSaveSlot() {
+    let raw = null;
+    try {
+      raw = localStorage.getItem(AUTOSAVE_SLOT);
+    } catch (_) {
+      return { fault: "This browser will not let the game remember anything on this device." };
+    }
+    if (!raw) return { fault: "" };
+    let slot = null;
+    try {
+      slot = JSON.parse(raw);
+    } catch (_) {
+      return { fault: "The autosave on this device is damaged." };
+    }
+    if (!slot || slot.v !== 1 || typeof slot.key !== "string" || !Number.isFinite(slot.at)) return { fault: "The autosave on this device is damaged." };
+    const data = parseSaveKey(slot.key);
+    // the key itself is still sitting in storage, so a validator that has since tightened is a dead end only if
+    // nobody says where the run went. it is named here so the run can be recovered by hand.
+    if (!data) return { fault: "The autosave on this device was written by a version this build cannot read. The key itself is still stored under " + AUTOSAVE_SLOT + "." };
+    return { key: slot.key, at: slot.at, why: typeof slot.why === "string" ? slot.why.slice(0, 60) : "", data };
+  }
+  // plain english for how long ago, because a clock time means nothing to somebody who has been playing since
+  function agoText(ms) {
+    const s = Math.max(0, Math.round(ms / 1000));
+    if (s < 45) return "just now";
+    const m = Math.round(s / 60);
+    if (m < 60) return m + (m === 1 ? " minute ago" : " minutes ago");
+    const h = Math.round(m / 60);
+    if (h < 24) return h + (h === 1 ? " hour ago" : " hours ago");
+    const d = Math.round(h / 24);
+    return d + (d === 1 ? " day ago" : " days ago");
+  }
+  // the one sentence that dates a slot, shared by the title screen and the pause menu so the two can never disagree
+  function autoSaveLine(slot) {
+    return "Autosaved " + agoText(Date.now() - slot.at) + (slot.why ? " — " + slot.why : "") + ".";
+  }
+  // a quiet corner note on every write, because an autosave the player cannot see is a rumour. it stays out of the
+  // way while the menu is open: the note inside the menu is already saying the same thing, at more length.
+  function showAutoSaveMark(text) {
+    const el = document.getElementById("autosaveMark");
+    if (!el || paused) return;
+    el.textContent = text;
+    el.classList.add("show");
+    clearTimeout(autoSaveMarkTimer);
+    autoSaveMarkTimer = setTimeout(() => el.classList.remove("show"), 2800);
+  }
+  // the pause menu's line about the autosave. it always names which of the two saves is which, so the portable key
+  // beside it never reads as the lesser one.
+  function refreshAutoNote() {
+    const el = document.getElementById("autoNote");
+    if (!el) return;
+    const blocked = autoSaveBlocked(),
+      slot = autoSaveSlot();
+    const head = slot.key ? autoSaveLine(slot) : slot.fault || "Nothing autosaved yet.";
+    const tail = blocked ? " Not autosaving right now: " + blocked + "." : "";
+    el.textContent = head + tail + " A Save key is the save you can carry to another machine; the autosave only lives in this browser.";
+  }
+  // bring a validated snapshot up in the world that is already built: past the title, past the character screen, with
+  // the knight's escort dropped, because the opening walk belongs to a new game rather than a resumed one
+  function resumeInPlace(d) {
+    document.getElementById("play").onclick();
+    document.getElementById("start").onclick();
+    applySave(d);
+    inputLock = false;
+    releaseKeys();
+    for (const n of npcs) if (n.escort) n.escort = null;
+    say("Welcome back.", 3000, true);
+  }
+  // the title's Continue, wired from the autosave slot and nowhere else. when there is nothing to continue the button
+  // is disabled and the line under it says which nothing it is: a greyed button that will not explain itself is worse
+  // than no button at all.
+  function refreshContinue() {
+    const btn = document.getElementById("continueBtn"),
+      note = document.getElementById("continueNote");
+    if (!btn || !note) return;
+    const slot = autoSaveSlot();
+    if (!slot.key) {
+      btn.disabled = true;
+      btn.textContent = "Continue";
+      note.textContent = slot.fault || "Nothing autosaved yet. Once you set out, the game saves itself as you play.";
+      return;
+    }
+    const who = (slot.data.custom && slot.data.custom.name) || DEFAULT_NAME;
+    btn.disabled = false;
+    btn.textContent = "Continue as " + who;
+    note.textContent = autoSaveLine(slot) + " Setting out fresh instead will replace it as the new run goes on.";
   }
   // decode and check a save key; returns the validated snapshot or null. nothing from the key is trusted until it has passed here
   function loadSaveKey(key) {
@@ -12779,9 +13011,19 @@ const __boot = (async () => {
     document.getElementById("pause").classList.toggle("hidden", !v);
     if (v) document.getElementById("skills").innerHTML = skillsHTML();
     if (v) {
+      // the menu is the one moment the player is looking straight at the save machinery, and the safest snapshot in
+      // the game: nothing is mid-swing, mid-fall or mid-sentence. the write comes before the note so the line they
+      // read is about the write they just caused.
+      // it also gives storage another go, because a player who has just cleared space to fix a full disk should not
+      // have to restart the game to get the autosave back.
+      autoSaveFails = 0;
+      autoSave("on opening the menu");
+      refreshAutoNote();
       unlockedLook = false;
       if (document.pointerLockElement) document.exitPointerLock();
-      if (window.speechSynthesis) speechSynthesis.cancel();
+      // a bare cancel leaves the chain alive: the end event it fires speaks the next chunk of the line straight over
+      // the pause menu, and the subtitle it belongs to goes on waiting for a voice that has already stopped
+      Voice.stop();
     } else {
       unlockedLook = true;
       tryLock();
@@ -13116,6 +13358,25 @@ const __boot = (async () => {
       { passive: true }
     );
   addEventListener("blur", () => releaseKeys());
+  // Continue takes the same road a pasted key takes: kept aside in wildmoor.pending and the page reloaded, so the
+  // world is rebuilt from nothing and the snapshot applied to it whole. the in-place path below is the narrow case of
+  // storage that could be written when the save was made and refuses now — a full quota, or a profile turned
+  // read-only since. a browser that stores nothing at all never reaches it, because there is no slot to continue and
+  // the button is disabled. it is the same path boot uses.
+  document.getElementById("continueBtn").onclick = () => {
+    const slot = autoSaveSlot();
+    if (!slot.key) return;
+    let handed = false;
+    try {
+      localStorage.setItem("wildmoor.pending", slot.key);
+      handed = true;
+    } catch (_) {}
+    if (handed) {
+      location.reload();
+      return;
+    }
+    resumeInPlace(slot.data);
+  };
   document.getElementById("play").onclick = () => {
     titleMode = false;
     document.getElementById("title").classList.add("hidden");
@@ -14069,6 +14330,10 @@ const __boot = (async () => {
   const WS_SHARED = ["marenFreed", "haleExposed", "pyreDismantled", "blackPoolAwake", "hermitTold", "hermitWarned", "kingTrusts", "goblinKingDefeated", "bearDefeated", "finaleStarted", "wardenDead", "guardsOut", "gehUnlocked", "ysoldeLifted", "ysoldeBuried", "kingMourned"];
   const mainProgress = () => ({ t: "mq", metKing, talkedKing, talkedOnce, gaveHerbs, lit, flint: !!P.flint, clues: STORY.clues, evidence: STORY.evidence.slice(), wick: !!STORY.wick, solved: !!STORY.solved, reported: !!STORY.reported, ws: Object.fromEntries(WS_SHARED.map(k => [k, !!WORLDSTATE[k]])), relics: { ...WORLDSTATE.relics }, ending: WORLDSTATE.ending });
   function applyMainProgress(m, peer) {
+    // a guest's world is the host's, and everything below folds the host's story into this player's own globals for
+    // good. the autosave forfeits for the rest of the session rather than later writing a run this player never
+    // played over the one they did: netGuest() stops being true the moment the host drops, and the folding does not.
+    if (NET.role === "guest") guestedThisSession = true;
     const before = mainProgress();
     if (m.metKing && !metKing) metKing = true;
     if (m.talkedKing && !talkedKing) { talkedKing = true; P.maxHp += 2; P.hp = P.maxHp; }
@@ -14596,8 +14861,8 @@ const __boot = (async () => {
     // logged twice here the way speak() does it
     function gsay(prof, who, line, ms) {
       if (!line) return;
-      say(who ? `${who}: ${line}` : line, Math.max(ms || 2600, line.length * 55), true, "geh");
-      if (prof && !Voice.say(line, prof, 0)) SFX.mumble(prof.voice, 0);
+      const sub = say(who ? `${who}: ${line}` : line, Math.max(ms || 2600, line.length * 55), true, "geh");
+      if (prof && !Voice.say(line, prof, 0, sub)) SFX.mumble(prof.voice, 0);
     }
     const gnarr = (line, ms) => gsay(null, "", line, ms);
 
@@ -15997,7 +16262,7 @@ const __boot = (async () => {
     // the finale: the four relics, the pool, the night
     if (relicCount() === 4 && villagesDone() >= 8 && !WORLDSTATE.finaleStarted && dayElev < 0.05 && dist2D(P.pos, POOL) < 20 && !roomNow) { if (netGuest()) { // a cooldown, not a latch: this used to be spent forever on the first ask, so a guest whose request went unanswered could never raise the warden again all session
       if (time > (NET.finaleAsked || 0)) { NET.finaleAsked = time + 20; for (const p of NET.peers.values()) netSend(p, { t: "finale" }); say("The relics burn cold. The water waits for the host's word.", 3000, true, "dark"); } } else startFinale(); }
-    if (WORLDSTATE.finaleStarted && !WORLDSTATE.wardenDead && WARDEN && !WARDEN.alive) { WORLDSTATE.wardenDead = true; releaseWatchers(); beginHush(); say("She goes under. Not onward — under. The children are still standing there, and none of them will look at you.", 8000, true, "dark"); if (POOL_STONE) POOL_STONE.mark.material.emissiveIntensity = 2.5; }
+    if (WORLDSTATE.finaleStarted && WORLDSTATE.wardenDead && !wardenUnder && WARDEN && !WARDEN.alive) { wardenUnder = true; releaseWatchers(); beginHush(); say("She goes under. Not onward — under. The children are still standing there, and none of them will look at you.", 8000, true, "dark"); if (POOL_STONE) POOL_STONE.mark.material.emissiveIntensity = 2.5; }
     if (POOL_STONE && WORLDSTATE.wardenDead && !WORLDSTATE.ending) { if (!POOL_STONE.prompt) POOL_STONE.prompt = makePrompt(); const near2 = dist2D(P.pos, POOL_STONE) < 3.2; POOL_STONE.prompt.visible = near2; if (near2) POOL_STONE.prompt.position.set(POOL_STONE.x, POOL_STONE.y + 2.2, POOL_STONE.z); }
     updateBurial(dt);
   }
@@ -16024,6 +16289,13 @@ const __boot = (async () => {
     [9, "No wind. No birds. Crickets a long way out on the moor, and nothing else at all."],
     [13.5, "She is lying at the edge of the pool where she has always been. Somebody has to move her."]
   ];
+  // the whole of beat two hung on a condition that could never be true. killEnemy sets WORLDSTATE.wardenDead in the
+  // same synchronous call that sets e.alive = false, and the transition above tested for NOT wardenDead, so it never
+  // ran once: no hush, no crickets, no line, no daybreak, the pool stone never relit — and, because that line is the
+  // only call site of releaseWatchers in the file, the four village children who came to watch her die stood at the
+  // pool with their jobs cleared for the rest of the session. a runtime one-shot owns the presentation now, so the
+  // flag keeps being set where it always was and nothing that reads it changes behaviour.
+  let wardenUnder = false;
   function beginHush() {
     HUSH.on = true;
     HUSH.t = 0;
@@ -16203,6 +16475,12 @@ const __boot = (async () => {
       if (n.mourning || n.kind !== "villager" || n.napping || n.lost) continue;
       if (dist2D(n.pos, P.pos) > 16) continue;
       n.mourning = true;
+      // everything this overwrites has to come back, and it used to come back four fields short. the villager work
+      // state machine is unreachable with job "idle", and no line anywhere else in the file assigns a job after
+      // worldgen — so every villager who stopped to watch her go past stopped working for the rest of the session:
+      // washers, gatherers, woodcutters, water carriers, the two town hunters who shoot goblins at night, and maren,
+      // whose door is thirteen metres off waypoint seven.
+      n.preMourn = { job: n.job, stay: n.stay, post: n.post, work: n.work, target: n.target };
       n.stay = true;
       n.post = true;
       n.job = "idle";
@@ -16227,9 +16505,15 @@ const __boot = (async () => {
     CARRY.spokeT = 4.6;
     speak(who, mournLineFor(who), mournNameFor(who), 4400);
   }
-  // they go back to their lives when she is in the ground. the two flags this clears are the only two it ever set.
+  // they go back to their lives when she is in the ground, and that means all six fields rather than the two the old
+  // comment here insisted were the only ones ever set. mourning clears too, so a villager can be recruited again.
   function releaseMourners() {
-    for (const n of MOURNERS) { n.stay = false; n.post = false; }
+    for (const n of MOURNERS) {
+      const was = n.preMourn;
+      if (was) { n.job = was.job; n.stay = was.stay; n.post = was.post; n.work = was.work; n.target = was.target; n.preMourn = null; }
+      else { n.stay = false; n.post = false; }
+      n.mourning = false;
+    }
     MOURNERS.length = 0;
   }
   // she rides face down across the shoulders with her arms hanging, driven off the player rather than parented to the
@@ -16262,6 +16546,9 @@ const __boot = (async () => {
   function updateBurial(dt) {
     updateHush(dt);
     updateProcession(dt);
+    // and she has to be VISIBLE to be picked up again. a peer's flag hides her where she lies, so anybody left
+    // holding that flag alone would have been standing over an invisible body with no reason to press anything.
+    if (!netGuest() && WORLDSTATE.ysoldeLifted && !WORLDSTATE.ysoldeBuried && !P.carry && BODY.mesh && !BODY.mesh.visible) BODY.mesh.visible = true;
   }
   function endTheStory(key) {
     if (WORLDSTATE.ending) return;
@@ -16446,6 +16733,57 @@ const __boot = (async () => {
   const esc = t => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); // text that came from a player or a save key is escaped before it is placed in html
   const TALK_LOG = []; // everything anyone has said to you, newest last
   function logTalk(who, text) { TALK_LOG.push({ who, text, at: time }); if (TALK_LOG.length > 200) TALK_LOG.shift(); }
+  // a subtitle's clock has two hands and a wall. the character count sets a FLOOR — the time a reader needs whether or
+  // not a word is spoken, and the whole clock when voices are off or the browser has none. the voice that belongs to
+  // the line then HOLDS the subtitle open past that floor until the browser reports the utterance finished, which is
+  // the only signal that knows how slow this voice, this rate and this browser actually were. the wall is the cap: a
+  // speech queue can die mid-utterance and fire no event at all, and without it one dead line would sit on screen for
+  // the rest of the session.
+  // these are function declarations rather than consts because say() is reachable from worldgen, which runs long
+  // before this line does, and a const read from up there is a ReferenceError rather than a subtitle.
+  // three times the reading estimate covers the slowest rate any npc is given, and no line in the game is worth half
+  // a minute of screen however badly the browser behaves. the outer Math.max keeps the one invariant this rests on:
+  // the cap is never below the floor, or a voiced line would close before a silent one of the same length.
+  function subCapFor(ms) { return Math.max(ms, Math.min(30000, Math.max(ms * 3, ms + 4000))); }
+  // one timer per subtitle, always aimed at the next moment something could change: the floor while nothing holds it,
+  // the cap while a voice does
+  function subTick(sub) {
+    clearTimeout(sub.timer);
+    sub.timer = 0;
+    if (sub.gone) return;
+    const now = performance.now(),
+      due = sub.holding ? sub.capAt : sub.floorAt;
+    if (now >= due) return subClose(sub);
+    sub.timer = setTimeout(() => subTick(sub), due - now);
+  }
+  function subClose(sub) {
+    if (sub.gone) return;
+    sub.gone = true;
+    clearTimeout(sub.timer);
+    sub.timer = 0;
+    sub.el.classList.add("fade");
+    setTimeout(() => sub.el.remove(), 2200);
+  }
+  // the element was thrown out to make room for a newer line, so its clock is abandoned where it stands rather than
+  // left running against a node nobody can see
+  function subDrop(sub) {
+    if (!sub || sub.gone) return;
+    sub.gone = true;
+    clearTimeout(sub.timer);
+    sub.timer = 0;
+  }
+  function subHold(sub) {
+    if (!sub || sub.gone) return;
+    sub.holding = true;
+    subTick(sub);
+  }
+  // releasing never shortens a line. it only gives the floor back the last word, so a voice that fails instantly or is
+  // cancelled the moment it starts still leaves a subtitle up long enough to read
+  function subRelease(sub) {
+    if (!sub || sub.gone || !sub.holding) return;
+    sub.holding = false;
+    subTick(sub);
+  }
   function say(t, ms = TUNE.ui.subtitle, story = false, kind = "") {
     if (story && !/^(Found|Discovered|New errand|Errand done)/.test(t)) logTalk("", t);
     ms = Math.max(ms, story ? TUNE.ui.storySubtitle : TUNE.ui.subtitle);
@@ -16457,19 +16795,21 @@ const __boot = (async () => {
     while (box.children.length > 4) {
       const victim = [...box.children].find(c => !c.classList.contains("story")) || box.firstChild;
       if (victim === el) break;
+      subDrop(victim.__sub);
       box.removeChild(victim);
     }
-    setTimeout(() => {
-      el.classList.add("fade");
-      setTimeout(() => el.remove(), 2200);
-    }, ms);
+    const now = performance.now();
+    const sub = { el, floorAt: now + ms, capAt: now + subCapFor(ms), holding: false, gone: false, timer: 0 };
+    el.__sub = sub;
+    subTick(sub);
+    return sub;
   }
   // combine a named subtitle with synthesized speech or vocal sounds
   function speak(n, line, who, ms = 4200) {
     const d = n.pos ? dist2D(n.pos, P.pos) : 0;
     logTalk(who, line);
-    say(`${who}: ${line}`, Math.max(ms, line.length * 55), n.kind === "story" || n.kind === "king" || n.kind === "stocks");
-    if (!Voice.say(line, n, d)) SFX.mumble(n.voice, d);
+    const sub = say(`${who}: ${line}`, Math.max(ms, line.length * 55), n.kind === "story" || n.kind === "king" || n.kind === "stocks");
+    if (!Voice.say(line, n, d, sub)) SFX.mumble(n.voice, d);
   }
   // show a prominent timed reward or combat message
   function flashText(t) {
@@ -16767,6 +17107,9 @@ const __boot = (async () => {
       if (tracked === q) tracked = null;
       speak(n, q.thanks, q.who, 7000);
       q.reward();
+      // an errand finished is the clearest unit of progress the game has, and the one a player most plainly notices
+      // losing. the reward is handed over first so the snapshot is taken with it already in the satchel.
+      autoSave("after an errand");
       return true;
     }
     if (!q.done) {
@@ -16790,7 +17133,12 @@ const __boot = (async () => {
       return;
     }
     // the burial comes before everything else at the pool and everything else at the gate: it is all that is left
-    if (WORLDSTATE.wardenDead && !WORLDSTATE.ysoldeLifted && !WORLDSTATE.ysoldeBuried && dist2D(BODY.pos, P.pos) < 4.4) { liftYsolde(); return; }
+    // the gate tests P.carry rather than the lifted flag, because the flag travels over the wire and the carry does
+    // not. a guest takes ysoldeLifted off a peer, deliberately without taking the carry — and if that host then quit,
+    // the ex-guest was left holding a flag saying she had been lifted, no body on their shoulders, and both doors
+    // shut: the lift refused because the flag was set, the burial refused because P.carry was false. the main quest
+    // stuck on carrying her for the rest of the session, and gehenna with it.
+    if (WORLDSTATE.wardenDead && !P.carry && !WORLDSTATE.ysoldeBuried && !netGuest() && dist2D(BODY.pos, P.pos) < 4.4) { liftYsolde(); return; }
     if (atTheGrave()) {
       if (P.carry) { buryYsolde(); return; }
       if (WORLDSTATE.ysoldeBuried) { say("The headstone is blank. Nobody could agree what to put on it, and then nobody came back to it.", 5200, true, "dark"); return; }
@@ -18166,6 +18514,10 @@ const __boot = (async () => {
           // the night the king sends you to bed is the night the pool turns over
           if (WORLDSTATE.ysoldeBuried && WORLDSTATE.kingMourned && !WORLDSTATE.gehUnlocked) wakeTheWhirlpool();
         }
+        // waking is the game's own checkpoint: hearts full, the goblins cleared, the day just turned and, on the one
+        // night it matters, the pool already turned over. the write waits for the sleep to be completely finished,
+        // because a body still lying in a bed is one of the things the gate refuses.
+        if (sleepT <= 0) autoSave("after a sleep");
         P.vel.set(0, 0, 0);
       }
   }
@@ -18921,6 +19273,13 @@ const __boot = (async () => {
       return;
     }
     updateDayNight(rdt);
+    // a backstop and nothing more. the named moments do the real work; this only bounds what an hour of uninterrupted
+    // wandering can cost. it counts unpaused play, so a menu left open all afternoon writes nothing, and a write the
+    // gate refuses is retried shortly rather than waiting out another full interval.
+    if (!paused) {
+      autoSaveT += rdt;
+      if (autoSaveT >= AUTOSAVE_EVERY && !autoSave("as you played")) autoSaveT = AUTOSAVE_EVERY - AUTOSAVE_RETRY;
+    }
     // track peak height over one airborne interval and a short empowerment after a tree kick
     P.kickWindow = Math.max(0, (P.kickWindow || 0) - rdt);
     P.airPeak = P.grounded ? P.pos.y : Math.max(P.airPeak || P.pos.y, P.pos.y);
@@ -20019,7 +20378,8 @@ const __boot = (async () => {
     // refuses to believe a body is in the valley at all.
     const realmOf = y => (y < DIVIDE ? -1 : y < -60 ? 0 : 1),
       myRealm = realmOf(P.pos.y);
-    const VIEW = mmGeh ? (big ? GMM_SPAN : 110) : big ? SIZE : 380; // metres shown across the map
+    // metres shown across the map
+    const VIEW = mmGeh ? (big ? GMM_SPAN : 110) : big ? SIZE : 380;
     const gx0 = () => gmmCX() - GMM_SPAN / 2,
       gz0 = () => gmmCZ() - GMM_SPAN / 2;
     const wx0 = mmGeh ? (big ? gx0() : clamp(P.pos.x - VIEW / 2, gx0(), gx0() + GMM_SPAN - VIEW)) : big ? -HALF : clamp(P.pos.x - VIEW / 2, -HALF, HALF - VIEW),
@@ -20055,7 +20415,8 @@ const __boot = (async () => {
       mctx.textAlign = "center";
       mctx.fillText("· · ·", n / 2, n / 2);
     } else if (mmGeh) {
-      if (gmmFor !== GEH.root) gehBuildMinimap(); // a gehenna built since the last paint gets a fresh sheet, once
+      // a gehenna built since the last paint gets a fresh sheet, once
+      if (gmmFor !== GEH.root) gehBuildMinimap();
       mctx.imageSmoothingEnabled = true;
       if (gmmCache && gmmFor === GEH.root) {
         const sx = ((wx0 - gx0()) / GMM_SPAN) * gmmCache.width,
@@ -20391,14 +20752,9 @@ const __boot = (async () => {
     } catch (_) {}
     const d = pending ? parseSaveKey(pending) : null;
     if (d) {
-      document.getElementById("play").onclick();
-      document.getElementById("start").onclick();
-      applySave(d);
-      inputLock = false;
-      releaseKeys();
-      for (const n of npcs) if (n.escort) n.escort = null;
-      say("Welcome back.", 3000, true);
+      resumeInPlace(d);
     } else {
+      refreshContinue();
       document.getElementById("title").classList.remove("hidden");
       document.body.classList.add("title");
     }
