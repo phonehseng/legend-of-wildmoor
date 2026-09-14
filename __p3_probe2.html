@@ -787,6 +787,7 @@ const __boot = (async () => {
   const WORLDSTATE = {
     marenFreed: false, haleExposed: false, pyreDismantled: false, blackPoolAwake: false, awokeAt: 0, hermitTold: false, hermitWarned: false, kingTrusts: false,
     goblinKingDefeated: false, bearDefeated: false, finaleStarted: false, wardenDead: false, ending: null,
+    ysoldeBuried: false, // she is out of the water and in the ground. the only thing in the game that sets gehUnlocked
     gehUnlocked: false, gehSeed: 0, // the way down is open, and which gehenna it is. everything else about it regenerates
     // whether the after-story down there has been finished. deliberately NOT in WS_SHARED: a guest's gehenna is their
     // own scene, and inheriting a host's finished after-story would silently rob them of the whole of it.
@@ -926,7 +927,7 @@ const __boot = (async () => {
       this.sfxVol = sfx;
       this.ambVol = amb;
       if (this.ctx) {
-        this.master.gain.value = sfx * 0.55;
+        this.master.gain.value = this.hushed ? 0.0001 : sfx * 0.55; // moving the slider mid-hush must not undo the hush
         this.amb.gain.value = this.ambHeld ? 0 : amb * 0.5;
       }
     },
@@ -995,6 +996,16 @@ const __boot = (async () => {
     ambience(windV, gustV, day, fallsV, dt) {
       if (!this.ctx) return;
       const t = this.ctx.currentTime;
+      if (this.hushed) {
+        // wind, water and insects all go to nothing. the amb BUS stays open, so a cricket scheduled onto it is the
+        // only thing left in the valley.
+        this.wind.g.gain.setTargetAtTime(0, t, 0.4);
+        this.wind2.g.gain.setTargetAtTime(0, t, 0.4);
+        this.cicada.g.gain.setTargetAtTime(0, t, 0.4);
+        this.cicadaLfo.gain.setTargetAtTime(0, t, 0.4);
+        this.falls.g.gain.setTargetAtTime(0, t, 0.4);
+        return;
+      }
       this.wind.g.gain.setTargetAtTime(0.05 + windV * 0.18 + gustV * 0.25, t, 0.3);
       this.wind.f.frequency.setTargetAtTime(250 + gustV * 500, t, 0.3);
       this.wind2.g.gain.setTargetAtTime(0.05 + windV * 0.1, t, 0.5);
@@ -1101,6 +1112,21 @@ const __boot = (async () => {
     discover() {
       [523, 659, 988].forEach((f, i) => this.tone(f, f * 1.005, 0.35, 0.1, "triangle", i * 0.12));
       this.noise(0.5, 3000, 1500, 0.05, "bandpass", 1, 0.4);
+    },
+    // the warden's last sound, and the only one she makes that is not a threat: a long open cry that falls two
+    // octaves and takes the whole valley's noise floor down with it
+    wail() {
+      this.tone(560, 132, 3.4, 0.26, "sine", 0, 2200);
+      this.tone(281, 66, 3.8, 0.15, "triangle", 0.1, 1400);
+      this.tone(838, 198, 2.6, 0.07, "sine", 0.05, 3000);
+      this.noise(2.2, 900, 140, 0.1, "bandpass", 0.7, 0.5, 0.4);
+    },
+    // the silence after it. this ducks the sfx bus only; the four ambience loops are zeroed inside ambience() below,
+    // and music is ducked separately. that is exactly what leaves the crickets behind — they are scheduled onto the
+    // amb bus itself and never pass through any of the three things being silenced.
+    hush(on) {
+      this.hushed = !!on;
+      if (this.ctx) this.master.gain.setTargetAtTime(on ? 0.0001 : this.sfxVol * 0.55, this.ctx.currentTime, on ? 0.35 : 1.1);
     },
     // something is wrong: a low swell and a falling tone
     dread() {
@@ -1256,7 +1282,13 @@ const __boot = (async () => {
     // update the music channel volume and its saved preference
     setVol(v) {
       this.vol = v;
-      if (this.master) this.master.gain.value = v * 0.32;
+      if (this.master) this.master.gain.value = this.ducked ? 0.0001 : v * 0.32; // the slider must not undo the hush either
+    },
+    // ducked to nothing for the silence after the warden's wail, and back up slowly afterwards. this.vol is the
+    // player's saved preference and is deliberately not touched.
+    duck(on) {
+      this.ducked = !!on;
+      if (this.master) this.master.gain.setTargetAtTime(on ? 0.0001 : this.vol * 0.32, this.ctx.currentTime, on ? 0.5 : 1.6);
     },
     // schedule a short musical note with two harmonics and a decaying envelope
     pluck(f, t, dest, dur = 0.35, g = 0.25, type = "triangle") {
@@ -5625,6 +5657,18 @@ const __boot = (async () => {
       b.push(o);
     }
     for (const n of npcs) {
+      // ysolde, in the player's arms. this sits ABOVE the think throttle and above the 420 m cull below, and it has to:
+      // both of those are computed from n.pos, and n.pos is exactly what this branch writes. one teleport past the cull
+      // — a position recovery, an in-process load — and she would be frozen where she was, reading as 500 m away
+      // forever, never thought about again and never able to catch up. she is in his hands; she is never far.
+      // driven in WORLD SPACE, and never parented to the hero rig: rebuildHero() does scene.remove(hero) and builds a
+      // new one on an appearance change, on a load and on a respawn, and anything hanging off it goes silently with it.
+      if (P.carry === n) {
+        n.pos.set(P.pos.x + Math.sin(P.heading) * 0.62, P.pos.y + 1.12 + Math.sin(time * 1.6) * 0.015, P.pos.z + Math.cos(P.heading) * 0.62);
+        n.mesh.position.copy(n.pos);
+        n.mesh.rotation.set(Math.PI / 2, P.heading + Math.PI / 2, 0); // rotation.order is YXZ while she is carried, so the y is a world yaw applied last and she stays across the chest whichever way you turn
+        continue;
+      }
       // far villagers think less often but cover the same ground: each turn they take gets the time that has passed
       const distToPlayer = dist2D(P.pos, n.pos),
         skip = distToPlayer > TUNE.people.think3 ? 6 : distToPlayer > TUNE.people.think2 ? 3 : distToPlayer > TUNE.people.thinkFull ? 2 : 1;
@@ -5906,7 +5950,7 @@ const __boot = (async () => {
       if (n.kind === "body") {
         n.mesh.position.copy(n.pos);
         n.mesh.position.y += Math.sin(time * 0.7) * 0.04;
-        if (Math.random() < dt * 0.6) ripple(n.pos.x + 1.5, n.pos.z + 0.5, 1.2);
+        if (Math.random() < dt * 0.6 && !WORLDSTATE.ysoldeBuried) ripple(n.pos.x + 1.5, n.pos.z + 0.5, 1.2); // no rings on the water over a grave under a tree
         continue;
       }
       // goblins about: villagers make for the nearest door, or run from the goblins if there is none
@@ -8392,6 +8436,57 @@ const __boot = (async () => {
   BODY.mesh.scale.setScalar(1.08);
   BODY.pos.y = POOLW + 0.12;
   BODY.mesh.position.copy(BODY.pos);
+  // ---- 3.0 phase 3: the grave under the elder tree ----
+  // her mother's line in TRIAL_NEWS is already "Ysolde used to walk north at night. Towards the elder tree. Alone.",
+  // so the place is something a player who listened in act ii can work out rather than be told.
+  // the siting, measured rather than guessed: terrainH lerps to exactly ELDER.h inside thirty-eight metres of the
+  // trunk, so at twenty-two metres out the ground is dead level and identical on every machine; the elder's own
+  // collision cylinder is 14.25; the helix planks reach 19.0 at their widest and the hand posts 20.5, and on THIS
+  // bearing the lowest post is 19.3 out and 31.6 metres up; trees are excluded inside seventy-five metres; and the
+  // pool is sited at least fifty-two metres from the tree, so its twenty-four-metre flat cannot reach here either.
+  // the BEARING is picked too, not just the radius: the four lookout decks hang off the helix at 0.75, 2.30, 3.36 and
+  // 4.42 radians, each six and a half metres across and centred six metres outboard of the stair, and 2.82 radians is
+  // the midpoint of the widest gap between two of them on the far side of the trunk. the boot probe measures the real
+  // clearance to every one of them rather than trusting this paragraph.
+  // (the -196 below is a Z coordinate. DIVIDE = -200 is a Y coordinate. they are different axes and cannot interact.
+  // the near-miss in the digits is a coincidence, and it is written down here so the next reader does not chase it.)
+  const GRAVE = V3(ELDER.x + 7, ELDER.h, ELDER.z - 21),
+    CARRY_SPEED = 0.55, // of walking pace, and running is off entirely: 3.58 m/s with her in your arms
+    CARRY_JUMP = 0.8; // one ground jump, and a poor one
+  var GRAVE_GROUP = null, GRAVE_OPEN = null, GRAVE_SHUT = null, GRAVE_TOKEN = null;
+  {
+    const g = new THREE.Group();
+    const earthM = lam(0x2e2418), turfM = lam(0x4c6430), graveStoneM = lam(0x8e8c84), woodM = lam(0x6a4a2a), ironM = metal(0x6a6a70);
+    // open: a cut hole, the heap of earth beside it, and the spade the old man walked up here with and left standing
+    const open = new THREE.Group();
+    const pit = new THREE.Mesh(new THREE.BoxGeometry(1.15, 1.6, 2.3), new THREE.MeshBasicMaterial({ color: 0x080705 }));
+    pit.position.set(0, -0.78, 0);
+    open.add(pit);
+    for (let k = 0; k < 6; k++) open.add(sphere(0.42 + hash(k, 411) * 0.26, earthM, 1.35 + hash(k, 412) * 0.45, 0.05 + hash(k, 413) * 0.18, -0.95 + k * 0.4, 1, 0.55, 1));
+    {
+      const spade = new THREE.Group();
+      spade.add(cyl(0.045, 0.05, 1.45, woodM, 0, 0.72, 0, 6), boxM(0.26, 0.03, 0.32, ironM, 0, 0.06, 0), boxM(0.2, 0.06, 0.02, woodM, 0, 1.44, 0));
+      spade.position.set(-1.25, 0, 0.55);
+      spade.rotation.z = 0.26;
+      open.add(spade);
+    }
+    // shut: the turf put back, a cut stone, and a ring mark like the one on the stone by the pool, but closed
+    const shut = new THREE.Group();
+    shut.add(sphere(1.28, turfM, 0, 0.07, 0, 1, 0.3, 1.45));
+    shut.add(boxM(0.68, 0.86, 0.16, graveStoneM, 0, 0.43, -1.4), boxM(0.86, 0.12, 0.3, graveStoneM, 0, 0.06, -1.4));
+    const gm = new THREE.Mesh(new THREE.RingGeometry(0.1, 0.17, 18), new THREE.MeshStandardMaterial({ color: toLin(0x5a584e), roughness: 0.9, side: THREE.DoubleSide }));
+    gm.position.set(0, 0.56, -1.31);
+    shut.add(gm);
+    shut.visible = false;
+    g.add(open, shut);
+    g.position.set(GRAVE.x, GRAVE.y, GRAVE.z);
+    g.rotation.y = Math.atan2(GRAVE.x - ELDER.x, GRAVE.z - ELDER.z); // headstone on the tree side, so you read it walking up from the stair
+    g.visible = false; // nothing is here until wick has dug it, and he does not dig until she is out of the water
+    scene.add(g);
+    GRAVE_GROUP = g;
+    GRAVE_OPEN = open;
+    GRAVE_SHUT = shut;
+  }
   await __stage(90, "Hiding secrets…");
   // ============================================================ quest places
   if (CANOPY) {
@@ -9145,7 +9240,8 @@ const __boot = (async () => {
   }
   function anyInteractableNear() {
     if (FAIRY.queen && (FAIRY.queen.pos.distanceTo(P.pos) < 9 || FAIRY.children.some(fairyInReach))) return true;
-    if (near(hermitPos, 4.5) || near(king.pos, 5.5) || near(BODY.pos, 4.5)) return true;
+    if (P.carry) return true; // set her down, or bury her
+    if (near(hermitPos, 4.5) || near(king.pos, 5.5) || (!WORLDSTATE.ysoldeBuried && near(BODY.pos, 4.5))) return true;
     // the beacon has always had something to say — that the lamp is cold, that you have the flint but not the trick —
     // but it was never listed here, so no prompt ever appeared and the whole tower read as scenery.
     if (near(lighthousePos, 11, 40)) return true;
@@ -11319,6 +11415,7 @@ const __boot = (async () => {
     braking: false,
     run: false,
     swim: false,
+    carry: null, // ysolde, while she is in your arms. deliberately NOT saved: a carry in progress is not a state the world can be rebuilt from, and a save taken mid-carry loads with her lying at the pool
     swimVol: null, // the body of water being swum in, from swimVolAt; null on dry land
     gehDive: null, // the drop shaft, when one is running. every depth predicate in the file is exempted while it is set
     air: 100,
@@ -11664,6 +11761,7 @@ const __boot = (async () => {
     { text: "Earn the word of every village: the eight mountain villages each have an errand for you", done: () => villagesDone() >= 8, hint: () => `${villagesDone()}/8 villages stand with you. ${villageQuests().find(q => !q.done) ? "Next: " + villageQuests().find(q => !q.done).who : ""}`, target: () => { const q = villageQuests().find(q => !q.done); return q ? q.giver.pos : POOL; } },
     { text: "Carry the four to the black pool, at night", done: () => WORLDSTATE.finaleStarted, hint: () => `The black pool is ${dirTo(POOL)}. Go when the sun is down.`, target: () => POOL },
     { text: "Face what rises from the water", done: () => WORLDSTATE.wardenDead, hint: () => "Its blows are slow and its shape is wrong; it is only solid just after it strikes.", target: () => POOL },
+    { text: "Carry Ysolde out of the water and lay her in the grave Wick dug", done: () => WORLDSTATE.ysoldeBuried, hint: () => (P.carry ? `The grave is ${dirTo(GRAVE)}. You cannot run, fight or double-jump carrying her, and deep water will take her back.` : `She is still at the pool's edge, ${dirTo(BODY.pos)}. Wick dug for her under the elder tree.`), target: () => (P.carry ? GRAVE : BODY.pos) },
     { text: "Decide, at the stone by the pool, what becomes of the valley", done: () => !!WORLDSTATE.ending, hint: () => `The stone is ${dirTo(POOL)}`, target: () => POOL },
     {
       text: "Wildmoor remembers what you did. Climb the elder tree and see it all.",
@@ -12063,6 +12161,12 @@ const __boot = (async () => {
       if (WORLDSTATE.ending) { if (POOL_STONE) POOL_STONE.mark.material.emissiveIntensity = WORLDSTATE.ending === "bind" ? 3 : 0; applyEndingWorld(); }
       if (WORLDSTATE.finaleStarted && !WORLDSTATE.wardenDead && !WORLDSTATE.ending && !netGuest()) { spawnWarden(); say("The water in the middle of the pool is still rising. It has not forgotten you.", 5000, true, "dark"); } // the fight resumes from the top after a load
       if (WORLDSTATE.wardenDead && !WORLDSTATE.ending && POOL_STONE) POOL_STONE.mark.material.emissiveIntensity = 2.5;
+      // she is in the ground: hide her, close the grave and leave the way down open. quiet — no reward, no speeches.
+      // an OLD key that finished the whole story with her still in the water loads with the grave dug and the burial
+      // as the one objective left, which is the right outcome rather than a dead end.
+      if (WORLDSTATE.ysoldeBuried) buryYsolde(true);
+      HUSH.t = 0; // no silence ever survives a load
+      HUSH.wailed = !!WORLDSTATE.wardenDead; // and it is never heard twice
       if (d.bearDead && BEAR && BEAR.alive) { BEAR.alive = false; BEAR.awake = false; BEAR.mesh.visible = false; BEAR.t = 100; }
       for (const [id, x, z] of d.owed || []) dropReward(id, x, z);
       if (d.fairy) {
@@ -12209,9 +12313,18 @@ const __boot = (async () => {
         if (!num(f.found, 0, 25) || !num(f.hearts, 0, 10) || (f.kids !== undefined && !(Array.isArray(f.kids) && f.kids.every(k => num(k, 0, 99)))) || (f.seen !== undefined && typeof f.seen !== "boolean") || (f.compass !== undefined && typeof f.compass !== "boolean") || ["rest", "petal", "grove", "crown", "accepted", "complete"].some(k => f[k] !== undefined && typeof f[k] !== "boolean")) return null;
       }
       if (d.ws !== undefined) {
-        const rb = ["marenFreed", "haleExposed", "pyreDismantled", "blackPoolAwake", "hermitTold", "hermitWarned", "kingTrusts", "goblinKingDefeated", "bearDefeated", "fairyCourtOpen", "finaleStarted", "wardenDead", "home", "guardsOut", "gehUnlocked", "gehDone"]; // fairyCourtOpen is accepted from 2.0 keys and ignored
+        const rb = ["marenFreed", "haleExposed", "pyreDismantled", "blackPoolAwake", "hermitTold", "hermitWarned", "kingTrusts", "goblinKingDefeated", "bearDefeated", "fairyCourtOpen", "finaleStarted", "wardenDead", "home", "guardsOut", "gehUnlocked", "gehDone", "ysoldeBuried"]; // fairyCourtOpen is accepted from 2.0 keys and ignored
         const spec = {}; for (const k of rb) spec[k] = bool;
-        spec.gehSeed = v => num(v, 0, 999999) && Number.isInteger(v); // the generator only ever rolls an integer 1..999999, so the validator says the same thing — a fractional seed is a world it can never produce, and it ends up inside fbm spec.awokeAt = v => num(v, 0, 1e9); spec.deep = v => num(v, 0, 99); spec.ending = v => v === null || ["bind", "break", "fairy"].includes(v); spec.wolfChoice = v => v === null || ["wolves", "goblins", "leave"].includes(v);
+        // CAUSE: in 2.7.0 a comment was written into the MIDDLE of this line, and everything after it on the line went
+        // into the comment with it — spec.awokeAt, spec.deep, spec.ending and spec.wolfChoice were never assigned.
+        // pickObj walks `for (const k in spec)` and silently drops every key the spec does not name, so from that build
+        // on, a save key carried NO ending: finish the whole game, reload, and WORLDSTATE.ending came back null. The
+        // pool reverted, every villager's closing line reverted, storyAct() fell from COMPLETE back to FINALE and
+        // dread() started climbing again because `if (WORLDSTATE.ending) d = 0` no longer had anything to read.
+        // wolfChoice went the same way, which silently un-branched that side quest on every load.
+        // the comment now ends its line and the four assignments have their own.
+        spec.gehSeed = v => num(v, 0, 999999) && Number.isInteger(v); // the generator only ever rolls an integer 1..999999, so the validator says the same thing: a fractional seed is a world it can never produce
+        spec.awokeAt = v => num(v, 0, 1e9); spec.deep = v => num(v, 0, 99); spec.ending = v => v === null || ["bind", "break", "fairy"].includes(v); spec.wolfChoice = v => v === null || ["wolves", "goblins", "leave"].includes(v);
         spec.relics = v => !!v && typeof v === "object" && ["seal", "root", "warden", "tear"].every(k => v[k] === undefined || typeof v[k] === "boolean");
         d.ws = pickObj(d.ws, spec); if (!d.ws) return null;
       }
@@ -12359,7 +12472,7 @@ const __boot = (async () => {
     if (e.button === 2) lowerShield();
   });
   function raiseShield() {
-    if (P.blockCd > 0 || P.block || P.swim || P.climb) return;
+    if (P.blockCd > 0 || P.block || P.swim || P.climb || P.carry) return;
     P.block = true;
     P.blockT = 0;
   }
@@ -12720,6 +12833,7 @@ const __boot = (async () => {
   }
   // start or queue a ground combo, or initiate an aerial slash/dive
   function attackPressed() {
+    if (P.carry) return; // both hands are full
     if (P.dodge > 0 || P.swim || P.climb || sleepT > 0) return;
     if (P.atkCd > 0) return;
     {
@@ -12985,7 +13099,7 @@ const __boot = (async () => {
       if (byPlayer && !quiet) { say(e.warden ? "The Drowned Warden comes apart into the water it was made of." : e.kind === "wolf" ? "Wolf down." : "The wraith comes apart like breath.", e.warden ? 5000 : 900, !!e.warden, e.warden ? "dark" : ""); gainXP("strength", e.warden ? 120 : e.kind === "wolf" ? 12 : 16); if (e.kind === "wolf") gainXP("agility", 4); }
       if (e.kind === "wolf") burst(e.pos.clone().add(V3(0, 0.8, 0)), 0x5a5048, 16, 5, 0.7, 0.14); else burst(e.pos.clone().add(V3(0, 1.5, 0)), 0x8ca0c8, e.warden ? 60 : 20, 6, 1.2, 0.18);
       if (!quiet) SFX.kill(!!e.warden, distToPlayer);
-      if (e.warden) WORLDSTATE.wardenDead = true;
+      if (e.warden) { WORLDSTATE.wardenDead = true; wardenWail(); }
     } else {
       if (byPlayer) {
         P.gkills++;
@@ -13071,7 +13185,7 @@ const __boot = (async () => {
       return;
     }
     if (P.grounded && hasStam(6)) {
-      P.vel.y = (P.wading ? 0.8 : 1) * jumpV();
+      P.vel.y = (P.wading ? 0.8 : 1) * (P.carry ? CARRY_JUMP : 1) * jumpV();
       P.grounded = false;
       P.jumps = 1;
       spendStam(6);
@@ -13081,6 +13195,7 @@ const __boot = (async () => {
       gainXP("endurance", 1.5);
       bearNoise(0.5);
     } else if (!P.grounded) {
+      if (P.carry) return; // one ground jump and that is all: no second jump, no wall kick, no tree kickoff
       // kick off a tree trunk: needs speed and to be moving into it
       const t = treeTrunkNear(P.pos, 1.5),
         sp = hspeed();
@@ -13133,7 +13248,7 @@ const __boot = (async () => {
   // spend stamina to dodge and open a short defensive timing window
   function dash() {
     const cost = P.bonus.dashCost || 15;
-    if (P.dodge > 0 || P.stam < cost || P.atk || P.swim) return;
+    if (P.dodge > 0 || P.stam < cost || P.atk || P.swim || P.carry) return;
     P.dodge = P.dodgeDur;
     P.inv = Math.max(P.inv, 0.32);
     P.stam -= cost;
@@ -13488,7 +13603,7 @@ const __boot = (async () => {
   function netKillCredit(m) {
     if (m.k === "goblin") { P.gkills++; say(m.king ? "The Goblin King is dead. Long live nobody." : "Goblin down.", 900); gainXP("strength", m.king ? 40 : 10); if (m.king && !STORY.kingTooth) dropReward("reward:king", P.pos.x + 2, P.pos.z); }
     else if (m.k === "slime") { P.kills++; say(m.big ? "Big slime burst." : "Slime burst.", 900); gainXP("strength", m.big ? 12 : 6); }
-    else if (m.k === "wraith" || m.k === "wolf" || m.k === "warden") { say(m.k === "warden" ? "The Drowned Warden comes apart into the water it was made of." : m.k === "wolf" ? "Wolf down." : "The wraith comes apart like breath.", m.k === "warden" ? 5000 : 900, m.k === "warden", m.k === "warden" ? "dark" : ""); gainXP("strength", m.k === "warden" ? 120 : m.k === "wolf" ? 12 : 16); if (m.k === "warden") WORLDSTATE.wardenDead = true; }
+    else if (m.k === "wraith" || m.k === "wolf" || m.k === "warden") { say(m.k === "warden" ? "The Drowned Warden comes apart into the water it was made of." : m.k === "wolf" ? "Wolf down." : "The wraith comes apart like breath.", m.k === "warden" ? 5000 : 900, m.k === "warden", m.k === "warden" ? "dark" : ""); gainXP("strength", m.k === "warden" ? 120 : m.k === "wolf" ? 12 : 16); if (m.k === "warden") { WORLDSTATE.wardenDead = true; wardenWail(); } }
     else if (m.k === "bear") { say("The Old Bear falls. The wood goes quiet.", 5000, true); gainXP("strength", 80); if (!STORY.bearHeart && BEAR) dropReward("reward:bear", BEAR.pos.x + 3, BEAR.pos.z); }
   }
   // the main story's milestones, as a small record that can be compared and merged.
@@ -13497,7 +13612,7 @@ const __boot = (async () => {
   // it would land as the boolean true, gehBeginDive's `if (!WORLDSTATE.gehSeed)` re-roll would not fire because true is
   // truthy, and then parseSaveKey rejects a boolean seed, so every save key that player wrote afterwards would be
   // refused as "bad save key" for the rest of the session. a non-boolean has to travel as its own field.
-  const WS_SHARED = ["marenFreed", "haleExposed", "pyreDismantled", "blackPoolAwake", "hermitTold", "hermitWarned", "kingTrusts", "goblinKingDefeated", "bearDefeated", "finaleStarted", "wardenDead", "guardsOut", "gehUnlocked"];
+  const WS_SHARED = ["marenFreed", "haleExposed", "pyreDismantled", "blackPoolAwake", "hermitTold", "hermitWarned", "kingTrusts", "goblinKingDefeated", "bearDefeated", "finaleStarted", "wardenDead", "guardsOut", "gehUnlocked", "ysoldeBuried"];
   const mainProgress = () => ({ t: "mq", metKing, talkedKing, talkedOnce, gaveHerbs, lit, flint: !!P.flint, clues: STORY.clues, evidence: STORY.evidence.slice(), wick: !!STORY.wick, solved: !!STORY.solved, reported: !!STORY.reported, ws: Object.fromEntries(WS_SHARED.map(k => [k, !!WORLDSTATE[k]])), relics: { ...WORLDSTATE.relics }, ending: WORLDSTATE.ending });
   function applyMainProgress(m, peer) {
     const before = mainProgress();
@@ -13510,7 +13625,7 @@ const __boot = (async () => {
     if (typeof m.clues === "number" && m.clues > STORY.clues) STORY.clues = Math.min(5, m.clues);
     if (Array.isArray(m.evidence)) for (const k of m.evidence) if (["cloth", "ring", "diary", "ritual", "note"].includes(k)) evidence(k);
     if (m.wick) STORY.wick = true; if (m.solved) { if (!STORY.solved) { STORY.solved = true; if (!WORLDSTATE.marenFreed) freeMaren(); } } if (m.reported) STORY.reported = true;
-    if (m.ws && typeof m.ws === "object") for (const k of WS_SHARED) if (m.ws[k] === true && !WORLDSTATE[k]) { if (k === "blackPoolAwake") awakenPool(); else if (k === "pyreDismantled") dismantlePyre(); else if (k === "guardsOut") guardsOutside(); else WORLDSTATE[k] = true; if (k === "finaleStarted" && NET.role === "host" && !WORLDSTATE.wardenDead && !(WARDEN && WARDEN.alive)) spawnWarden(); } // progress only ever moves forward; a transition function sets its own flag and does its work
+    if (m.ws && typeof m.ws === "object") for (const k of WS_SHARED) if (m.ws[k] === true && !WORLDSTATE[k]) { if (k === "blackPoolAwake") awakenPool(); else if (k === "pyreDismantled") dismantlePyre(); else if (k === "guardsOut") guardsOutside(); else if (k === "ysoldeBuried") buryYsolde(true); else WORLDSTATE[k] = true; if (k === "finaleStarted" && NET.role === "host" && !WORLDSTATE.wardenDead && !(WARDEN && WARDEN.alive)) spawnWarden(); } // progress only ever moves forward; a transition function sets its own flag and does its work
     if (m.relics && typeof m.relics === "object") for (const k of ["seal", "root", "warden", "tear"]) if (m.relics[k] === true) WORLDSTATE.relics[k] = true;
     // the ending is the one piece of shared progress that cannot be undone: endTheStory rewrites the pool, sets the
     // flag and returns early ever after. it used to be applied from any peer with no authority check at all, so a
@@ -13603,6 +13718,8 @@ const __boot = (async () => {
   function die(msg) {
     if (death) return;
     death = { t: 0, msg, pieces: [], faded: false, woke: false };
+    if (P.carry) dropYsolde(false);
+    HUSH.t = 0; // dying during the silence does not carry it into the next life
     inputLock = true;
     inputLockT = -99;
     releaseKeys();
@@ -13768,6 +13885,9 @@ const __boot = (async () => {
   function gehBeginDive() {
     if (P.gehDive || death || !WORLDSTATE.gehUnlocked || GEH.failed) return false;
     if (!Number.isFinite(P.pos.y)) return false;
+    // the one way a carry could reach gehenna: lift her while already swimming in the pool, then hold the sink key.
+    // the water takes her, and dropYsolde puts her back on the rim rather than eight hundred metres under the map.
+    if (P.carry) dropYsolde(false);
     // the rim is worked out now, while the player is still standing in the valley, because the abort needs somewhere
     // real to put them and by then the body is eight hundred metres away and the pool is not under it any more.
     const a = Math.atan2(P.pos.x - POOL.x, P.pos.z - POOL.z) || 0,
@@ -14661,8 +14781,18 @@ const __boot = (async () => {
     // the finale: the four relics, the pool, the night
     if (relicCount() === 4 && villagesDone() >= 8 && !WORLDSTATE.finaleStarted && dayElev < 0.05 && dist2D(P.pos, POOL) < 20 && !roomNow) { if (netGuest()) { // a cooldown, not a latch: this used to be spent forever on the first ask, so a guest whose request went unanswered could never raise the warden again all session
       if (time > (NET.finaleAsked || 0)) { NET.finaleAsked = time + 20; for (const p of NET.peers.values()) netSend(p, { t: "finale" }); say("The relics burn cold. The water waits for the host's word.", 3000, true, "dark"); } } else startFinale(); }
-    if (WORLDSTATE.finaleStarted && !WORLDSTATE.wardenDead && WARDEN && !WARDEN.alive) { WORLDSTATE.wardenDead = true; say("It sinks. The water goes still, and for the first time you can hear the valley breathing. The stone by the shore is waiting.", 8000, true, "dark"); if (POOL_STONE) POOL_STONE.mark.material.emissiveIntensity = 2.5; }
-    if (POOL_STONE && WORLDSTATE.wardenDead && !WORLDSTATE.ending) { if (!POOL_STONE.prompt) POOL_STONE.prompt = makePrompt(); const near2 = dist2D(P.pos, POOL_STONE) < 3.2; POOL_STONE.prompt.visible = near2; if (near2) POOL_STONE.prompt.position.set(POOL_STONE.x, POOL_STONE.y + 2.2, POOL_STONE.z); }
+    if (WORLDSTATE.finaleStarted && !WORLDSTATE.wardenDead && WARDEN && !WARDEN.alive) { WORLDSTATE.wardenDead = true; wardenWail(); if (POOL_STONE) POOL_STONE.mark.material.emissiveIntensity = 2.5; }
+    if (POOL_STONE && WORLDSTATE.wardenDead && WORLDSTATE.ysoldeBuried && !WORLDSTATE.ending) { if (!POOL_STONE.prompt) POOL_STONE.prompt = makePrompt(); const near2 = dist2D(P.pos, POOL_STONE) < 3.2; POOL_STONE.prompt.visible = near2; if (near2) POOL_STONE.prompt.position.set(POOL_STONE.x, POOL_STONE.y + 2.2, POOL_STONE.z); }
+    // the grave is DERIVED rather than switched on by an event, so a load, a rejoin and an old key all land on the
+    // right state with no extra reconstruction and no way to open it twice. three boolean writes a frame.
+    if (GRAVE_GROUP) {
+      const dug = !!(WORLDSTATE.wardenDead || WORLDSTATE.ending);
+      GRAVE_GROUP.visible = dug;
+      GRAVE_OPEN.visible = dug && !WORLDSTATE.ysoldeBuried;
+      GRAVE_SHUT.visible = !!WORLDSTATE.ysoldeBuried;
+      if (dug && P.carry) { if (!GRAVE_GROUP.prompt) GRAVE_GROUP.prompt = makePrompt(); const nearG = dist2D(P.pos, GRAVE) < 3.4; GRAVE_GROUP.prompt.visible = nearG; if (nearG) GRAVE_GROUP.prompt.position.set(GRAVE.x, GRAVE.y + 1.9, GRAVE.z); }
+      else if (GRAVE_GROUP.prompt) GRAVE_GROUP.prompt.visible = false;
+    }
   }
   function startFinale() {
     if (WORLDSTATE.finaleStarted && WARDEN && WARDEN.alive) return;
@@ -14670,6 +14800,87 @@ const __boot = (async () => {
     say("The four relics burn cold in your satchel. The water in the middle of the pool begins to rise.", 6000, true, "dark");
     SFX.dread();
     spawnWarden();
+  }
+  // ============================================================ 3.0 phase 3: the burial
+  // the drowned warden IS ysolde. spawnWarden gives her the body's own bob, she rises over six seconds from nine
+  // metres down, and every line of WARDEN_RAGE is a thing she is still holding on to. beating her does not finish
+  // that. putting her in the ground does, and that is what opens the water.
+  function liftYsolde() {
+    if (P.carry || WORLDSTATE.ysoldeBuried || !BODY) return;
+    P.carry = BODY;
+    BODY.mesh.rotation.order = "YXZ";
+    lowerShield();
+    P.atk = null;
+    P.airSlash = null;
+    P.dive = false;
+    P.sliding = false;
+    P.block = false;
+    SFX.tone(170, 132, 0.7, 0.1, "sine", 0, 700);
+    say("You lift her. She weighs almost nothing, and it is the heaviest thing you have carried.", 5000, true, "dark");
+  }
+  // putting her down, from any cause: the key, deep water, or dying. one rule decides where she lands, so she can
+  // never end up somewhere the player cannot reach and the burial can never become impossible.
+  function dropYsolde(said) {
+    if (!P.carry) return;
+    const n = P.carry;
+    P.carry = null;
+    n.mesh.rotation.order = "XYZ";
+    n.mesh.rotation.set(Math.PI / 2 - 0.04, 0.6, 0); // exactly the values she was built with
+    // where she lands is decided from the PLAYER's position rather than the body's. she is in his arms, so that IS
+    // where she is, and reading it here means the answer never depends on the npc transform having been driven this
+    // frame — which the throttle and the cull above cannot guarantee after a teleport.
+    n.pos.set(P.pos.x, P.pos.y, P.pos.z);
+    const gy = groundAt(n.pos.x, n.pos.z, n.pos.y + 2);
+    const lost = !validPos(n.pos) || !Number.isFinite(gy) || n.pos.y < DIVIDE + 20 || !inBounds(n.pos.x, n.pos.z) || isDeep(n.pos.x, n.pos.z) || dist2D(n.pos, POOL) < 7;
+    if (lost) {
+      n.pos.set(POOL.x, POOLW + 0.12, POOL.z);
+      say("The water has her again. She is back at the pool's edge.", 4000, true, "dark");
+    } else {
+      n.pos.y = gy + 0.12;
+      if (said) say("You set her down.", 2000);
+    }
+    n.mesh.position.copy(n.pos);
+  }
+  // remote is true for a load and for a friend's burial: no reward, no speeches, just the world put in the right state
+  function buryYsolde(remote) {
+    if (!BODY) return;
+    const first = !WORLDSTATE.ysoldeBuried;
+    WORLDSTATE.ysoldeBuried = true;
+    WORLDSTATE.gehUnlocked = true; // the one line in the game that sets it, and nothing anywhere ever clears it again
+    P.carry = null;
+    BODY.mesh.rotation.order = "XYZ";
+    BODY.mesh.rotation.set(Math.PI / 2 - 0.04, 0.6, 0);
+    BODY.mesh.visible = false;
+    BODY.pos.set(GRAVE.x, GRAVE.y - 0.8, GRAVE.z); // out of sight in the ground, and out of range of the children who panic at the sight of her
+    BODY.mesh.position.copy(BODY.pos);
+    if (GRAVE_OPEN) GRAVE_OPEN.visible = false;
+    if (GRAVE_SHUT) GRAVE_SHUT.visible = true;
+    if (GRAVE_GROUP) GRAVE_GROUP.visible = true;
+    endingMarks(); // an ending already chosen when this runs (an old key, or a friend's) puts its token on her stone now
+    if (!first || remote) return;
+    SFX.pickupBig();
+    say("You lay her in. The earth Wick turned is still soft.", 4200, true);
+    setTimeout(() => say("Ysolde of the mill. Sixteen. Nobody is holding on to anything now.", 5000, true, "dark"), 4300);
+    setTimeout(() => {
+      say("The black pool has gone clear all the way down. There is a floor under it, and a hole in the floor.", 6500, true, "dark"); // no compass word: the pool is sited by a worldgen scan and the grave is not, so any bearing written into the prose would be a guess
+      SFX.dread();
+    }, 9600);
+    // no explicit broadcast: updateNet already polls mainProgress() twice a second and sends on change, and ysoldeBuried rides in its ws block
+  }
+  // ---- the wail, and the silence after it ----
+  // HUSH.t is the entire mechanism, and it only ever counts DOWN, in one place, by the frame delta. there is no latch
+  // and no timer: updateAmbience derives HUSH.on from it every frame, so if the two ever disagree the next frame puts
+  // them right. it is capped at thirty seconds on write, it is never saved, it is zeroed on death and on load, and a
+  // reload starts it at zero — a stuck hush would mute the whole game permanently, so it is built so it cannot stick.
+  const HUSH = { t: 0, on: false, wailed: false };
+  function wardenWail() {
+    if (HUSH.wailed) return;
+    HUSH.wailed = true;
+    SFX.wail();
+    HUSH.t = Math.min(16, 30);
+    say("She wails. It is not a monster's sound, and it goes on longer than you can stand.", 5000, true, "dark");
+    setTimeout(() => say("Then nothing. No wind, no water, no birds. Out in the dark, one cricket starts again.", 5200, true, "dark"), 5200);
+    setTimeout(() => say("She is still lying at the edge of the water where Wick found her. Somebody should move her.", 6000, true, "dark"), 11000);
   }
   // the ending: three ways to close the door, each of which the valley will show forever after
   function chooseEnding() {
@@ -14695,7 +14906,17 @@ const __boot = (async () => {
     say(lines[key], 12000, true, "fairy");
     setTimeout(() => say(`Legend of Peanits — ${CUSTOM.name}, Champion of Wildmoor. The valley remembers.`, 8000, true), 12500);
     fairyTune(false);
-    grant("Champion's Rest: hearts and stamina restored, and a heart more for the valley's thanks", () => { P.maxHp++; P.hp = P.maxHp; P.stam = stamMax(); });
+    // the three endings used to hand out the identical reward, which made the choice a paragraph rather than a
+    // decision. each one now leaves a different capability behind, and not one of them needs a new save field: the
+    // bind is derived from WORLDSTATE.ending itself, and the other two write keys that P.bonus already carries,
+    // already bounds-checks and already round-trips. all three are idempotent — Math.max, and grant()'s id latch.
+    const REWARD = {
+      bind: ["The Lampwright's Charge: the beacon burns for good, and Wildmoor's nights are never fully dark again", () => {}],
+      break: ["Still Water: nothing under the valley pulls at you now, and your breath lasts half again as long", () => { P.bonus.lung = Math.max(P.bonus.lung, 1.5); }],
+      fairy: ["The Court's Thanks: the rose court will hold you up one more time in the air", () => { P.bonus.jumps = Math.max(P.bonus.jumps, 3); }]
+    }[key];
+    grant("Champion's Rest: hearts and stamina restored, and a heart more for the valley's thanks", () => { P.maxHp++; P.hp = P.maxHp; P.stam = stamMax(); }, true, false, "ending:rest");
+    if (REWARD) grant(REWARD[0], REWARD[1], true, false, "ending:" + key);
   }
   // what the ending leaves behind, rebuilt on load too
   function applyEndingWorld() {
@@ -14704,6 +14925,64 @@ const __boot = (async () => {
     if (WORLDSTATE.ending === "break") { if (POOL_WATER_MESH) { POOL_WATER_MESH.visible = false; if (POOL_WATER_MESH.sheen) POOL_WATER_MESH.sheen.visible = false; } if (POOL_HOLLOW) POOL_HOLLOW.visible = true; }
     else if (POOL_WATER_MESH) { POOL_WATER_MESH.material.color.set(WORLDSTATE.ending === "fairy" ? 0xe8c8e0 : 0xc8d8e8); POOL_WATER_MESH.material.opacity = 0.7; }
     if (WORLDSTATE.ending === "bind" && lit && lighthouse) { lighthouse.userData.light.intensity = 3.2; if (!BEACON_THREAD) { const thread = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 1, 6, 1, true), new THREE.MeshBasicMaterial({ color: 0xfff0b0, transparent: true, opacity: 0.35, depthWrite: false })); const a = lighthousePos.clone().add(V3(0, 30, 0)), b = V3(POOL.x, POOL.y + 1, POOL.z); const mid = a.clone().add(b).multiplyScalar(0.5), len = a.distanceTo(b); thread.position.copy(mid); thread.scale.set(1, len, 1); thread.lookAt(b); thread.rotateX(Math.PI / 2); scene.add(thread); BEACON_THREAD = thread; } }
+    endingMarks();
+  }
+  // ---- 3.0 phase 3: what each ending physically leaves behind in the valley ----
+  // the complaint was that the three choices "don't do anything": before this they gave the same reward and changed a
+  // fifteen-metre circle of water. each guard below is a one-shot latch on a module-level object, so this is safe to
+  // call from endTheStory, from a load, from a friend's ending and from the burial — which is where the grave's token
+  // comes from when the ending was chosen before she was ever in the ground.
+  const END_MARK = { bench: false, petals: false, grave: false };
+  function endingMarks() {
+    const e = WORLDSTATE.ending;
+    if (!e) return;
+    if (e === "break" && !END_MARK.bench) {
+      END_MARK.bench = true;
+      // the king's line has always said "I have ordered a bench put there". this is the bench, and the green coming
+      // in at the old waterline that the ending text already promised.
+      const st = lam(0x8e8c84), pl = lam(0x7a5a34), sedge = lam(0x5f8036);
+      const g = new THREE.Group();
+      g.add(boxM(0.4, 0.5, 0.4, st, -0.85, 0.25, 0), boxM(0.4, 0.5, 0.4, st, 0.85, 0.25, 0), boxM(2.4, 0.16, 0.6, pl, 0, 0.58, 0));
+      const bx = POOL.x + 9.5, bz = POOL.z + 4.5;
+      g.position.set(bx, groundAt(bx, bz, 1e9), bz);
+      g.rotation.y = Math.atan2(POOL.x - bx, POOL.z - bz);
+      scene.add(g);
+      for (let k = 0; k < 26; k++) {
+        const a = hash(k, 771) * 6.28, r = 7.2 + hash(k, 772) * 1.6;
+        const x = POOL.x + Math.cos(a) * r, z = POOL.z + Math.sin(a) * r;
+        const tuft = cone(0.16, 0.5 + hash(k, 773) * 0.4, sedge, x, groundAt(x, z, 1e9) + 0.2, z, 4);
+        tuft.rotation.z = (hash(k, 774) - 0.5) * 0.5;
+        scene.add(tuft);
+      }
+    }
+    if (e === "fairy" && !END_MARK.petals) {
+      END_MARK.petals = true;
+      // petals on the water in one instanced draw, and a ring of small cold lights that are meshes rather than real
+      // lights: a dozen dynamic lights around a pool would cost more than the whole ending is worth.
+      const pm = new THREE.MeshBasicMaterial({ color: 0xf2b0d8, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false });
+      const inst = new THREE.InstancedMesh(new THREE.CircleGeometry(0.17, 5), pm, 64);
+      const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), p4 = V3(), s4 = V3(1, 1, 1), eu = new THREE.Euler();
+      for (let k = 0; k < 64; k++) {
+        const a = hash(k, 781) * 6.28, r = Math.sqrt(hash(k, 782)) * 6.1;
+        eu.set(-Math.PI / 2, hash(k, 783) * 6.28, 0, "YXZ");
+        q4.setFromEuler(eu);
+        m4.compose(p4.set(POOL.x + Math.cos(a) * r, POOLW + 0.06, POOL.z + Math.sin(a) * r), q4, s4);
+        inst.setMatrixAt(k, m4);
+      }
+      scene.add(inst);
+      const lampM = new THREE.MeshBasicMaterial({ color: 0xffc8ee, fog: false });
+      for (let k = 0; k < 9; k++) { const a = (k / 9) * 6.28; scene.add(sphere(0.13, lampM, POOL.x + Math.cos(a) * 8.4, POOL.y + 1.5 + hash(k, 784) * 0.8, POOL.z + Math.sin(a) * 8.4)); }
+    }
+    // and the grave answers the ending, because it is the one place in the valley the player is guaranteed to have stood
+    if (!END_MARK.grave && GRAVE_SHUT && WORLDSTATE.ysoldeBuried) {
+      END_MARK.grave = true;
+      const g = new THREE.Group();
+      if (e === "bind") g.add(sphere(0.11, new THREE.MeshBasicMaterial({ color: 0xffe8a8, fog: false }), 0, 1.0, -1.4));
+      else if (e === "break") g.add(sphere(0.3, lam(0xa8a6a0), 0, 0.22, 0, 1.3, 0.55, 1));
+      else for (let k = 0; k < 14; k++) g.add(sphere(0.08, lam(0xf2b0d8), (hash(k, 791) - 0.5) * 2.1, 0.2 + hash(k, 792) * 0.12, (hash(k, 793) - 0.5) * 2.8, 1, 0.35, 1));
+      GRAVE_SHUT.add(g);
+      GRAVE_TOKEN = g;
+    }
   }
   // a decision put to the player: a short list of choices, answered by number key or click; the game keeps running behind it
   let CHOICE = null;
@@ -14784,6 +15063,7 @@ const __boot = (async () => {
       b.heading = b.face + Math.PI;
     }
     FAIRY.idle = 0;
+    if (P.carry) dropYsolde(false); // belt and braces: die() has already done it, and respawn is reachable on its own
     P.airPeak = 0;
     P.kickWindow = 0;
     // the nearest bed in a village or town; someone found you and carried you there
@@ -15052,6 +15332,15 @@ const __boot = (async () => {
     }
     if (n === WICK) {
       STORY.wick = true;
+      // two short lines, one per press of E. they cannot be fired together: speak() has no queue, it calls say() and
+      // Voice.say() straight away, and Voice.say cancels whichever utterance is already speaking — so two lines in
+      // one frame collide and the player hears only the second. the cursor is transient by design; pickObj drops it
+      // from the save key, which is exactly right for a dialogue position.
+      if (WORLDSTATE.ysoldeBuried && !WORLDSTATE.ending) return speak(n, "She's in the ground. Proper, under the elder. I can sleep now.", "Wick", 4500);
+      if (WORLDSTATE.wardenDead && !WORLDSTATE.ysoldeBuried) {
+        STORY.wickDug = (STORY.wickDug || 0) + 1;
+        return speak(n, STORY.wickDug > 1 ? "Under the elder tree. She used to walk up there at night. Her mother never knew why." : "I dug her a hole this evening. Took me till dark, and I'm seventy.", "Wick", 5000);
+      }
       if (WORLDSTATE.ending) return speak(n, WORLDSTATE.ending === "break" ? "Drained it. I sat where she was found and it's just stones now. I can look at it." : WORLDSTATE.ending === "fairy" ? "There's singing off the water at night. She'd have liked that. She sang, when she thought nobody was about." : "The light lies right across it now, all night. I sleep with the shutters open so I can see it.", "Wick", 6000);
       if (WORLDSTATE.blackPoolAwake) return speak(n, "I've sat by this water twenty years and it never once looked back at me. It looks back now. The reeds have gone black where she lay, and at night there's something walking on the far bank with no feet. Don't stand near it after dark, champion. Whatever Hale fed, it learned the taste.", "Wick", 9000);
       if (STORY.solved)
@@ -15176,7 +15465,11 @@ const __boot = (async () => {
   function interact() {
     if ((P.interactCd || 0) > 0) return; // a moment between pickups: items and fairies are taken one by one
     if (GEH_SCRIPT && GEH_SCRIPT.interact()) return; // below the seam nothing in the valley is within reach
-    if (POOL_STONE && WORLDSTATE.wardenDead && !WORLDSTATE.ending && dist2D(P.pos, POOL_STONE) < 3.2) { chooseEnding(); return; }
+    // while she is in your arms E means exactly two things and nothing else. without this you could open a shop, take
+    // an errand or pick a fairy up with a body over your shoulder, and every one of those wants both hands. it sits
+    // under the gehenna line because she provably cannot be carried down there, and gehenna owns E when it is open.
+    if (P.carry) { if (dist2D(P.pos, GRAVE) < 3.4 && Math.abs(P.pos.y - GRAVE.y) < 3) buryYsolde(false); else dropYsolde(true); return; }
+    if (POOL_STONE && WORLDSTATE.wardenDead && WORLDSTATE.ysoldeBuried && !WORLDSTATE.ending && dist2D(P.pos, POOL_STONE) < 3.2) { chooseEnding(); return; }
     { const nim = npcs.find(n => n.lost && !n.found && dist2D(n.pos, P.pos) < 3.6);
       if (nim) { if (lit) { nim.found = true; speak(nim, "You lit it. I can see the light through the trees — I know the way from that. I'm going home. Tell Mother I'm coming.", "Nim", 5500); nim.stay = false; nim.post = false; nim.running = true; nim.runT = 0; nim.runTo = V3(villages[2].center.x + 3, villages[2].center.y, villages[2].center.z + 2); } else speak(nim, "I'm Nim, from Thornback. I came down here because I like it, and now it's all trees and I can't tell which way is up the mountain. If the old beacon were lit I could see it from here.", "Nim", 6500); return; } }
     // rescue takes priority over nearby furniture; vertical and room checks prevent remote pickups
@@ -15292,12 +15585,15 @@ const __boot = (async () => {
         speak(n, withName(npcLine(n)), n.kind === "knight" ? "Knight" : n.name || (n.kid ? "Child" : n.female ? "Woman" : "Villager"), 5000);
         return;
       }
-    if (near(BODY.pos, 4)) {
-      say(
-        "Ysolde. Face down in the black pool. Pale, cold, a bruise like a hand on the back of her neck. Something glints in the reeds.",
-        6000,
-        true
-      );
+    if (!WORLDSTATE.ysoldeBuried && near(BODY.pos, 4)) {
+      // act ii is untouched: until the warden is down she is evidence, and looking at her says exactly what it always did
+      if (WORLDSTATE.wardenDead || WORLDSTATE.ending) liftYsolde();
+      else
+        say(
+          "Ysolde. Face down in the black pool. Pale, cold, a bruise like a hand on the back of her neck. Something glints in the reeds.",
+          6000,
+          true
+        );
       return;
     }
     for (const h of herbs)
@@ -16080,6 +16376,10 @@ const __boot = (async () => {
     hemi.groundColor.copy(toLin(0x9a7a4a).lerp(toLin(0x5a4a3a), 1 - day));
     ambient.intensity = (0.04 + 0.06 * day) * (1 - interiorK) + interiorK * 0.22 + caveK * 0.1;
     ambient.color.copy(toLin(0xffffff).lerp(toLin(0xffc890), Math.max(interiorK, caveK * 0.8)));
+    // bound to the beacon: a thread of its light lies right across the valley now, and its nights are never fully
+    // dark again. derived from the saved ending, so it costs no new save field and comes back on every load. it sits
+    // before the cave and deep-water blocks below on purpose, so both of those still darken it.
+    if (WORLDSTATE.ending === "bind") { const nb = (1 - day) * (1 - interiorK) * (1 - caveK); hemi.intensity += 0.22 * nb; ambient.intensity += 0.05 * nb; }
     sun.intensity *= (1 - interiorK * 0.85) * (1 - caveK * 0.9);
     if (caveK > 0.001) { scene.fog.near = lerp(scene.fog.near, 6, caveK); scene.fog.far = lerp(scene.fog.far, 42, caveK); scene.fog.color.lerp(toLin(0x120e0a), caveK * 0.85); } // under the mound it is dark, warm from the hoard, and close
     // the same shape one line down, and deliberately after the cave so the deeper of the two wins where they overlap.
@@ -16172,6 +16472,13 @@ const __boot = (async () => {
     pollenT = 0;
   // mix environmental audio and emit nearby weather and ambient effects
   function updateAmbience(dt) {
+    // the hush, in full. one countdown, one derivation, and no other way in or out of it. if HUSH.on ever disagreed
+    // with HUSH.t for any reason at all, this puts it right on the very next frame.
+    if (HUSH.t > 0) HUSH.t = Math.min(HUSH.t, 30) - dt;
+    {
+      const want = HUSH.t > 0;
+      if (want !== HUSH.on) { HUSH.on = want; SFX.hush(want); Music.duck(want); }
+    }
     const h = terrainH(P.pos.x, P.pos.z),
       day = sstep(0.02, 0.2, dayElev),
       night = 1 - sstep(-0.05, 0.1, dayElev),
@@ -16201,9 +16508,12 @@ const __boot = (async () => {
     }
     cricketT -= dt;
     if (cricketT <= 0) {
-      cricketT = 0.6 + Math.random() * 1.2;
+      cricketT = HUSH.on ? 0.3 + Math.random() * 0.45 : 0.6 + Math.random() * 1.2;
       const field = 0.5 + 0.5 * Math.sin(P.pos.x * 0.09 + P.pos.z * 0.07) * Math.sin(P.pos.x * 0.031 - P.pos.z * 0.052 + time * 0.2);
-      if (night > 0.3 && h < 60 && Math.random() < 0.35 + field * 0.65) SFX.cricket(0.3 + field * 0.7);
+      // during the hush they are unconditional and loud: not because the valley grew more crickets, but because they
+      // are all that is left of it. the day and height gates come back the moment the countdown ends.
+      if (HUSH.on) SFX.cricket(0.95);
+      else if (night > 0.3 && h < 60 && Math.random() < 0.35 + field * 0.65) SFX.cricket(0.3 + field * 0.7);
     } // a patchwork of crickets: some spots loud, some quiet, and the loud ones change as you walk
     if (!graphics.particles) return; // audio continues even when all cosmetic particles are disabled
     // drifting leaves and petals, fireflies at night, pollen glinting by day
@@ -17210,7 +17520,7 @@ const __boot = (async () => {
     const inp = P.climb || custOpen || invOpen || inputLock || sleepT > 0 ? V3() : moveInput(),
       hasInput = inp.lengthSq() > 0 && P.dodge <= 0 && !(P.atk && P.grounded);
     P.moving = hasInput;
-    P.run = (!!keys.shift || TOUCH.run) && P.stam > 1.5 && !P.block;
+    P.run = (!!keys.shift || TOUCH.run) && P.stam > 1.5 && !P.block && !P.carry; // you do not run with a body in your arms
     const th = terrainH(P.pos.x, P.pos.z),
       g0 = groundAt(P.pos.x, P.pos.z, P.pos.y);
     {
@@ -17219,7 +17529,7 @@ const __boot = (async () => {
     }
     P.slideAir = P.grounded ? 0 : (P.slideAir || 0) + dt;
     const slideGround = P.grounded || (P.sliding && P.slideAir < TUNE.player.slideAirGrace && P.vel.y < 4);
-    const wantSlide = (!!keys.x || (!!keys.control && !!document.fullscreenElement)) && slideGround && !P.atk && !P.swim; // ctrl only slides in fullscreen (where chrome locks it); a browser can close its tab on ctrl+w otherwise
+    const wantSlide = (!!keys.x || (!!keys.control && !!document.fullscreenElement)) && slideGround && !P.atk && !P.swim && !P.carry; // ctrl only slides in fullscreen (where chrome locks it); a browser can close its tab on ctrl+w otherwise
     if (P.grounded) P.slideJump = P.sliding;
     P.sliding = !!(P.atk && P.atk.motion.sweep && P.atk.t < 0.38) || (wantSlide && (P.sliding ? hspeed() > 1.5 : hspeed() > 3));
     const grad = gradAt(P.pos.x, P.pos.z),
@@ -17229,6 +17539,7 @@ const __boot = (async () => {
       slopeAlong = dir.dot(grad); // + uphill, - downhill
     const cruise =
         (P.block ? TUNE.player.blockSpeed : P.run ? runSpd() : TUNE.player.walkSpeed) *
+        (P.carry ? CARRY_SPEED : 1) *
         (P.wading ? TUNE.player.wadeMul : 1) *
         (1 - clamp(slopeAlong * 0.5, 0, 0.75)),
       SM = stamMax();
@@ -17485,6 +17796,7 @@ const __boot = (async () => {
     if (deepHere && !P.gehDive && P.pos.y <= vol0.enter && !(P.noSwim > 0 && P.vel.y > 0)) {
       // deep water: swim
       if (!P.swim) {
+        if (P.carry) dropYsolde(false); // deep water takes her out of your arms, and dropYsolde decides where she lands
         P.swim = true;
         P.swimVol = vol0;
         P.grounded = false;
@@ -18340,6 +18652,90 @@ const __boot = (async () => {
   camera.position.set(0, 120, 250);
   camera.lookAt(0, 18, 0);
   requestAnimationFrame(loop);
+  // ============================================================ PHASE 3 PROBE B (test build only)
+  {
+    const L = (...a) => console.log("PROBE", ...a);
+    const nodes = () => { let n = 0; scene.traverse(() => n++); return n; };
+    const step = (ms, fn) => new Promise(r => setTimeout(() => { try { fn(); } catch (e) { L("THREW", e && e.message, e && e.stack); } r(); }, ms));
+    const put = (x, y, z) => { P.pos.set(x, y, z); P.vel.set(0, 0, 0); P.swim = false; P.swimVol = null; P.grounded = true; P.noSwim = 0.6; visY = y; };
+    (async () => {
+      await step(2200, () => { document.getElementById("play").onclick(); document.getElementById("start").onclick(); inputLock = false; releaseKeys(); L("started=", started, "nodes=", nodes()); });
+
+      // ---- death while carrying ----
+      await step(700, () => { WORLDSTATE.wardenDead = true; put(POOL.x + 1.5, POOLW - 0.6, POOL.z + 1.5); P.noSwim = 0; });
+      await step(600, () => { P.interactCd = 0; interact(); L("A lifted:", !!P.carry); });
+      await step(400, () => { put(GRAVE.x + 20, terrainH(GRAVE.x + 20, GRAVE.z) + 0.05, GRAVE.z); P.noSwim = 0.8; HUSH.t = 12; });
+      await step(400, () => {
+        L("A carrying on dry land:", !!P.carry, "HUSH.on=", HUSH.on);
+        die("probe death");
+        L("A after die(): carry=", P.carry, "HUSH.t=", HUSH.t, "body is", dist2D(BODY.pos, POOL).toFixed(2), "m from the pool (expect null 0 and either 0 or where he stood)");
+      });
+      await step(300, () => L("A hush after death: on=", HUSH.on, "SFX.hushed=", SFX.hushed, "Music.ducked=", Music.ducked, "(expect false false false)"));
+      await step(3500, () => { L("A death cleared? death=", !!death); });
+      await step(4000, () => { if (death) { death = null; inputLock = false; P.hp = P.maxHp; hero.visible = true; rebuildHero(); releaseKeys(); } L("A recovered; death=", !!death, "carry=", P.carry); });
+
+      // ---- pause must not strand the hush ----
+      await step(400, () => { HUSH.t = 10; });
+      await step(500, () => { L("B hush on before pause:", HUSH.on, "t=", HUSH.t.toFixed(2)); setPaused(true); B_t = HUSH.t; });
+      await step(1500, () => { L("B paused 1.5s: HUSH.t", B_t.toFixed(2), "->", HUSH.t.toFixed(2), "(expect frozen: the countdown is dt-driven and update() does not run)"); setPaused(false); });
+      await step(600, () => L("B unpaused: HUSH.on=", HUSH.on, "t=", HUSH.t.toFixed(2), "SFX.hushed=", SFX.hushed));
+      await step(11000, () => L("B hush released after pause: t=", HUSH.t.toFixed(2), "on=", HUSH.on, "SFX.hushed=", SFX.hushed, "Music.ducked=", Music.ducked, "(expect <=0 false false false)"));
+
+      // ---- bury her, then exercise the two ending branches the first probe never reached ----
+      // she is wherever she was set down when he died, which is the point: go and get her
+      await step(400, () => { put(BODY.pos.x + 1.5, groundAt(BODY.pos.x + 1.5, BODY.pos.z, 1e9) + 0.05, BODY.pos.z); L("C walked to where she lies,", dist2D(P.pos, BODY.pos).toFixed(2), "m away"); });
+      await step(600, () => { P.interactCd = 0; interact(); L("C lifted:", !!P.carry); });
+      await step(400, () => { put(GRAVE.x + 1.2, GRAVE.y + 0.05, GRAVE.z + 1.2); P.noSwim = 0.8; });
+      await step(400, () => { P.interactCd = 0; interact(); L("C buried:", WORLDSTATE.ysoldeBuried, "gehUnlocked:", WORLDSTATE.gehUnlocked); });
+
+      await step(500, () => {
+        const n0 = nodes();
+        FAIRY.crown = true; // so the third option exists
+        endTheStory("fairy");
+        L("C ENDING fairy: ending=", WORLDSTATE.ending, "| jumps", P.bonus.jumps, "| nodes", n0, "->", nodes(), "| END_MARK", JSON.stringify(END_MARK));
+        L("C water colour set?", POOL_WATER_MESH && POOL_WATER_MESH.material.color.getHexString(), "| visible", POOL_WATER_MESH && POOL_WATER_MESH.visible, "| grave token", !!GRAVE_TOKEN);
+        L("C rewards:", FOUND.slice(-2).join("  ||  "));
+      });
+      await step(400, () => {
+        // the bind branch is unreachable from here (the ending latches), so call its world-marks directly the way a
+        // load would, with the flag forced, and prove the geometry builds without throwing
+        const n0 = nodes(), keep = WORLDSTATE.ending;
+        WORLDSTATE.ending = "bind"; END_MARK.grave = false; GRAVE_TOKEN = null;
+        applyEndingWorld();
+        L("D bind marks: nodes", n0, "->", nodes(), "| BEACON_THREAD", !!BEACON_THREAD, "| grave token", !!GRAVE_TOKEN);
+        applyEndingWorld(); applyEndingWorld();
+        L("D bind marks idempotent: nodes", nodes(), "(expect unchanged)");
+        WORLDSTATE.ending = keep;
+      });
+      await step(300, () => {
+        // and the night-light lift the bind ending grants, read straight out of the lighting pass
+        const keep = WORLDSTATE.ending;
+        WORLDSTATE.ending = null; dayT = 0.85;
+      });
+      await step(700, () => { L("E night with no ending: hemi=", hemi.intensity.toFixed(4), "ambient=", ambient.intensity.toFixed(4), "dayElev=", dayElev.toFixed(3)); WORLDSTATE.ending = "bind"; });
+      await step(700, () => { L("E night bound to the beacon: hemi=", hemi.intensity.toFixed(4), "ambient=", ambient.intensity.toFixed(4), "(expect both higher)"); WORLDSTATE.ending = "fairy"; });
+
+      // ---- the load path: applySave must rebuild the burial with no reward and no speeches ----
+      await step(500, () => {
+        L("F pre-key state: ysoldeBuried=", WORLDSTATE.ysoldeBuried, "gehUnlocked=", WORLDSTATE.gehUnlocked);
+        const key = makeSaveKey(), d = parseSaveKey(key);
+        L("F key parsed=", !!d, "ysoldeBuried=", d && d.ws.ysoldeBuried);
+        // undo the world by hand, the way a fresh page would have it, then load
+        WORLDSTATE.ysoldeBuried = false; WORLDSTATE.gehUnlocked = false;
+        BODY.mesh.visible = true; BODY.pos.set(POOL.x, POOLW + 0.12, POOL.z);
+        GRAVE_OPEN.visible = true; GRAVE_SHUT.visible = false;
+        const n0 = nodes();
+        applySave(d);
+        L("F after applySave: ysoldeBuried=", WORLDSTATE.ysoldeBuried, "gehUnlocked=", WORLDSTATE.gehUnlocked, "| body visible", BODY.mesh.visible, "| grave open", GRAVE_OPEN.visible, "shut", GRAVE_SHUT.visible, "| nodes", n0, "->", nodes());
+        L("F HUSH after load: t=", HUSH.t.toFixed(2), "wailed=", HUSH.wailed, "carry=", P.carry, "(expect 0 true null)");
+      });
+      await step(600, () => {
+        L("G final: ending=", WORLDSTATE.ending, "geh=", WORLDSTATE.gehUnlocked, "nodes", nodes(), "HUSH.on", HUSH.on, "SFX.hushed", SFX.hushed);
+        L("DONE");
+      });
+    })().catch(e => L("CHAIN THREW", e && e.message, e && e.stack));
+    var B_t = 0;
+  }
   window.__drawLoading = null;
   document.getElementById("loading").classList.add("hidden");
   document.body.classList.remove("loading");
