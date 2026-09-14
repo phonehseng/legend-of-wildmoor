@@ -4,6 +4,139 @@ Every change, with the bug it fixes and how. Newest first.
 
 ---
 
+## 2.18.0 — The chain is closed, and Gehenna is a journey
+
+**Every one of the eight steps of the 3.0 chain now exists in code.** The Warden,
+the hush, the carry, the burial, the King, the sleep, the whirlpool, and — from
+this build — **the possessed valley and the descent itself**.
+
+### Step seven: the valley is possessed
+
+From `ysoldeBuried` until `gehDone`, the valley never stops sending things, and
+every NPC tells the player to go down.
+
+**Measured, on a fighter:**
+
+| | pre-burial | town, day | town, night | moor, day | moor, night |
+|---|---|---|---|---|---|
+| XP per minute | 26 | 342 | 548 | 355 | **596** |
+| bodies per minute | — | 21.8 | 34.8 | 23.0 | 47.2 |
+
+It is a real faucet and it was not nerfed, because the brief said not to. It is
+also bounded: **every fleeing run pins at exactly the cap — 12 by day, 14 by
+night — and holds flat for ten simulated minutes.** What punishes running is not
+a ramp; it is that the cap fills and follows you.
+
+**Zero site violations in every run**: nothing in water, out of bounds, inside a
+house, below `DIVIDE`, or off the ring. Under the seam the siege is **cleared,
+not paused**, and re-arms with a 26-second grace on surfacing — and the same
+grace after the burial, so the four lines over the grave land first.
+
+**85 authored possessed lines across 8 pools**, 86% of presses possessed,
+**18–22 presses before one repeats**, and all eight speaker types reach it,
+including Pip and the hall guard.
+
+**Three decisions worth recording.** No new enemy kind, so none of the four
+break-points apply and nothing changed on the wire. `updateWraithSpawns` keeps
+its `finaleStarted` guard as a documented handover rather than being widened —
+two spawners with two budgets would put thirty wraiths on the moor, and the hush
+has to be silent. And the cadence is flat: a heat term copied from the pool
+**pinned at maximum and never varied**, and had it varied it would have closed
+the faucet at exactly the moment the player used it.
+
+### Three defects the siege's own measurements caught
+
+- **A goblin sited inside the kingdom can never reach you** — `move()` refuses
+  any step into a building and there is no pathfinding — which took the town's
+  night reward to a fifth of the moor's. Inside the walls it is wraiths only.
+- **A denless wolf never leaves "idle" beyond 22 m**; two in three never moved.
+- The per-press line memory was one shared list, so **the shortest pool trimmed
+  the longest pool's history on every press** and the first repeat came at press
+  three. It is per-pool now: 18–22.
+
+### Step eight: the descent is a journey
+
+Four new speakers — **the Porter, the Matron, Bel and the Caller** — six edits
+each, plus the lodge with a real hatch, the cart, the yard post and board, and a
+twenty-figure instanced queue.
+
+The shape is the writer's: every beat before the hill proves the place has
+everybody, and then the Clerk says *I do not have her*. And the turn-back is the
+Caller offering the exit plainly, with nothing to gain — *"Nobody's ever gone back
+up. That's not a warning, that's the number."* — and then asking for ten seconds
+of help. **The slip he hands you has your own name on it.** Nothing says so. You
+carry your own calling up the hill as a favour to a tired man with bad knees, and
+at the very end the Clerk turns it over and writes the Ledger on the back of it.
+
+**Measured:** node delta **+34** against a budget of 500, and teardown returns to
+**exactly** the pre-descent count. Reachable from the centre of the road at 3.80,
+3.40 and 2.20 m. Presses per script, no dead ends and no early loops: sweeper 11,
+porter 25, matron 19, Bel 2, caller 19, clerk 34; on the way out, 25, 5, 7, 6, 2,
+9, 4. **Both exit branches** reply correctly and continue to the favour, with
+nothing gated. A player who actually leaves and comes back gets a nine-beat
+returning script and the exit offer is skipped.
+
+### Four judgement calls made against the script, and all four are right
+
+- **The Matron's z.** The script's table says 5.4 m and its own build note says
+  everyone must be within 4.4 m of the road. Those contradict; 5.4 is genuinely
+  unreachable. Built to the note.
+- **Register order — the script's reasoning was backwards.** `interactGeh` keeps
+  the **first** strictly-closer candidate, so an exact tie goes to the *earlier*
+  registration. The Matron is registered first. *(And a comment in `bossDown`
+  claiming the scan keeps the last candidate on a tie is wrong — its conclusion
+  survives only because `leaving` is what actually drops her.)*
+- **The lodge moved 1.5 m**, because at its scripted x its roof corner overlapped
+  the first house's roof by about two centimetres: textbook z-fighting.
+- **The queue's arc was measured rather than chosen** — any wider and its ends
+  come inside the kerb, any tighter and its south end lands on a seated figure.
+
+### The room behind the door
+
+One of Gehenna's twenty-two houses is hollow and enterable now. Five wall solids
+with a 1.6 m gap, a roof at the same height every other roof gives, a door that
+opens once. Inside: a chair, a window bricked up **from the inside** with the
+chisel still on the sill, and **twenty-eight rows of small even cuts** — 324 flat
+quads in one instanced mesh rather than a canvas texture, because a material
+`dispose()` does not take its map with it and a texture would leak on every
+descent.
+
+`insideInterior` was not touched: its table is keyed on x and z with no depth
+routing, so an interior at Gehenna's coordinates would also be a hole in the moor.
+Measured: `groundAt` at the room's 2D coordinates equals `terrainH` exactly.
+
+**One new primitive, `s.gone`**, honoured by `resolveStructs` and `gehGroundAt`.
+The structure grid has never had a removal path — fine for a valley built once,
+not fine for a door. It is `undefined` on every other solid in both worlds.
+
+**The hollowed house is zero-scaled, not skipped.** An instance whose matrix is
+never written keeps the identity matrix, and skipping it would have drawn a brick
+box, a roof and a door **at the world origin, in the middle of the valley** — the
+same class of bug as Nim's mother, caught before it shipped this time.
+
+### The insert-anchor check is now the standard
+
+The Almoner's agent hardened its applier to refuse, before writing anything, an
+insert whose replacement does not contain its own anchor verbatim. **It
+immediately rejected three of its own eleven records**, two of which would have
+silently deleted the line they promised to keep — the exact failure that broke a
+build earlier tonight and took a whole `function updateGoblins(dt) {` header with
+it. Mechanical beats careful.
+
+### Known, and not fixed here
+
+- **The exit-choice buttons render label-only.** Every other `askChoice` in the
+  game carries a short player line under the label; the script supplies only the
+  two bracketed labels.
+- **`makePrompt()` leaks a `SpriteMaterial` per speaker per descent** — `reset()`
+  removes the sprite without disposing it. Pre-existing at 5 a descent, now 9.
+- **Two carts on one short road**: the Almoner's hand-cart sits 11 m from the
+  Matron's. No collision and no code conflict, but somebody should decide whether
+  it reads.
+- **Knights cannot reach any dread band until `metKing`**, because the "go and see
+  the king" branch above returns unconditionally. Harmless today, and exactly the
+  shape of the bug that once made eleven written lines unreachable.
+
 ## 2.17.0 — The arrest happens where you can see it
 
 ### Maren is freed and Hale is walked to the stocks, on screen

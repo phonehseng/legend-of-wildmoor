@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.17.0</title>
+<title>Legend of Peanits 2.18.0</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -451,7 +451,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.17.0</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.18.0</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -521,7 +521,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.17.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.18.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -894,6 +894,12 @@ const __boot = (async () => {
   const difficulty = () => 1 + 0.12 * relicCount() + 0.03 * villagesDone() + (WORLDSTATE.finaleStarted ? 0.2 : 0);
   const evidence = k => { if (!STORY.evidence.includes(k)) STORY.evidence.push(k); };
   const relicCount = () => ["seal", "root", "warden", "tear"].filter(k => WORLDSTATE.relics[k]).length;
+  // ============================================================ 3.0: the siege — is the valley possessed right now
+  // from the moment she is in the ground until the player finishes what is under the pool. it reads three flags that
+  // are already saved, validated, reconstructed and shared, so the beat costs the save format nothing.
+  // it is keyed on the burial rather than on dread(), because dread() is reset to zero the instant an ending is
+  // chosen and this outlives that; and it ends on gehDone, which is the only thing that ever settles the valley.
+  const siegeOn = () => WORLDSTATE.ysoldeBuried && !WORLDSTATE.gehDone && !WORLDSTATE.ending;
   // the fourth relic is a thorn and not a tear. the queen of the rose court does not grieve for her children and
   // never did, so a tear is the one object she could not have produced. the save key stays `tear` because a save
   // key is a save key and renaming one silently resets it for every existing save; this label is the only version
@@ -1992,7 +1998,10 @@ const __boot = (async () => {
     houseW: 2.5, houseD: 2.2, houseH: 3.1,
     sweeperX: 24, benchX: 70, stillX: 92,
     yardX: 104, yardR: 11,
-    hillX: 136, hillR: 20, hillH: 9
+    hillX: 136, hillR: 20, hillH: 9,
+    // the one house in the rows that is hollow, by row index and side. it is a room and not a facade: four wall
+    // solids with a gap in the front one, and a door across the gap that opens exactly once.
+    roomI: 5, roomS: 0
   };
   const peakNoise = (x, z) => Math.pow(Math.max(0, fbm(x / 230 + 7, z / 230 + 7, 4) - 0.58) / 0.3, 1.4);
   // compute terrain h for the surrounding game system.
@@ -2217,7 +2226,7 @@ const __boot = (async () => {
     if (!GEH.root) return GEH_VOID;
     let h = gehH(x, z);
     for (const s of gehStructsAt(x, z)) {
-      if (s.top > y + 1.2) continue;
+      if (s.gone || s.top > y + 1.2) continue;
       const dx = x - s.cx, dz = z - s.cz;
       if (Math.abs(dx) > s.b || Math.abs(dz) > s.b) continue;
       if (s.r !== undefined) { if (dx * dx + dz * dz < s.r * s.r) h = Math.max(h, s.top); }
@@ -2277,7 +2286,11 @@ const __boot = (async () => {
       if (Math.abs(dx) > s.b + rad || Math.abs(dz) > s.b + rad) continue;
       // same one-sided bound as the trees: forty metres under a structure's walkable top is below every building,
       // wall and bridge in the valley, and still a hundred and sixty above the divider.
-      if (s.floorOnly || p.y >= s.top - 1.0 || p.y < s.top - 40 || (s.bottom !== undefined && p.y + 2.4 <= s.bottom)) continue;
+      // s.gone is the removal path this grid has never had. a struct, once added, is in every cell it overlaps and
+      // there is no way to take it out again short of tearing the whole world down — which is fine for a valley that
+      // is built once, and not fine for a door that is supposed to open. it is undefined on every other solid in
+      // both worlds, so this term is false everywhere except the one place that sets it.
+      if (s.gone || s.floorOnly || p.y >= s.top - 1.0 || p.y < s.top - 40 || (s.bottom !== undefined && p.y + 2.4 <= s.bottom)) continue;
       if (s.r1 !== undefined) {
         const d = Math.hypot(dx, dz) || 0.001;
         if (inGate(s, dx, dz) || d < s.r0 - rad || d > s.r1 + rad) continue;
@@ -5484,6 +5497,144 @@ const __boot = (async () => {
     ["We've pulled the lower ladders up. Say what you like about us.", "You can see the pool from the rail now. You couldn't before. I don't know what that means."],
     ["Don't look down at the roadside oaks on your way out. Look at the sky. I'm asking you kindly.", "We're not coming down. Not for the king, not for you."]
   ];
+  // ============================================================ 3.0: the possessed valley — what people say afterwards
+  // this is a fourth band on top of the three above, and it is not a chorus. nobody here is a demon and nobody has
+  // stopped being themselves: the bread is still proving, the child is still on the knee, the roster is still being
+  // read out, and the thing they say arrives in the middle of all of it without disturbing any of it. the one who is
+  // funny says it without the joke. that is the horror, and a crowd chanting in unison would throw it away.
+  const POSSESSED = {
+    town: [
+      "Bread's just out. You ought to be under the water by now.",
+      "Mind the step, it's wet. Go down.",
+      "I've a bowl kept back for you. Go down first.",
+      "Nothing's the matter with me. You are simply meant to be below and you are not.",
+      "I've said it four times this morning. I could not tell you who to.",
+      "Don't take the road. Take the pool.",
+      "You've done every last thing this street asked of you. There's one more and it's underneath.",
+      "The grave's settled already. You're still standing on top of it.",
+      "My wife says go down. I've told you now, like she asked.",
+      "Go and see what's under the water. Then come back and have your supper.",
+      "I'm not frightened. That is the part I would like explained.",
+      "There's a cart going the other way if you want it. You don't want it.",
+      "Sit down and rest. No. You're to go under the water.",
+      "I keep getting to the door and not knowing what for. Then I remember it's you.",
+      "We've all stopped mending things. No sense in it until you've been down.",
+      "The dog's been at the gate since first light, pointing at the water.",
+      "You were kind to my mother. Now go and drown a while.",
+      "I'd not send anybody down there. I am sending you down there."
+    ],
+    hill: [
+      "Flock's in early. You should be under the water.",
+      "It's a long walk down from here. Make it anyway.",
+      "Nobody up here will stop you. Nobody up here is coming either.",
+      "The stone's gone cold at last. Go down and let it stay cold.",
+      "You'll want the low road, and then the water.",
+      "We'd give you bread for the road, but there is no road. Go down.",
+      "My mother says it in her sleep now. Just go down.",
+      "We can see the whole of it from here, and the whole of it says go down.",
+      "Take the sheep track. It ends at the water, same as everything else.",
+      "You've been good to us. That's why we're telling you and not asking."
+    ],
+    hunter: [
+      "The deer came back. Every one of them facing the pool.",
+      "I've no shot for what's under that water. You have.",
+      "I'd walk you to the edge and no further. You go in.",
+      "Hear that? It's under the water, and it's for you.",
+      "Keep the lamp. You'll not want it where you're going.",
+      "Forty years I've hunted this wood. Go down, and I'll hunt it forty more.",
+      "I've stopped setting snares. Nothing worth catching until you've gone.",
+      "Every track this week points the one way. Follow them.",
+      "You're the best thing that ever walked this wood. Go and get under it."
+    ],
+    work: [
+      "Linen's soaking. So should you be.",
+      "The water's warm today, first time ever. Go under it.",
+      "I'll wring these out and you'll go down. We'll both have done our bit.",
+      "The herbs came up sweet this morning. Go and see what's below.",
+      "Kneel at the water. Not to pray.",
+      "I've washed here since I was nine. Today it wants you, not the sheets.",
+      "Basket's full, hands are raw, and you're still up here.",
+      "Go down. I'll have your shirt clean for when you're out.",
+      "It's not cold any more. That should be worrying one of us."
+    ],
+    kid: [
+      "Mother says you're to go under the water. Then she gave me an apple.",
+      "We're playing the new game. Everybody goes down, and you're last.",
+      "Everyone keeps asking me if you're going down. Are you going down?",
+      "I'm not scared. I only have to keep saying it.",
+      "Da says it while he's working. Like counting.",
+      "You'll come back up, won't you? Go down first, then come back up.",
+      "I drew you a picture. It's you, and it's under the water.",
+      "I asked if I could come. It said no.",
+      "We counted. You're the only one who hasn't gone yet.",
+      "It's not a punishment. Mother said to tell you that bit as well.",
+      "I've saved you half. You can have it when you're back from the water.",
+      "Everyone's being nice today. Have you noticed? Go down."
+    ],
+    knight: [
+      "Gate's held, watch is set. You're to go under the water.",
+      "It's on the roster. Right under the night watch.",
+      "I was proud of you at the beacon. Go down.",
+      "No escort, and no orders after this one. Go down.",
+      "I'd come with you, but I have not been asked. You have.",
+      "The water, sir. That's the whole of my orders.",
+      "We've stopped writing the dead in the book. Go down and I'll start again.",
+      "Take your shield under with you. You'll want it.",
+      "Name, rank, and the water. That's the morning's business.",
+      "You outrank me and I am still telling you. Go down.",
+      "I'd write it out for you, but it's only the four words.",
+      "The wall holds. It will not hold long. Go under."
+    ],
+    canopy: [
+      "We can see the pool turning from up here. Get in it.",
+      "We pulled the ladders up and we are still saying it. Go down.",
+      "The birds came back this morning. All of them facing the water.",
+      "Don't climb up. Climb down, and further than down.",
+      "We're not coming with you. We are telling you to go.",
+      "From the rail it looks like a mouth. Mind how you go.",
+      "Nothing to see from the rail but the pool. Go and be in it.",
+      "We shout it down to the road all day. Nobody minds.",
+      "Two hundred and fifty planks up, and every one of them says go down."
+    ],
+    // the boy with the wooden sword, who has never once been serious and is not being serious now either. he is
+    // simply saying it, which is worse.
+    trainee: [
+      "I've put the stick down. You should go down too.",
+      "Knights don't rest, and you shouldn't either. Go to the water.",
+      "Sir Corrin says a spear. Sir Corrin says go down.",
+      "I'll be a knight by the time you're back up. Go on.",
+      "I'm not training today. I'm telling you to go under the water.",
+      "I counted my strokes wrong all morning. Go under the water."
+    ]
+  };
+  // which pool a speaker draws from. it was written out longhand inside the dread branch; both bands need the same
+  // answer, and two copies of a seven-way test is two places for a speaker to fall through the cracks.
+  function speakerPool(n) {
+    if (n.canopy) return "canopy";
+    if (n.kid) return "kid";
+    if (n.kind === "knight") return "knight";
+    if (n.job === "hunter") return "hunter";
+    if (n.job === "gatherer" || n.job === "washer" || n.job === "water" || n.job === "bather") return "work";
+    if (n.hill || n.village !== undefined) return "hill";
+    return "town";
+  }
+  const DREAD_BANDS = { canopy: DREAD_CANOPY, kid: DREAD_KID, knight: DREAD_KNIGHT, hunter: DREAD_HUNTER, work: DREAD_WORK, hill: DREAD_HILL, town: DREAD_TOWN };
+  // the valley must not repeat itself while the player walks down one street. npcLine's own retry is per person, and
+  // in this band every person of a kind draws from one small pool, so a memory of one speaker is no memory at all:
+  // measured, the first repeated line came on the fourth villager.
+  // each pool keeps its own recent list, and one shared list was measurably worse than none: the shortest pool trims
+  // it on every press and throws away the longest pool's history with it. a town villager cannot now repeat another
+  // town villager inside eight presses, which is the echo a player actually hears.
+  const POSSESSED_SAID = new Map();
+  function pickPossessed(pool) {
+    const said = POSSESSED_SAID.get(pool) || [];
+    let line = pick(pool);
+    for (let tries = 0; tries < 10 && said.includes(line); tries++) line = pick(pool);
+    said.push(line);
+    while (said.length > Math.min(8, pool.length - 2)) said.shift();
+    POSSESSED_SAID.set(pool, said);
+    return line;
+  }
   const CROWN_LINES = [
     "From up here the whole valley looks like a quilt somebody left out in the rain.",
     "On a clear morning you can count every chimney in the kingdom from this rail.",
@@ -5507,6 +5658,17 @@ const __boot = (async () => {
     return line;
   }
   function npcLineRaw(n) {
+    // this sits at the very top on purpose. the trainee below and the hall guard under him both return without a
+    // probability of their own, so from anywhere further down neither of them could ever say this, and they are two
+    // of the three people it most needs to come from.
+    // NOTE the probability guard, for the same reason the dread branch carries one: at 1 this returns every time and
+    // every authored pool below becomes unreachable for the whole of the back half of the game. it is also better
+    // this way. a villager who tells you to go down four times and then talks about the bread has not noticed the
+    // difference, and that is more frightening than one who only ever says the one thing.
+    if (siegeOn() && Math.random() < 0.85) {
+      const pool = POSSESSED[n.job === "trainee" ? "trainee" : speakerPool(n)];
+      if (pool && pool.length) return pickPossessed(pool);
+    }
     if (n.job === "trainee") return pick(PIP_LINES);
     if (n.hallGuard && n.guarding)
       return pick([
@@ -5557,13 +5719,7 @@ const __boot = (async () => {
       const d = dread();
       if (d > 0.22 && Math.random() < 0.25 + 0.45 * d) {
         const b = d < 0.5 ? 0 : d < 0.75 ? 1 : 2;
-        const pool = n.canopy ? DREAD_CANOPY[b]
-          : n.kid ? DREAD_KID[b]
-          : n.kind === "knight" ? DREAD_KNIGHT[b]
-          : n.job === "hunter" ? DREAD_HUNTER[b]
-          : n.job === "gatherer" || n.job === "washer" || n.job === "water" || n.job === "bather" ? DREAD_WORK[b]
-          : n.hill || n.village !== undefined ? DREAD_HILL[b]
-          : DREAD_TOWN[b];
+        const pool = DREAD_BANDS[speakerPool(n)][b];
         if (pool && pool.length) return pick(pool);
       }
     }
@@ -15588,7 +15744,11 @@ const __boot = (async () => {
       kind: { voice: 285, pitch: 1.04, rate: 0.95, vi: 1, female: true, kind: "geh", pos: null },
       rope: { voice: 168, pitch: 0.72, rate: 0.88, vi: 4, female: false, kind: "geh", pos: null },
       still: { voice: 220, pitch: 0.88, rate: 0.84, vi: 9, female: false, kind: "geh", pos: null },
-      held: { voice: 88, pitch: 0.42, rate: 1.18, vi: 2, female: false, kind: "geh", pos: null }
+      held: { voice: 88, pitch: 0.42, rate: 1.18, vi: 2, female: false, kind: "geh", pos: null },
+      porter: { voice: 130, pitch: 0.58, rate: 0.8, vi: 5, female: false, kind: "geh", pos: null },
+      matron: { voice: 265, pitch: 1, rate: 1.02, vi: 6, female: true, kind: "geh", pos: null },
+      caller: { voice: 190, pitch: 0.66, rate: 0.94, vi: 8, female: false, kind: "geh", pos: null },
+      bel: { voice: 330, pitch: 1.35, rate: 1.05, vi: 0, female: true, kind: "geh", pos: null }
     };
 
     // speak() has no queue: it calls say() at once and Voice.say cancels whatever utterance is mid-sentence, so two
@@ -15724,6 +15884,7 @@ const __boot = (async () => {
       L("Mind your feet. There's dust, and I don't know where it comes from.");
       L("You're new. You've still got your threads on. I can hear them.");
       L("A thread's a person still holding you. Most come down with three or four.");
+      L("There's a hatch up the road. He'll want a look at what you're carrying.");
       L("Mine went years ago. I can't call their faces up and it doesn't trouble me.");
       L("That's the point, see. Not troubled. It's exactly what was promised.");
       L("You've come a long way to get here. Longer than most. It's in your feet.");
@@ -15790,9 +15951,226 @@ const __boot = (async () => {
       return b;
     }
 
+    // ---- the wall in her room. twenty-eight names, in the order they arrived, with the year of each, counted from
+    // the year the house opened — she dates them from the founding because there is nothing else down here to date
+    // them from. none of these people is from the valley and none of them is anybody the player has met. that is the
+    // point of them: she is the only one in gehenna who wrote down who anyone was, and she did it for strangers.
+    //
+    // there is nobody here who resembles the miller's girl, and no space on the wall left waiting for her. she never
+    // arrived and she never will have, and a blank line at the bottom of this wall would quietly undo that.
+    function buildWall() {
+      return [
+        { t: "The wall is cut all over. Small, even letters, floor to the height of her hand." },
+        { t: "Twenty-eight names. In the order they came, with the year of each." },
+        { t: "Alder Ness, 1. Sabra Woole, 4. Tam Ferrier, 9. Osric Veil, 26." },
+        { t: "Mattie Crow, 51. Bel Anders, 78. Roan Pike, 90. Halvard Stoke, 103." },
+        { t: "Ivo Larn, 147. Cassia Meer, 162. Dunstan Rye, 199. Nell Barrow, 204." },
+        { t: "Wren Halloway, 258. Aubrey Finch, 301. Garrick Dole, 330. Mirren Vale, 344." },
+        { t: "Perrin Odd, 402. Sela Thrum, 455. Cuthbert Lyle, 488. Ada Skeen, 509." },
+        { t: "Torvald Mun, 560. Fenna Court, 593. Bram Ottley, 641. Jessamy Hoe, 670." },
+        { t: "Corrin Slade, 702. Wilda Prue, 744. Aldous Penn, 781. Marget Quill, 796." },
+        { t: "The last was cut eleven years ago. The chisel is still on the sill." },
+        { t: "Out there they take everything off everybody, and they keep no list." },
+        { t: "Nobody asked her to keep one." }
+      ];
+    }
+    // the porter, at the mouth of the rows. a stock-keeper who has had one job for eight hundred years and takes a
+    // small pride in the order of it. not a guard and not sinister: he is the proof that this place has everybody,
+    // he is the one member of staff with data, and he is where wildmoor gets its only honest forecast — delivered as
+    // stock control, by a man with no reason to be wrong and no idea he has said anything.
+    //
+    // he is also the first link in the escalation. he cannot take a thing off somebody who has not been called, so he
+    // hands the player up the road to the caller, who cannot find them on the board, who hands them up to the desk.
+    function buildPorter() {
+      const b = [];
+      const L = t => b.push({ t });
+      L("Stop there. Name, and anything you're carrying.");
+      L("It goes in a box, the box goes on a shelf, you get a tag. Straightforward.");
+      L("No, you don't get it back. That's rather the point of it.");
+      L("Right. Hand it over.");
+      // a fixed line and deliberately not the real satchel. he is a bored man narrating, and a live inventory dump
+      // would be slower and less funny. this is one of the two lines marked cuttable if he runs long in a play pass.
+      L("A sword. A lamp. A great deal of bread.");
+      L("Hold on.");
+      L("You've not been called.");
+      L("I can't take a thing off somebody who's not been called. It's the order of it.");
+      L("Eight hundred years at this hatch. Nobody's come to it early.");
+      L("Take it back, all of it. I'll not have it standing on my floor.");
+      // the queen's tear is the one object in the game handed over by somebody who was not holding on to it, and so
+      // the one object his system has no tag for. that is the fairy queen being correct, said out loud by a man who
+      // thinks he is complaining about paperwork, and the game still never says so.
+      if (WORLDSTATE.relics.tear) {
+        L("What's this pink thing.");
+        L("There's no tag on it. Everything that comes through here has a tag.");
+        L("Somebody handed you that and didn't mind letting go of it. I've not had one of those.");
+        L("Keep it. It's no use to me and it won't sit still.");
+      }
+      L("Where've you come from, anyway.");
+      L("Wildmoor. I've had nothing off Wildmoor in years.");
+      L("That's good news, that. Means they're all still up there.");
+      L("Long may it.");
+      L("It stops, mind. Every place stops.");
+      L("I'll get the lot of you in one bad year and then never again.");
+      L("I've a shelf back there marked Anselm. Couldn't tell you where it was.");
+      // the second of the two lines marked cuttable if he runs long in a play pass
+      L("Somebody could have, once.");
+      L("You'll get held on the road. They let go on their own, leave them be.");
+      L("Go on up. There's a man in the yard calls the names.");
+      b.push({ t: "Mind the hatch. Dust gets in the tags.", loop: true });
+      return b;
+    }
+    // the last thing the game shows before the surface, and it is the player's own reflex performed by a stranger:
+    // giving people back what they lost, knowing they cannot want it, doing it anyway. the player will not notice.
+    function porterAfter() {
+      return [
+        { t: "Give us a minute, I'm carrying." },
+        { t: "I'm taking them round. Door by door." },
+        { t: "No, they won't know what it is. I'm aware of that." },
+        { t: "Woman at the eleventh house had a wooden bird. Had it since she was a girl." },
+        { t: "She'll look at it and hand it back to me. I'll put it on her step." },
+        { t: "Somebody ought to have it near them. That's all I've got by way of a reason." },
+        { t: "Nothing off Wildmoor yet, by the way. Still nothing." },
+        { t: "Long may it. Go on, up you go." },
+        { t: "Mind the boxes.", loop: true }
+      ];
+    }
+
+    // the matron, mid-rows. warm, brisk, competent, and the heaviest beat before the hill, entirely because she is
+    // kind. she looks after the unburdened, she is good at it, she loves them, and she has not been cut. she says
+    // "afterwards" eighty metres before the clerk says there are a hundred of them on that road who said afterwards.
+    function buildMatron() {
+      const b = [];
+      const L = t => b.push({ t });
+      L("Mind yourself, I've a cart coming through.");
+      L("Good evening — which it isn't. Habit.");
+      L("I put them out after the sweep and I bring them in before the road goes cold.");
+      L("No, they don't feel it. I bring them in anyway.");
+      L("They never ask for a thing. Not one of them, not ever.");
+      L("You've no idea what a mercy that is, to a woman my age.");
+      L("That's Bel, on the kerb. She's been with me the longest.");
+      L("Her mother came through eleven years before she did. I had them both.");
+      L("Neither of them knows. I do. Somebody ought to.");
+      // late-bound, the way the clerk's restCount line is, because a script is built once and cached for the rest of
+      // the conversation and the player can kill an attached AFTER hers was built. state.held is that kill count.
+      b.push({ t: () => (state.held > 0 ? "You did for one on the road. The one by the fourth house." : "They take hold of you on the road. That's Hob, by the fourth house.") });
+      b.push({ t: () => (state.held > 0 ? "That was Hob. He was waiting on his brother." : "He's waiting on his brother.") });
+      L("His brother's sat forty feet from him and has been for two years.");
+      b.push({ t: () => (state.held > 0 ? "Oh, don't pull that face. That's one less to bring in of a night." : "I've stopped explaining it to him. He's got his hands full.") });
+      L("No, I've not had it done. They ask me every year.");
+      L("There's a list. I put myself at the bottom of it every morning.");
+      L("When they're all seen to. That's when.");
+      L("I've been saying that a very long time. I'll say it again tomorrow.");
+      L("Go on up, love. The desk's at the top of the hill.");
+      b.push({ t: "I'll be here. Somebody's got to bring them in.", loop: true });
+      return b;
+    }
+    // nothing was fixed. bel does not remember her mother, the unburdened are still content, and the only thing that
+    // changed is that the woman who was going to be relieved of everything afterwards has no afterwards left to be
+    // comfortable with. she keeps working, and she never thanks the player, because she never worked out what
+    // happened and she is not going to.
+    function matronAfter() {
+      return [
+        { t: "Nobody's come down the road. Not all day, and there's always somebody." },
+        { t: "So that's that, then. Nobody coming in." },
+        { t: "I'd got used to afterwards. I'd got very comfortable with afterwards." },
+        { t: "Well. They still want bringing in." },
+        { t: "Say goodbye to Bel. She won't know you and she'll like it anyway." },
+        { t: "Off you go. Somebody's still got to bring them in.", loop: true }
+      ];
+    }
+    // bel. two lines and never a third, on every press, in both phases of the story. she is not sad, she has nothing
+    // to be sad about, and that is worse. the second line is a poor child offering to share something she does not
+    // have, and it is the only place in the descent that reaches forward. DO NOT EXTEND THIS.
+    function buildBel() {
+      return [
+        { t: "I'm counting. You can have some." },
+        { t: "I've got lots. I'm not going to run out.", loop: true }
+      ];
+    }
+
+    // the caller, in the yard. hoarse from eight hundred years of shouting names and constitutionally unable to
+    // speak quietly. he is the turn-back: he offers the way out plainly, sincerely, with nothing to gain and no
+    // catch, and then he asks a tired man's favour and the player stays for it. that is the reflex the whole game
+    // is built out of, fired one last time.
+    function buildCaller() {
+      const b = [];
+      const L = t => b.push({ t });
+      // the one player who took the door gets told, by the man who offered it, that going back was never the same
+      // thing as staying away. leftEarly is the module-level flag that survives reset() on purpose, so this costs
+      // nothing new and nothing persisted — a fresh session loses it, which is right, it did not watch them leave.
+      if (leftEarly) {
+        L("You went back up.");
+        L("Nobody's ever gone back up. Somebody's now done it twice.");
+        L("And here you are again. Of course you are.");
+        L("Right. Well.");
+      } else {
+        L("WILMOT OF THE FEN. Wilmot of the fen, to the desk.");
+        L("He'll come. There's no hurry in any of them.");
+        L("Sorry. I've shouted so long I can't do quiet.");
+        L("You'll want finding on the board. Hold on.");
+        L("…");
+        L("You're not on here.");
+        L("No — you don't understand me. I've never once not had a name.");
+        L("A whole town, one afternoon, in the old wars. I had every one of them.");
+        L("I've not got you.");
+        L("Right. Well.");
+        L("Go back up.");
+        L("I mean it kindly. The water works both ways and nobody'll stop you.");
+        // the exit is real and it GATES NOTHING. both branches continue to the favour and neither is punished,
+        // because a choice that enforced itself would be the game arranging the trap rather than the character
+        // walking into it. state.exit only picks which of his two replies he gives on the next press.
+        b.push({
+          t: "Nobody's ever gone back up. That's not a warning, that's the number.",
+          go: () => {
+            askChoice("He has said his piece and gone back to the board.", [
+              { key: "water", label: "I'll go back to the water", text: "" },
+              { key: "desk", label: "The desk is up the hill", text: "" }
+            ], key => {
+              state.exit = key;
+            });
+          }
+        });
+        b.push({ t: () => (state.exit === "water" ? "Right you are. Straight back the way you came, and mind the hatch." : "It is. You'll see the lamp on it from here.") });
+      }
+      L("Before you go, though. Do us a favour.");
+      L("Take this up to her. The ink's run and I can't make it out.");
+      L("It's the other way. I know it's the other way.");
+      // the slip has the player's own name on it and nothing ever says so. it is read by the clerk's opening insert
+      // and used again for the ledger, and it is runtime-only on purpose: gehenna is rebuilt on every descent, so
+      // there is nothing here worth a save key, an rb entry, an applySave clause and a WS_SHARED boolean.
+      b.push({ t: "Ta. My knees are the only thing I kept and they aren't good.", go: () => { state.slip = true; } });
+      b.push({ t: "WILMOT OF THE FEN. Honestly.", loop: true });
+      return b;
+    }
+    // he tells the player he used them, refuses to be sorry about it, and is right not to be. he does NOT say the
+    // queue has stopped — he stands at a bare board and lets it be seen, because the man on the bench is the one who
+    // gets to notice, and his is the beat that ends.
+    //
+    // if the return trip ever drags in play, THIS is the designated first cut. the bench man says the important half
+    // of it better and the walk out loses the least by losing this. do not cut it pre-emptively.
+    function callerAfter() {
+      return [
+        { t: "Board's empty. Look at it." },
+        { t: "I've nothing to do. I don't know the word for what that is." },
+        { t: "I sent you up there. I'd had a long day." },
+        { t: "I'd do it again, mind. Don't go thinking I've had a turn." },
+        { t: "Go on. Water's that way — still the other way.", loop: true }
+      ];
+    }
+
     function buildClerk() {
       const b = [];
       const L = (t, go) => b.push({ t, go });
+      // the caller sent them up the hill carrying their own calling, as a favour, and she says nothing about what it
+      // is for the whole of the reading. her "of course it's you" lands harder for having been held back two minutes
+      // than any recognition would, and it is more in character besides.
+      if (state.slip) {
+        L("Oh. He's sent you up with that, has he.");
+        L("His knees.");
+        L("Give it here.");
+        L("…");
+        L("That one can wait. Sit down.");
+      }
       L("Sit. Give me your hand — the left one.");
       L("It's nearer the heart. Superstition, but we keep it.");
       L("I read what's still attached. Then my sister takes it off.");
@@ -15874,8 +16252,19 @@ const __boot = (async () => {
       L("And there's the girl. Still blank. It will stay blank.");
       L("You kill, love. Gently, and for good reasons, and you kill.");
       L("I've nowhere to file that either. I have decided not to mind.");
-      L("Now. I have a blank page and a good pen. Say the names to me, slowly.");
-      L("Not to process them. I want somebody to have written it down.");
+      // the paper they carried up the hill as a favour to a man with bad knees was their own processing slip, and the
+      // only thing it is ever used for is the names of everybody still holding on to them. the errand that trapped
+      // them becomes the one object in the game that argues against her sister, and nobody remarks on it.
+      if (state.slip) {
+        L("Now. I want a clean bit of paper and I haven't got one.");
+        L("…this'll do.");
+        L("It's the back of your own calling. I shan't be needing the front.");
+        L("Say the names to me, slowly.");
+        L("Not to process them. I want somebody to have written it down.");
+      } else {
+        L("Now. I have a blank page and a good pen. Say the names to me, slowly.");
+        L("Not to process them. I want somebody to have written it down.");
+      }
       b.push({ t: "There. That's a life, that is.", go: giveLedger });
       L("Go up. The water will let you this time.");
       b.push({ t: "And the sweeper — don't tell him. Let him sweep.", loop: true });
@@ -15910,7 +16299,14 @@ const __boot = (async () => {
       clerk: { v: V.clerk, name: () => "The Clerk" },
       bench: { v: V.rope, name: () => "A man on the bench" },
       still: { v: V.still, name: () => "One of the Unburdened" },
-      kindly: { v: V.kind, name: () => "The Kindly One" }
+      // no voice and no name. it is cut stone, and a wall that talked would be the one supernatural thing in a room
+      // whose whole argument is that a person sat in it with a chisel.
+      wall: { v: null, name: () => "" },
+      kindly: { v: V.kind, name: () => "The Kindly One" },
+      porter: { v: V.porter, name: () => "The Porter" },
+      matron: { v: V.matron, name: () => "The Matron" },
+      bel: { v: V.bel, name: () => "Bel" },
+      caller: { v: V.caller, name: () => "The Caller" }
     };
     // idempotent by id: a rebuilt gehenna must never end up with two clerks, and a second register call only moves the
     // one that is already there
@@ -15932,6 +16328,13 @@ const __boot = (async () => {
       if (s.id === "sweeper") s.script = phase === "after" ? sweeperAfter() : buildSweeper();
       else if (s.id === "clerk") s.script = phase === "after" ? clerkAfter() : buildClerk();
       else if (s.id === "bench") s.script = phase === "after" ? benchAfter(s) : buildBench();
+      else if (s.id === "wall") s.script = buildWall();
+      else if (s.id === "porter") s.script = phase === "after" ? porterAfter() : buildPorter();
+      else if (s.id === "matron") s.script = phase === "after" ? matronAfter() : buildMatron();
+      else if (s.id === "caller") s.script = phase === "after" ? callerAfter() : buildCaller();
+      // the same two lines in both phases, and that is the point of her. she is the one voice down here that the
+      // story does not move, so she has no after-script to route to.
+      else if (s.id === "bel") s.script = buildBel();
       else s.script = null;
       return s.script;
     }
@@ -15968,7 +16371,11 @@ const __boot = (async () => {
     // is nothing to be sorry for, and she is right about suffering and wrong about what to do next. the fight is not
     // meant to be hard. every blow she lands takes a name off you and says it out loud, which is why it hurts.
     const BOSS = { hp: 60, dmg: 1, speed: 3.2, windup: 0.9, reach: 2.6 };
-    const state = { fight: false, done: false, called: false, cut: 0, beat: 0, cutT: 0, fallbackT: 0, barkT: 0, threads: [], surfaced: false, thanked: false, held: 0, answer: null };
+    // slip, exit, firstHold and roadSeen are runtime only and stay that way. gehenna is torn down and rebuilt on
+    // every descent, so not one of them is worth the four edits a persisted key costs — the save payload, the rb
+    // whitelist, the applySave reconstruction and WS_SHARED — and every one of them is meaningless the moment the
+    // world under the water is gone.
+    const state = { fight: false, done: false, called: false, cut: 0, beat: 0, cutT: 0, fallbackT: 0, barkT: 0, threads: [], surfaced: false, thanked: false, held: 0, answer: null, slip: false, exit: null, firstHold: false, roadSeen: false };
     const CUT_LINES = [
       w => `${w}. There. Lighter already.`,
       w => `${w}. Gone. You can't miss what you can't hold.`,
@@ -16143,6 +16550,13 @@ const __boot = (async () => {
       if (state.barkT > time) return;
       state.barkT = time + 6;
       gsay(V.held, "", HELD_BARK[Math.floor(Math.random() * HELD_BARK.length)], 1800);
+      // the game's first question about whether fighting is for anything, said once and never again. the player has
+      // almost certainly swung by the time it lands, which is the right order: act first, learn second. the lead
+      // clears the bark above rather than cancelling it.
+      if (!state.firstHold) {
+        state.firstHold = true;
+        chainSay([[null, "", "Nothing is happening. He is holding your arm and nothing else is happening.", 5200]], 2.6);
+      }
     }
     // most of them die without a word. the third one earns the thank-you, because a thank-you that every corpse says
     // is not a thank-you, it is a sound effect. >= 3 rather than === 3 so a busy moment postpones it instead of
@@ -16195,9 +16609,17 @@ const __boot = (async () => {
     // if no world layer placed anybody, the after-story still has a stage: four prompts in the dark at fixed offsets
     // from gehenna's centre. no geometry, no meshes, nothing to leak — and it is skipped entirely the moment a real
     // gehenna registers its own people.
+    // the matron goes in before bel here for the same reason the clerk goes in before the kindly one in the world
+    // build: the scan below keeps the FIRST strictly-closer candidate, so on a tie the earlier registration wins,
+    // and a player who walks up to the pair of them must never be stuck talking to a child while a woman with a
+    // cart stands beside her.
     const FALLBACK = [
       ["sweeper", -9, 6],
+      ["porter", -14, 1],
+      ["matron", 8, 15],
+      ["bel", 9, 16.2],
       ["bench", 2, 12],
+      ["caller", -7, 19],
       ["clerk", 0, 20],
       ["still", 10, 9]
     ];
@@ -16271,6 +16693,13 @@ const __boot = (async () => {
       }
       if (P.pos.y > DIVIDE) return;
       ensureStage();
+      // something to walk toward, so that going deeper is never obedience — it is looking at a thing. it waits for
+      // the arrival chain to finish and for the player to be clear of the dish, because it is a line about the road
+      // and not about the water.
+      if (!state.roadSeen && !state.done && !busy() && P.pos.x > GEH.cx + 18) {
+        state.roadSeen = true;
+        gnarr("The road goes up. Far along it, a great many people are standing very still.", 5200);
+      }
       // the fallback encounter, used only when no enemy layer raised her: she cuts three names, fails, and stops.
       if (state.fallbackT > 0) {
         state.fallbackT -= dt;
@@ -16307,6 +16736,10 @@ const __boot = (async () => {
       state.held = 0;
       state.thanked = false;
       state.answer = null;
+      state.slip = false;
+      state.exit = null;
+      state.firstHold = false;
+      state.roadSeen = false;
       state.done = !!WORLDSTATE.gehDone;
       state.surfaced = state.done;
     }
@@ -16401,6 +16834,120 @@ const __boot = (async () => {
         GEH.structs.get(k).push(s);
       }
   }
+  // ---- the one room in gehenna with anything personal in it.
+  //
+  // every other house in the rows is a solid brick box: three InstancedMesh instances and one struct, and there is
+  // nothing behind the door because nothing down here is anybody's. this one is hollow, and the difference is the
+  // whole point of it. it is built out of five wall solids with a gap in the front, a roof you can still stand on,
+  // and a door across the gap that is solid until she is dead.
+  //
+  // the valley's interior system is deliberately NOT reused. interiorsAt is keyed on x and z alone with no depth
+  // routing, so an interior registered at gehenna's coordinates is also a hole in the moor at (646, 610) — which is
+  // the exact class of bug this file keeps paying for, and the reason gehStructsAt exists as a separate map at all.
+  function gehBuildRoom(g, M, cx, cz, y, side) {
+    const room = new THREE.Group();
+    room.name = "geh-room";
+    const TOP = y + GEH_L.houseH + 0.22;
+    const box = (w, h, d, px, py, pz, mat) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+      m.position.set(px, py, pz);
+      room.add(m);
+      return m;
+    };
+    // the shell. the doorway runs the full height of the wall rather than stopping at a lintel, because a lintel is
+    // drawn geometry with no solid behind it: the door struct has to be full height or it can simply be jumped, and
+    // then the picture and the collision disagree. they agree this way, which is the rule the rest of this file keeps.
+    const fz = cz + side * 2.075, bz = cz - side * 2.075;
+    box(GEH_L.houseW * 2, GEH_L.houseH, 0.25, cx, y + GEH_L.houseH / 2, bz, M.brick);
+    box(0.25, GEH_L.houseH, GEH_L.houseD * 2, cx - 2.375, y + GEH_L.houseH / 2, cz, M.brick);
+    box(0.25, GEH_L.houseH, GEH_L.houseD * 2, cx + 2.375, y + GEH_L.houseH / 2, cz, M.brick);
+    box(1.7, GEH_L.houseH, 0.25, cx - 1.65, y + GEH_L.houseH / 2, fz, M.brick);
+    box(1.7, GEH_L.houseH, 0.25, cx + 1.65, y + GEH_L.houseH / 2, fz, M.brick);
+    box(GEH_L.houseW * 2 + 0.5, 0.22, GEH_L.houseD * 2 + 0.5, cx, y + GEH_L.houseH + 0.11, cz, M.roof);
+    box(4.5, 0.04, 3.9, cx, y + 0.02, cz, M.roof);
+    gehAddStruct({ cx, cz: bz, w: GEH_L.houseW, d: 0.125, top: TOP, b: GEH_L.houseW + 0.4 });
+    gehAddStruct({ cx: cx - 2.375, cz, w: 0.125, d: GEH_L.houseD, top: TOP, b: GEH_L.houseD + 0.4 });
+    gehAddStruct({ cx: cx + 2.375, cz, w: 0.125, d: GEH_L.houseD, top: TOP, b: GEH_L.houseD + 0.4 });
+    // the gap is 1.6 m across and the player collides at a radius of 0.55, which leaves a quarter of a metre either
+    // side. a narrower doorway is a door you have to aim at, and nothing else in this game asks that of anybody.
+    gehAddStruct({ cx: cx - 1.65, cz: fz, w: 0.85, d: 0.125, top: TOP, b: 1.3 });
+    gehAddStruct({ cx: cx + 1.65, cz: fz, w: 0.85, d: 0.125, top: TOP, b: 1.3 });
+    // the roof is floorOnly: it is a surface to stand on and not a wall, so it gives ground at the same height every
+    // other roof in the row gives and never shoves anybody standing inside the room underneath it.
+    gehAddStruct({ cx, cz, w: GEH_L.houseW, d: GEH_L.houseD, top: TOP, b: GEH_L.houseW + 0.4, floorOnly: true });
+    // the door. the leaf hangs off a hinge group so that opening it is one rotation rather than a new position, and
+    // the solid across the gap carries the gone flag that is the only way anything ever leaves the structure grid.
+    const hinge = new THREE.Group();
+    hinge.position.set(cx - 0.8, y, fz);
+    const leaf = new THREE.Mesh(new THREE.BoxGeometry(1.56, GEH_L.houseH - 0.06, 0.09), M.door);
+    leaf.position.set(0.78, (GEH_L.houseH - 0.06) / 2, 0);
+    hinge.add(leaf);
+    room.add(hinge);
+    const bar = { cx, cz: fz, w: 0.8, d: 0.14, top: TOP, b: 1 };
+    gehAddStruct(bar);
+    // a window, bricked up from the inside, and the chisel she did it with left on the sill. she has not been able
+    // to see out of this room for a very long time and she is the one who arranged that.
+    box(0.9, 1, 0.07, cx + 1.2, y + 1.7, bz + side * 0.16, M.door);
+    box(0.78, 0.88, 0.09, cx + 1.2, y + 1.7, bz + side * 0.2, M.brick);
+    box(1.02, 0.08, 0.24, cx + 1.2, y + 1.16, bz + side * 0.26, M.wood);
+    box(0.05, 0.05, 0.22, cx + 1.35, y + 1.24, bz + side * 0.26, M.iron);
+    // a chair. one.
+    box(0.52, 0.06, 0.46, cx - 1.25, y + 0.46, cz, M.wood);
+    box(0.52, 0.55, 0.06, cx - 1.25, y + 0.76, cz - 0.2, M.wood);
+    box(0.06, 0.44, 0.06, cx - 1.46, y + 0.22, cz - 0.18, M.wood);
+    box(0.06, 0.44, 0.06, cx - 1.04, y + 0.22, cz + 0.18, M.wood);
+    // and the wall itself: twenty-eight rows of small even cuts, floor to the height of her hand. one InstancedMesh
+    // of flat quads rather than a canvas texture, because a texture would have to be disposed on every teardown and
+    // a material dispose does not take its map with it — this leaks nothing, costs one node and two triangles a cut.
+    // seeded off GEH.seed, so it is the same wall every descent of the same save.
+    let cutCount = 0;
+    {
+      const rows = 28;
+      let rs = ((GEH.seed || 1) * 9301 + 49297) % 233280;
+      const rr = () => { rs = (rs * 9301 + 49297) % 233280; return rs / 233280; };
+      const marks = [];
+      for (let r = 0; r < rows; r++) {
+        const py = y + 0.36 + (r / (rows - 1)) * 1.68;
+        let pz = cz - 1.78;
+        const letters = 7 + Math.floor(rr() * 5);
+        for (let n = 0; n < letters; n++) { const len = 0.016 + rr() * 0.022; marks.push([py, pz + len / 2, len]); pz += len + 0.012; }
+        pz += 0.09;
+        for (let n = 0; n < 2 + Math.floor(rr() * 2); n++) { const len = 0.014 + rr() * 0.012; marks.push([py, pz + len / 2, len]); pz += len + 0.011; }
+      }
+      const cutGeo = new THREE.PlaneGeometry(1, 1);
+      cutGeo.rotateY(Math.PI / 2);
+      const cuts = new THREE.InstancedMesh(cutGeo, M.pale, marks.length);
+      const mm = new THREE.Matrix4(), qq = new THREE.Quaternion(), pp = V3(), ss = V3();
+      for (let i = 0; i < marks.length; i++) {
+        pp.set(cx - 2.243, marks[i][0], marks[i][1]);
+        ss.set(1, 0.021, marks[i][2]);
+        mm.compose(pp, qq, ss);
+        cuts.setMatrixAt(i, mm);
+      }
+      cuts.instanceMatrix.needsUpdate = true;
+      room.add(cuts);
+      cutCount = marks.length;
+    }
+    room.traverse(o => { if (o.isMesh || o.isInstancedMesh) { o.castShadow = false; o.receiveShadow = false; } });
+    g.add(room);
+    // the light under the door. it is one more candidate for the eight lamp slots that already exist, so it costs no
+    // light and no draw call, and it is what makes this house the one you notice from the road.
+    GEH.lampPos.push(V3(cx, y + 2.35, cz));
+    GEH.room = { bar, hinge, open: false, x: cx, y, z: cz, doorZ: fz, side, cuts: cutCount, read: V3(cx - 1.5, y, cz) };
+  }
+  // the door opens once, and nothing closes it again. it is called from the one death that earns it.
+  function gehOpenRoom() {
+    const r = GEH.room;
+    if (!r || r.open) return;
+    r.open = true;
+    r.bar.gone = true;
+    r.hinge.rotation.y = -2.1;
+    SFX.tone(120, 96, 1.4, 0.07, "sine", 0, 320);
+    const api = gehSay();
+    if (api && typeof api.register === "function") {
+      try { api.register("wall", V3(r.read.x, r.read.y, r.read.z)); } catch (err) { console.error("Gehenna: the wall would not register", err); }
+    }
+  }
   // standing in the black water you surfaced in, which is also the only way back up
   function gehInShallows() {
     if (!GEH.root || P.pos.y >= DIVIDE) return false;
@@ -16428,6 +16975,9 @@ const __boot = (async () => {
     GEH.exitArm = 0;
     GEH.away = 0;
     GEH.hinted = false;
+    GEH.shut = false;
+    GEH.slips = null;
+    GEH.porter = null;
     const mat = m => { m.userData.shared = true; GEH.mats.push(m); return m; };
     const M = {
       ground: mat(new THREE.MeshBasicMaterial({ vertexColors: true })),
@@ -16515,7 +17065,7 @@ const __boot = (async () => {
     // ---- the rows. twenty-two houses, identical, flat-roofed, one door each and not one window, because a window is
     // something to look out of and there is nothing out there anybody is meant to want.
     {
-      const N = GEH_L.rowN * 2, mm4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = V3(1, 1, 1), pos = V3();
+      const N = GEH_L.rowN * 2, mm4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = V3(1, 1, 1), sc0 = V3(0, 0, 0), pos = V3();
       const body = new THREE.InstancedMesh(new THREE.BoxGeometry(GEH_L.houseW * 2, GEH_L.houseH, GEH_L.houseD * 2), M.brick, N);
       const roof = new THREE.InstancedMesh(new THREE.BoxGeometry(GEH_L.houseW * 2 + 0.5, 0.22, GEH_L.houseD * 2 + 0.5), M.roof, N);
       const door = new THREE.InstancedMesh(new THREE.BoxGeometry(0.82, 1.85, 0.1), M.door, N);
@@ -16524,6 +17074,15 @@ const __boot = (async () => {
           const k = s * GEH_L.rowN + i;
           const cx = GEH.cx + GEH_L.rowX0 + i * GEH_L.rowStep, cz = GEH.cz + (s ? GEH_L.rowZ : -GEH_L.rowZ);
           const y = gehH(cx, cz);
+          // one of them is a room. its three instances are collapsed to zero scale rather than left unwritten: an
+          // InstancedMesh instance whose matrix is never set keeps the identity matrix, which would have drawn a
+          // brick box, a roof and a door at the world origin — in the middle of the valley, nine hundred metres up.
+          if (s === GEH_L.roomS && i === GEH_L.roomI) {
+            gehBuildRoom(g, M, cx, cz, y, s ? -1 : 1);
+            pos.set(cx, y, cz); mm4.compose(pos, q, sc0);
+            body.setMatrixAt(k, mm4); roof.setMatrixAt(k, mm4); door.setMatrixAt(k, mm4);
+            continue;
+          }
           pos.set(cx, y + GEH_L.houseH / 2, cz); mm4.compose(pos, q, sc); body.setMatrixAt(k, mm4);
           pos.set(cx, y + GEH_L.houseH + 0.11, cz); mm4.compose(pos, q, sc); roof.setMatrixAt(k, mm4);
           pos.set(cx, y + 0.93, cz + (s ? -1 : 1) * (GEH_L.houseD + 0.06)); mm4.compose(pos, q, sc); door.setMatrixAt(k, mm4);
@@ -16657,6 +17216,136 @@ const __boot = (async () => {
       const sweeper = fig(GEH_L.sweeperX, 4.6, { robe: M.grey, broom: true, face: -2.3 });
       const clerk = fig(GEH_L.hillX + 1.9, 0.3, { robe: M.pale, face: -Math.PI / 2 });
       const still = fig(GEH_L.stillX, -7.6, { seated: true, face: 1.4 });
+      // ---- the porter's lodge, at the mouth of the rows. a hut with a shutter-hatch at waist height, propped open,
+      // and shelving behind it going back into the dark. the shelf boxes and their paper tags are two InstancedMeshes
+      // for the same reason the houses are: THREE.InstancedMesh switches its own frustumCulled off in its
+      // constructor, so a hundred and sixty tiny boxes are submitted from everywhere and must stay tiny.
+      //
+      // it sits at 30.5 rather than at 32 with the porter, and that metre and a half is not taste. the first house
+      // of the south row is a 5 m box centred on 36, so a lodge centred on 32 puts a corner of its roof inside the
+      // corner of that roof with two centimetres of vertical overlap, which is exactly the geometry that z-fights.
+      let hatchShutter = null;
+      {
+        const lx = GEH.cx + 30.5, lz = GEH.cz - 7.6, ly = gehH(lx, lz);
+        const lodge = new THREE.Group();
+        lodge.position.set(lx, ly, lz);
+        // the front wall is four pieces rather than one, because the hatch is a hole and a hole is what lets the
+        // shelves behind it be seen at all
+        const below = new THREE.Mesh(new THREE.BoxGeometry(4.4, 1.02, 0.28), M.brick);
+        below.position.set(0, 0.51, 1.8);
+        const above = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.98, 0.28), M.brick);
+        above.position.set(0, 2.41, 1.8);
+        const jambL = new THREE.Mesh(new THREE.BoxGeometry(1, 0.9, 0.28), M.brick);
+        jambL.position.set(-1.7, 1.47, 1.8);
+        const jambR = new THREE.Mesh(new THREE.BoxGeometry(1, 0.9, 0.28), M.brick);
+        jambR.position.set(1.7, 1.47, 1.8);
+        const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.28, 2.9, 3.6), M.brick);
+        sideL.position.set(-2, 1.45, 0);
+        const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.28, 2.9, 3.6), M.brick);
+        sideR.position.set(2, 1.45, 0);
+        const lid = new THREE.Mesh(new THREE.BoxGeometry(4.9, 0.22, 4.1), M.roof);
+        lid.position.set(0, 2.95, 0);
+        const sill = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.14, 0.62), M.wood);
+        sill.position.set(0, 1.06, 1.98);
+        const shutter = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.86, 0.07), M.wood);
+        shutter.position.set(0, 2.24, 2.06);
+        shutter.rotation.x = -0.62;
+        lodge.add(below, above, jambL, jambR, sideL, sideR, lid, sill, shutter);
+        g.add(lodge);
+        hatchShutter = shutter;
+        gehAddStruct({ cx: lx, cz: lz, w: 2.2, d: 1.8, top: ly + 3.12, b: 2.5 });
+        // every box has a tag, because that is the whole of his argument: this place has had everybody, and it wrote
+        // all of them down
+        const SX = [-1.05, -0.35, 0.35, 1.05], SY = [0.34, 0.86, 1.38, 1.9, 2.42];
+        const SN = SX.length * SY.length * 8, mm4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = V3(1, 1, 1), pos = V3();
+        const boxes = new THREE.InstancedMesh(new THREE.BoxGeometry(0.52, 0.36, 0.44), M.wood, SN);
+        const tags = new THREE.InstancedMesh(new THREE.BoxGeometry(0.13, 0.17, 0.02), M.paper, SN);
+        let k = 0;
+        for (let d = 0; d < 8; d++)
+          for (const sy of SY)
+            for (const sx of SX) {
+              const sz = 1.1 - d * 0.62;
+              pos.set(sx, sy, sz); mm4.compose(pos, q, sc); boxes.setMatrixAt(k, mm4);
+              pos.set(sx, sy - 0.02, sz + 0.24); mm4.compose(pos, q, sc); tags.setMatrixAt(k, mm4);
+              k++;
+            }
+        boxes.instanceMatrix.needsUpdate = tags.instanceMatrix.needsUpdate = true;
+        lodge.add(boxes, tags);
+      }
+
+      // ---- the matron's cart, half over the kerb. she is at the kerb line rather than at the house line on purpose:
+      // interactGeh scans 4.4 m and she carries the setup for the clerk's "afterwards", so she must be reachable by
+      // somebody walking the centre of the road and never missable.
+      {
+        const cx = GEH.cx + 54.5, cz = GEH.cz + 3.5, cy = gehH(cx, cz);
+        const cart = new THREE.Group();
+        cart.position.set(cx, cy, cz);
+        const tray = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.46, 0.94), M.wood);
+        tray.position.y = 0.56;
+        const load = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.34, 0.72), M.cloth);
+        load.position.y = 0.95;
+        const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.33, 1.06, 10), M.iron);
+        axle.rotation.z = Math.PI / 2;
+        axle.position.y = 0.34;
+        cart.add(tray, load, axle);
+        g.add(cart);
+      }
+
+      // ---- the yard: the post, the board, and the queue standing round it in two arcs. this is the first time the
+      // player sees the machine rather than its outputs. the arcs start outside the kerb and the road line through
+      // the middle is left clear, because nothing in gehenna ever blocks a road.
+      {
+        const px = GEH.cx + GEH_L.yardX, pz = GEH.cz, py = gehH(px, pz);
+        const post = new THREE.Group();
+        post.position.set(px, py, pz);
+        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 2.9, 7), M.wood);
+        shaft.position.y = 1.45;
+        // the board faces SOUTH, because the caller stands at z = -2.2 and a man who reads names off a board all day
+        // must not be standing behind it
+        const board = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.1, 0.07), M.wood);
+        board.position.set(0, 2.05, -0.12);
+        post.add(shaft, board);
+        // dozens of paper slips pinned to it, one InstancedMesh, and they come off it when the calling stops
+        const SN = 44, mm4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = V3(1, 1, 1), pos = V3(), eul = new THREE.Euler();
+        const slips = new THREE.InstancedMesh(new THREE.BoxGeometry(0.15, 0.19, 0.01), M.paper, SN);
+        for (let i = 0; i < SN; i++) {
+          const c = i % 11, r = Math.floor(i / 11);
+          eul.set(0, 0, (hash(i * 3, i * 7) - 0.5) * 0.5); q.setFromEuler(eul);
+          pos.set(-0.6 + c * 0.12, 1.63 + r * 0.22, -0.17); mm4.compose(pos, q, sc); slips.setMatrixAt(i, mm4);
+        }
+        slips.instanceMatrix.needsUpdate = true;
+        post.add(slips);
+        g.add(post);
+        GEH.slips = slips;
+        gehAddStruct({ cx: px, cz: pz, r: 0.3, top: py + 2.95, b: 0.7 });
+        // the arc spans 0.28pi to 0.72pi and starts at a radius of 6.4, and both ends of that were measured rather
+        // than chosen: any wider and the ends of the arcs come inside the kerb, any tighter and the south end walks
+        // into the unburdened already seated at (yardX - 5, -4.2). the closest any of them now stands to anything
+        // already in the yard is 0.83 m, to the lamp on the north side.
+        // the slip loop left a random z-roll in q, and every queue figure composed after it would inherit that tilt
+        q.identity();
+        const QN = 20;
+        const qBody = new THREE.InstancedMesh(new THREE.ConeGeometry(0.42, 1.72, 7), M.cloth, QN);
+        const qHead = new THREE.InstancedMesh(new THREE.SphereGeometry(0.23, 9, 7), M.skin, QN);
+        for (let i = 0; i < QN; i++) {
+          const k = i % 10, side = i < 10 ? 1 : -1;
+          const a = Math.PI * (0.28 + (0.44 * k) / 9), r = 6.4 + (k % 3) * 1.3;
+          const qx = px + Math.cos(a) * r, qz = pz + side * Math.sin(a) * r, qy = gehH(qx, qz);
+          pos.set(qx, qy + 0.86, qz); mm4.compose(pos, q, sc); qBody.setMatrixAt(i, mm4);
+          pos.set(qx, qy + 1.92, qz); mm4.compose(pos, q, sc); qHead.setMatrixAt(i, mm4);
+        }
+        qBody.instanceMatrix.needsUpdate = qHead.instanceMatrix.needsUpdate = true;
+        g.add(qBody, qHead);
+      }
+
+      const porter = fig(30.8, -3.8, { robe: M.grey, face: 0 });
+      const matron = fig(56, 3.4, { robe: M.cloth, face: Math.PI });
+      // bel sits 1.5 m behind the matron and 4.6 m off the centre line, which is just outside the 4.4 m interact scan.
+      // that is deliberate: from the middle of the road the matron is the only one in range, and reaching a child who
+      // has two lines takes a step toward her, which is the right amount of effort for what she is.
+      const bel = fig(56.9, 4.6, { seated: true, scale: 0.62, face: Math.PI * 0.9 });
+      const caller = fig(GEH_L.yardX, -2.2, { robe: M.grey, face: 0 });
+      GEH.porter = { grp: porter.grp, pos: porter.pos.clone(), shutter: hatchShutter };
       // the bench, and the girl on it. she faces back down the road, toward the water you came out of.
       const bx = GEH.cx + GEH_L.benchX, bz = GEH.cz + 6.4, by = gehH(bx, bz);
       const bench = new THREE.Group();
@@ -16696,6 +17385,15 @@ const __boot = (async () => {
           api.register("bench", sitter.pos, { mesh: sitter.grp });
           api.register("clerk", clerk.pos);
           api.register("still", still.pos);
+          api.register("porter", porter.pos);
+          // the matron before bel, and that ordering is load-bearing rather than tidy. the after-story's scan keeps
+          // the first strictly-closer candidate it meets, so an exact tie goes to whichever was registered earlier;
+          // she is also the nearer of the two to the centre of the road, at 3.4 m against bel's 4.4 m, so somebody
+          // walking straight down it always gets her. that matters, because she carries the setup for the clerk's
+          // "afterwards" and she is the one person down here who must not be missable.
+          api.register("matron", matron.pos);
+          api.register("bel", bel.pos);
+          api.register("caller", caller.pos);
         } catch (err) { console.error("Gehenna: a speaker would not register", err); }
       } else console.warn("Gehenna: the after-story is not present; the world will stand, but nobody in it will speak.");
       GEH.clerkPos = clerk.pos.clone();
@@ -17240,6 +17938,9 @@ const __boot = (async () => {
     // every per-frame system down here needs its own depth guard, and this one has it by construction: the branch
     // above returns for a player above the seam, so nothing below this line runs in the valley.
     gehArmAlmoner();
+    // her door. it is hers to give and the matron's death is what will open it; until she is built, the kindly one's
+    // death is what earns the walk back, which is when the room is meant to be there. one condition, one call site.
+    if (GEH.room && !GEH.room.open && WORLDSTATE.gehDone) gehOpenRoom();
     // the six light slots follow the six nearest lamps. ten candidates, no allocation, and no touching of the global
     // vlights array, which updateLightPool already filters and fully sorts on every frame of the game.
     if (GEH.lampPos && GEH.lampPos.length) {
@@ -17257,6 +17958,20 @@ const __boot = (async () => {
     }
     if (GEH.motes) { GEH.motes.position.set(P.pos.x, GEH.floor - 2, P.pos.z); GEH.motes.rotation.y = time * 0.026; }
     if (GEH.ledger) GEH.ledger.position.y = 1.03 + Math.sin(time * 1.3) * 0.008;
+    // once nobody is being called, the board is bare and the porter is out in the road taking the boxes round, and
+    // both of them stand in front of those facts afterwards and talk about them. his body and his speaker have to
+    // move together or the E prompt and the interact scan are left two metres behind him, so the register call is
+    // not decoration — it is the half of the move that the player can feel.
+    if (!GEH.shut && api && api.done) {
+      GEH.shut = true;
+      if (GEH.slips) GEH.slips.visible = false;
+      if (GEH.porter) {
+        if (GEH.porter.shutter) { GEH.porter.shutter.rotation.x = 0; GEH.porter.shutter.position.set(0, 1.47, 1.97); }
+        const ox = GEH.porter.pos.x, oz = GEH.porter.pos.z + 2.4, oy = gehH(ox, oz);
+        GEH.porter.grp.position.set(ox, oy, oz);
+        try { api.register("porter", V3(ox, oy, oz)); } catch (err) { console.error("Gehenna: the porter would not come out", err); }
+      }
+    }
     gehSaidT -= rdt;
     if (gehSaidT > 0) return;
     gehSaidT = 0.5;
@@ -17324,11 +18039,15 @@ const __boot = (async () => {
     GEH.structs.clear();
     GEH.lampPos = [];
     GEH.seats = [];
+    GEH.room = null;
     GEH.almSeats = null;
     GEH.motes = null;
     GEH.water = null;
     GEH.ledger = null;
     GEH.clerkPos = null;
+    GEH.slips = null;
+    GEH.porter = null;
+    GEH.shut = false;
     for (const L of GEH_LAMPS) L.intensity = 0;
     gehK = 0;
     let after = 0;
@@ -20412,6 +21131,10 @@ const __boot = (async () => {
   let wraithT = 5, wraithHeat = 0, wraithSeen = 0;
   let dayBreak = 0; // seconds of accelerated clock still owed after the warden goes under, so the night can break
   function updateWraithSpawns(dt) {
+    // the finaleStarted gate is a handover and not an oversight. while she is up she calls her own drowned, the hush
+    // after her has to be silent, and the walk to the grave is the content; from the burial updateSiege owns every
+    // spawn in the valley. two spawners with two budgets would put thirty wraiths on the moor and neither of them
+    // would know why.
     if (netGuest() || !WORLDSTATE.blackPoolAwake || WORLDSTATE.ending || WORLDSTATE.finaleStarted) return;
     if (P.pos.y < DIVIDE) return; // the drowned belong to the pool, not to what is under it — and every distance test below is 2D
     // running from them is not an answer. every interval you leave one walking, the pool sends another and sends it
@@ -20434,6 +21157,169 @@ const __boot = (async () => {
     // the !roomNow guard only covers the case where the PLAYER is indoors, and this branch sites 18-28m from the
     // player anywhere in the world, so a wraith could materialise in a villager's bedroom and walk out through the wall
     if (near && count < cap && dist2D(P.pos, POOL) > 12 && !roomNow) { if (dist2D(P.pos, POOL) >= 70) { const a = Math.random() * 6.28, r = 18 + Math.random() * 10; const x = P.pos.x + Math.cos(a) * r, z = P.pos.z + Math.sin(a) * r; if (inBounds(x, z) && !isWater(x, z) && !insideInterior(x, z, 2)) { spawnWraith(x, z); say("Something has followed you from the pool.", 2500, false, "dark"); } return; } const a = Math.random() * 6.28, r = 16 + Math.random() * 10; const x = POOL.x + Math.cos(a) * r, z = POOL.z + Math.sin(a) * r; if (inBounds(x, z) && !isWater(x, z) && !insideInterior(x, z, 2)) { spawnWraith(x, z); if (count === 0) SFX.dread(); } }
+  }
+  // ============================================================ 3.0: the siege — the valley from the burial to the descent
+  // she is in the ground and it will not settle. things come without pause now, in daylight and inside the walls,
+  // wherever the player is standing. it is meant to be unbearable to stay and worth a great deal to turn and fight,
+  // and those are one sentence rather than two: the only quiet left anywhere is the place everybody is pointing at.
+  //
+  // it introduces no new kind of enemy. a new kind breaks in four places and three of them fail silently — the AI
+  // dispatcher leaves it standing still, the corpse fade throws on a missing material, killEnemy calls it a goblin
+  // and netApplyEnemies mirrors it to a guest as a wraith — and there is nothing a new one would say here that a
+  // wraith, a goblin and a wolf do not already say.
+  //
+  // the cadence is flat, and it is deliberately flat. the pool's own spawner has a heat that eases off as you kill,
+  // which is right for a night you are meant to survive and wrong here: the whole point of this beat is that
+  // fighting pays better than anywhere else in the game, and a rate that falls when you fight is a faucet that
+  // closes the moment you use it. what punishes running is the cap. it fills, and all of it follows you.
+  const SIEGE = {
+    // seconds between arrivals
+    gapDay: 2.3,
+    gapNight: 1.5,
+    // standing population of its own near the player
+    capDay: 12,
+    capNight: 14,
+    // beyond arm's reach, inside a short run: walking away must not be an answer
+    near: 17,
+    far: 33,
+    // a wolf with no den only rouses inside 22 m, so its arrival has to be inside that or it never moves at all
+    wolfFar: 20,
+    // past this it has lost you, and a body nobody will ever see again costs frames for nothing
+    leash: 150,
+    // quiet, on the frame it arms. the burial has four things to say over the grave and they have to land before
+    // anything comes up out of the ground behind you; it also buys a breath on surfacing and after a load.
+    grace: 26
+  };
+  let siegeT = SIEGE.gapDay,
+    // whether it was running last frame, so it can clear up on the single frame it stops
+    siegeLaid = false,
+    siegeToldOnce = false;
+  // a body the player has simply outrun is not a kill and must not pay like one. nothing in this game culls a wraith
+  // by distance, so without a withdrawal the valley slowly fills with things nobody is ever going to meet again.
+  // marking it dead and already faded hands it to the corpse path that disposes of every other body in EXTRA.
+  function withdrawSiege(e) {
+    e.alive = false;
+    e.state = "dead";
+    e.t = 9;
+    e.mesh.visible = false;
+    if (e.bar) e.bar.visible = false;
+  }
+  // how many of its own the siege has standing. goblins live in their own array with their own cull, so both count
+  function siegeAlive() {
+    let n = 0;
+    for (const e of EXTRA) if (e.siege && e.alive) n++;
+    for (const g of goblins) if (g.siege && g.alive) n++;
+    return n;
+  }
+  // everything the siege put in the valley, gone. it runs on the one frame the siege stops for any reason at all:
+  // the player dropped under the seam, they finished what is down there, or an ending arrived over the wire.
+  function clearSiege() {
+    for (const e of EXTRA) if (e.siege && e.alive) withdrawSiege(e);
+    for (const g of goblins) if (g.siege && g.alive) killEnemy(g, false, 999, true);
+    siegeT = SIEGE.gapDay;
+  }
+  // release the ones the player has outrun. swept on the spawn tick rather than every frame: it walks every wraith
+  // and wolf in the world, and the spawn tick is already the throttle this system runs on. goblins are left alone
+  // because their own loop already culls one that is more than 320 m from every player.
+  function leashSiege() {
+    for (const e of EXTRA) {
+      if (!e.siege || !e.alive) continue;
+      if (dist2D(e.pos, nearestPlayerTo(e.pos).pos) > SIEGE.leash) withdrawSiege(e);
+    }
+  }
+  // wraiths are the pool's own and they are most of it. inside the kingdom and in the villages they are all of it:
+  // there is no pathfinding here, a goblin's step is refused outright by any wall it meets, and one sited among the
+  // streets stands against a house holding a place in the wave for ever without reaching anybody. measured, that
+  // took the town's night wave down to a fifth of the moor's reward. a wraith drifts through the lot.
+  // goblins come up outside the walls after dark only, because daylight burns them at half a heart a second and a
+  // noon pack would smoke and fall over without the player swinging once, which is neither frightening nor worth
+  // anything. a wolf now and then, never a pack, because a wolf with no den hunts alone and updateWolf knows it.
+  function siegeKind(site, night) {
+    if (Math.hypot(site.x, site.z) < TOWN_R + 30 || nearVillage(site.x, site.z, 40)) return "wraith";
+    const roll = Math.random();
+    if (!night) return roll < 0.78 ? "wraith" : "wolf";
+    if (roll < 0.46) return "wraith";
+    if (roll < 0.86) return "goblin";
+    return "wolf";
+  }
+  // a site the player can be surprised from but never ambushed inside: out of doors, out of the water, out of
+  // somebody's bedroom. the interior test is the one the pool's own spawner had to learn the hard way — bounds and
+  // water alone let a wraith into a villager's house, where it walked out through the wall.
+  function siegeSite(anchor, far) {
+    for (let tries = 0; tries < 4; tries++) {
+      const a = Math.random() * 6.28,
+        r = SIEGE.near + Math.random() * (far - SIEGE.near),
+        x = anchor.x + Math.cos(a) * r,
+        z = anchor.z + Math.sin(a) * r;
+      if (inBounds(x, z) && !isWater(x, z) && !insideInterior(x, z, 2)) return { x, z };
+    }
+    return null;
+  }
+  // where the next one comes from and what it is. the kind is decided from the site, and then a wolf is re-sited
+  // closer: a denless wolf never leaves its idle state beyond 22 m — that is updateWolf's own test — so one put down
+  // at the wave's full reach stands in the grass for ever, holding a place in the cap and giving nothing. measured
+  // before this, two wolves in three never moved once.
+  function siegeArrival(anchor, night) {
+    const site = siegeSite(anchor, SIEGE.far);
+    if (!site) return null;
+    const kind = siegeKind(site, night);
+    if (kind !== "wolf") return { site, kind };
+    const close = siegeSite(anchor, SIEGE.wolfFar);
+    return close ? { site: close, kind } : null;
+  }
+  // one arrival. a goblin arrives with company, because a goblin on its own has never been the shape of them here
+  function siegeSend(site, kind) {
+    if (kind === "wolf") {
+      spawnWolf(site.x, site.z, null).siege = true;
+      return;
+    }
+    if (kind === "wraith") {
+      spawnWraith(site.x, site.z).siege = true;
+      return;
+    }
+    spawnGoblin(site.x, site.z).siege = true;
+    const mates = Math.floor(Math.random() * 3);
+    for (let k = 0; k < mates; k++) {
+      const a = Math.random() * 6.28,
+        r = 2.5 + Math.random() * 3,
+        gx = site.x + Math.cos(a) * r,
+        gz = site.z + Math.sin(a) * r;
+      if (inBounds(gx, gz) && !isWater(gx, gz) && !insideInterior(gx, gz, 2)) spawnGoblin(gx, gz).siege = true;
+    }
+  }
+  // the pressure the valley keeps on you from the burial until you go down
+  function updateSiege(dt) {
+    // enemies are the host's, and a guest laying its own siege would double every arrival
+    if (netGuest()) return;
+    // under the seam it is over for as long as the player is down there, and it has to be CLEARED rather than
+    // paused. every distance test in this game is 2D and gehenna sits at (600, 600) inside the valley's own bounds,
+    // so a wraith left standing by the pool would set off hunting the empty coordinates over the player's head.
+    const on = siegeOn() && P.pos.y >= DIVIDE;
+    if (on !== siegeLaid) {
+      siegeLaid = on;
+      if (on) siegeT = SIEGE.grace;
+      else clearSiege();
+    }
+    if (!on) return;
+    // a roof and a bed are the one place it lets you finish something, and the chain depends on that: the king sends
+    // you to sleep and the sleep is what turns the pool over.
+    if (roomNow || sleepT > 0) return;
+    siegeT -= dt;
+    if (siegeT > 0) return;
+    leashSiege();
+    const night = dayElev < 0.05;
+    siegeT = night ? SIEGE.gapNight : SIEGE.gapDay;
+    if (siegeAlive() >= (night ? SIEGE.capNight : SIEGE.capDay)) return;
+    // it forms on any one of the players, the way a goblin pack already does, so a friend across the valley is
+    // besieged too and not merely watching
+    const around = [P.pos, ...[...NET.avatars.values()].filter(a => !a.state.dead).map(a => a.state.pos)],
+      anchor = around[Math.floor(Math.random() * around.length)],
+      next = siegeArrival(anchor, night);
+    if (!next) return;
+    siegeSend(next.site, next.kind);
+    if (siegeToldOnce) return;
+    siegeToldOnce = true;
+    say("The valley has not settled. It is not going to.", 5000, true, "dark");
   }
   function updateSlimes(dt, rdt) {
     if (netGuest()) return; // slimes too are the host's
@@ -20884,6 +21770,7 @@ const __boot = (async () => {
     updateHomeShelf();
     updateWolfDens(dt);
     updateWraithSpawns(dt);
+    updateSiege(dt);
     updateGehenna(dt, rdt);
     if (custOpen) {
       if (!custWren || dist2D(custWren.pos, P.pos) > 5) closeCustomizer();
