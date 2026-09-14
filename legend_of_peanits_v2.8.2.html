@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.8.1</title>
+<title>Legend of Peanits 2.8.2</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -378,7 +378,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.8.1</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.8.2</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -446,7 +446,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.8.1</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.8.2</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -787,6 +787,7 @@ const __boot = (async () => {
   const WORLDSTATE = {
     marenFreed: false, haleExposed: false, pyreDismantled: false, blackPoolAwake: false, awokeAt: 0, hermitTold: false, hermitWarned: false, kingTrusts: false,
     goblinKingDefeated: false, bearDefeated: false, finaleStarted: false, wardenDead: false, ending: null,
+    ysoldeBuried: false, // she is in the ground. this and nothing else opens the water
     gehUnlocked: false, gehSeed: 0, // the way down is open, and which gehenna it is. everything else about it regenerates
     // whether the after-story down there has been finished. deliberately NOT in WS_SHARED: a guest's gehenna is their
     // own scene, and inheriting a host's finished after-story would silently rob them of the whole of it.
@@ -6798,7 +6799,12 @@ const __boot = (async () => {
       a.pos.addScaledVector(a.vel, dtFrame);
       a.vel.y -= 6 * dtFrame;
       a.mesh.position.copy(a.pos);
+      // lookAt REPLACES the quaternion, so the quarter turn that laid this cylinder along its flight path when it was
+      // built is thrown away on the very first frame. a CylinderGeometry runs along its own Y and lookAt points the
+      // object's +Z at the target, so without putting the turn back every arrow in the game flew broadside — a stick
+      // crossing the sky sideways instead of a shaft going point first.
       a.mesh.lookAt(a.pos.clone().add(a.vel));
+      a.mesh.rotateX(Math.PI / 2);
       if (a.target && a.target.kind === "goblin") {
         if (a.target.alive && dist2D(a.target.pos, a.pos) < 1.4 && Math.abs(a.target.pos.y + 1.2 - a.pos.y) < 2) {
           damageEnemy(a.target, 2, a.hunter.pos, 5, false);
@@ -11117,7 +11123,7 @@ const __boot = (async () => {
   }
   function updateGobArrows(dt) {
     for (let i = GOB_ARROWS.length - 1; i >= 0; i--) {
-      const a = GOB_ARROWS[i]; a.life -= dt; a.pos.addScaledVector(a.vel, dt); a.vel.y -= 9 * dt; a.mesh.position.copy(a.pos); a.mesh.lookAt(a.pos.clone().add(a.vel));
+      const a = GOB_ARROWS[i]; a.life -= dt; a.pos.addScaledVector(a.vel, dt); a.vel.y -= 9 * dt; a.mesh.position.copy(a.pos); a.mesh.lookAt(a.pos.clone().add(a.vel)); a.mesh.rotateX(Math.PI / 2);
       let hit = false;
       if (!death && dist2D(a.pos, P.pos) < 0.9 && Math.abs(a.pos.y - P.pos.y - 1) < 1.4) { hit = true; if (P.block) { P.blocks = (P.blocks || 0) + 1; lowerShield(true); SFX.block(); say("Arrow blocked!", 700); } else hurtPlayer(1, V3(a.pos.x - a.vel.x, a.pos.y, a.pos.z - a.vel.z)); }
       for (const av of NET.avatars.values()) if (!hit && dist2D(a.pos, av.state.pos) < 0.9 && Math.abs(a.pos.y - av.state.pos.y - 1) < 1.4) { hit = true; const p = NET.peers.get(av.via); if (p && NET.role === "host") netSend(p, { t: "ehit", to: av.id, dmg: 1, k: "arrow", x: +a.pos.x.toFixed(1), z: +a.pos.z.toFixed(1) }); }
@@ -12259,7 +12265,7 @@ const __boot = (async () => {
         if (!num(f.found, 0, 25) || !num(f.hearts, 0, 10) || (f.kids !== undefined && !(Array.isArray(f.kids) && f.kids.every(k => num(k, 0, 99)))) || (f.seen !== undefined && typeof f.seen !== "boolean") || (f.compass !== undefined && typeof f.compass !== "boolean") || ["rest", "petal", "grove", "crown", "accepted", "complete"].some(k => f[k] !== undefined && typeof f[k] !== "boolean")) return null;
       }
       if (d.ws !== undefined) {
-        const rb = ["marenFreed", "haleExposed", "pyreDismantled", "blackPoolAwake", "hermitTold", "hermitWarned", "kingTrusts", "goblinKingDefeated", "bearDefeated", "fairyCourtOpen", "finaleStarted", "wardenDead", "home", "guardsOut", "gehUnlocked", "gehDone"]; // fairyCourtOpen is accepted from 2.0 keys and ignored
+        const rb = ["marenFreed", "haleExposed", "pyreDismantled", "blackPoolAwake", "hermitTold", "hermitWarned", "kingTrusts", "goblinKingDefeated", "bearDefeated", "fairyCourtOpen", "finaleStarted", "wardenDead", "home", "guardsOut", "gehUnlocked", "gehDone", "ysoldeBuried"]; // fairyCourtOpen is accepted from 2.0 keys and ignored
         const spec = {}; for (const k of rb) spec[k] = bool;
         // the seed generator only ever rolls an integer 1..999999, so the validator says the same thing: a fractional
         // seed is a world it could never produce, and it ends up inside fbm.
@@ -13561,7 +13567,7 @@ const __boot = (async () => {
   // it would land as the boolean true, gehBeginDive's `if (!WORLDSTATE.gehSeed)` re-roll would not fire because true is
   // truthy, and then parseSaveKey rejects a boolean seed, so every save key that player wrote afterwards would be
   // refused as "bad save key" for the rest of the session. a non-boolean has to travel as its own field.
-  const WS_SHARED = ["marenFreed", "haleExposed", "pyreDismantled", "blackPoolAwake", "hermitTold", "hermitWarned", "kingTrusts", "goblinKingDefeated", "bearDefeated", "finaleStarted", "wardenDead", "guardsOut", "gehUnlocked"];
+  const WS_SHARED = ["marenFreed", "haleExposed", "pyreDismantled", "blackPoolAwake", "hermitTold", "hermitWarned", "kingTrusts", "goblinKingDefeated", "bearDefeated", "finaleStarted", "wardenDead", "guardsOut", "gehUnlocked", "ysoldeBuried"];
   const mainProgress = () => ({ t: "mq", metKing, talkedKing, talkedOnce, gaveHerbs, lit, flint: !!P.flint, clues: STORY.clues, evidence: STORY.evidence.slice(), wick: !!STORY.wick, solved: !!STORY.solved, reported: !!STORY.reported, ws: Object.fromEntries(WS_SHARED.map(k => [k, !!WORLDSTATE[k]])), relics: { ...WORLDSTATE.relics }, ending: WORLDSTATE.ending });
   function applyMainProgress(m, peer) {
     const before = mainProgress();
@@ -17128,7 +17134,8 @@ const __boot = (async () => {
     // the whirlpool only exists once the way down does, and it turns the whole time it is there. the spin is what tells
     // the player from the bank that this water is not the water they swam in yesterday.
     if (POOL_WHIRL) {
-      POOL_WHIRL.visible = !!WORLDSTATE.gehUnlocked && !WORLDSTATE.ending;
+      // the burial is what opens the water, not the unlock flag — she has to be in the ground before the pool turns
+      POOL_WHIRL.visible = !!WORLDSTATE.ysoldeBuried && !!WORLDSTATE.gehUnlocked && !WORLDSTATE.ending;
       if (POOL_WHIRL.visible) {
         POOL_WHIRL.rotation.y += rdt * 1.35;
         POOL_WHIRL.position.y = POOLW + 0.05 + Math.sin(time * 0.9) * 0.05;
@@ -17505,7 +17512,7 @@ const __boot = (async () => {
       // now: it takes hold anywhere in the water and drags you toward the middle and down, and once it has you far
       // enough under it simply takes you. you can still fight it — holding rise beats the pull — so it is a current,
       // not a trapdoor, and swimming the pool before it opens is completely unchanged.
-      if (vol.geh && WORLDSTATE.gehUnlocked && !P.gehDive) {
+      if (vol.geh && WORLDSTATE.ysoldeBuried && WORLDSTATE.gehUnlocked && !P.gehDive) {
         const bed = Math.max(g0, vol.floor),
           toC = V3(POOL.x - P.pos.x, 0, POOL.z - P.pos.z),
           rC = Math.hypot(toC.x, toC.z);
