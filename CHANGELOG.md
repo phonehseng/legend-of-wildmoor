@@ -4,6 +4,60 @@ Every change, with the bug it fixes and how. Newest first.
 
 ---
 
+## 2.19.0 — The purple is gone
+
+**Reported twice:** the satchel and the quest log are too purple.
+
+The Words page built in 2.14.0 was the worked example, and the rest of the
+interface is rebuilt to its logic rather than swapped for one new colour: a
+near-black ground, bone blocks with near-black bold type, gold tabs, bronze
+rules, and about a degree of shear.
+
+- **At the root**, `--box` goes from a purple gradient to near-black ink and
+  `--edge`/`--hi` from lilac to bronze. `--muted` was a **dead token** — declared
+  and never used — and instead of deleting it, it was given a job: a warm grey
+  that now replaces nine hard-coded lavenders.
+- **Headings became bone tabs** — near-black 900-weight on a gold spine, the same
+  parallelogram as a speaker tab in the log. Explicitly reset on the intro brand
+  lockup, which reads as a signature rather than a tab.
+- **The satchel's grid is a sunken near-black tray with quiet cells**, so the
+  twenty-nine hand-drawn icons carry all the colour in the panel. Selection is a
+  gold ring.
+- **The quest book is one object again** rather than one good page and two old
+  ones.
+- Five colour values in the JavaScript: the `!` and `?` markers over NPCs, the
+  interact discs, and the minimap's quest target.
+
+### Four phone-width bugs found while photographing it, all pre-existing
+
+- **The satchel, the pause menu and the choice dialog all hung off the right edge
+  at 400 px.** `.panel` is a fixed 420, the satchel was `96vw` inside an 18 px
+  padded flex parent, and the choice dialog's auto grid column left
+  `max-width: 100%` nothing to measure against.
+- The pause menu kept three columns at phone width, one word per line.
+- **The three full-screen overlays had no `z-index`**, so the autosave mark, the
+  place name and the subtitles all printed **over** the satchel and the quest
+  book.
+
+### Dead CSS
+
+`.qb-line` and `.qb-line b` were genuinely unreferenced — one occurrence in the
+file, the definition itself — and are removed. Nine dead `rgba(229, 219, 255, …)`
+declarations in the first stylesheet block were replaced rather than deleted, so
+the lavender cannot leak back if an override is ever removed.
+
+**Deliberately left:** the stylesheet declares `.btn` three times and eight other
+selectors twice each. That is layered base-then-theme on purpose, and flattening
+it is a restructure rather than a recolour.
+
+### Three judgement calls, all kept
+
+The subtitle `dark` class keeps its violet, because it is one of four narrative
+voices — content rather than chrome. The minimap's goblin and village dots stay,
+because the minimap was rebuilt by another agent between the snapshot and the
+live file. And the `!`/`?` markers are 3D billboards rather than interface — but
+they were the most visible purple in actual play, so they went too.
+
 ## 2.18.0 — The chain is closed, and Gehenna is a journey
 
 **Every one of the eight steps of the 3.0 chain now exists in code.** The Warden,
