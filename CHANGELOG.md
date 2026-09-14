@@ -4,6 +4,83 @@ Every change, with the bug it fixes and how. Newest first.
 
 ---
 
+## 2.21.0 — The Matron, and all three of Gehenna's bosses are standing
+
+### She is the woman who was already there
+
+Another agent had built a Matron as a **speaker** — nine beats mid-rows with a
+cart, Bel on the kerb, *"I put myself at the bottom of it every morning."* That is
+the same person the combat design describes, so the fight is wired to **her**
+rather than to a second body with the same name. Her speaker drops out of the
+interact scan when she arms, the way the Kindly One's does when she dies, so the
+after-story can never hold a conversation with a boss mid-swing.
+
+### The lever she tells you about herself
+
+You cannot hurt her while her charges are settled. Waking one is permanent, they
+never stop grieving, and **she heals when you leave the corridor and they do
+not.** Guard by tier: **0.200 / 0.340 / 0.520 / 0.760 / 1.000**, verified by
+landing a ten-damage blow at each and measuring 2.000, 3.400 and 10.000. Waking a
+fifth does nothing.
+
+**The leash is the point of the whole boss, and it measures exactly as intended.**
+Step out of the corridor: regen **12.000 hp/s**, her health back to full — and
+`woken` **stays at 4**. Four still standing, still grieving. Her health comes
+back and the people do not.
+
+**The Bar at tier 0 does no damage at all** — raw 0.000, and it imparts
+**28.099 m/s**, which throws you clean out of the row without chipping you. And
+the woken never reach `killEnemy`: `gkills 0`, still alive, hp restored, and a
+second blow does nothing.
+
+**Refusal works completely.** Walked from dx 90 to the dish: 0 hits, 8.000 hp
+unchanged, nobody woken, all four still seated, and she returns to post at full
+health. Her room stays shut and there is no heart.
+
+### An instrument fault worth writing down
+
+The first timing pass read long — bar windup 0.615 s against a specified 0.55.
+**That is not the boss.** `dt` is zero for the whole of a hitstop while the game
+clock keeps running, so **any span containing a landed blow reads long, for every
+attack in this game.** Holding `P.inv` high so `hurtPlayer` returns before setting
+one gives the true figures: **bar windup 0.551, strike 0.226, recover 0.911**
+against a specified 0.55, 0.22 and 0.9.
+
+Three of the five other first-run "failures" were probe faults of the same family
+as the ones earlier tonight — measuring a span by awaiting the next state catches
+leftovers and misses single-frame passes.
+
+### Two defects the agent found in its own diff
+
+- **Two of her four seats sat out on the swept ash.** The filter used her
+  corridor rather than the design's seat band, and measured them at dx 98 and 99,
+  outside the rows entirely. They land at 72 and 78 on both sides now.
+- **A one-frame window where `guard` lagged.** Recomputing it at the top of the
+  next frame meant the best damage window in the fight — hitting her while she
+  kneels, or while she is holding you — **still paid tier rates for one frame**.
+  Measured at 3.400 instead of 10.000. It is set on entry now.
+
+### Her death opens her room
+
+`maxHp` 8 → 9, `gkills 0`, and **the room with the twenty-eight names opens on
+her death**, taking over from the temporary `gehDone` opener exactly as the
+comment on it promised. The grant is guarded on `FOUND`, so clearing `GRANTED`
+and re-running it leaves maxHp at 9.
+
+### One decision left standing
+
+Her post is at `cx + 96` and her cart at `cx + 56`. Coming off the hill you cross
+96 first, so **`matronAfter()` — "Nobody's come down the road… I'd got used to
+afterwards" — is unreachable for anyone who walks back out, which is everyone.**
+It is one constant. The design names 96 twice, so it was built as written and
+flagged rather than quietly changed.
+
+### Also checked, and needing no change
+
+The design asked for an edit to stop the exit being gated during her fight.
+Measured: `GEH_SCRIPT.fight` is **false throughout**, because that flag belongs to
+the Kindly One's dialogue. The exit was never gated on her. No edit made.
+
 ## 2.20.0 — The Unclaimed, a room behind the water, and three things that were never there
 
 ### The Unclaimed

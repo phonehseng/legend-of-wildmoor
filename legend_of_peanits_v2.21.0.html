@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.20.0</title>
+<title>Legend of Peanits 2.21.0</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#1b1626, #0d0a14); --edge: #6c583a; --hi: #8a6a3e; }
@@ -510,7 +510,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.20.0</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.21.0</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -580,7 +580,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.20.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.21.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -14949,6 +14949,20 @@ const __boot = (async () => {
     // while she is being drawn upward there is nothing of her to hit. this is not a mercy phase — it is the only
     // stretch of the fight where you are not fighting HER, and the drowned arrive the whole time you cannot.
     if (e.state === "ascend") { e.flash = 0.05; SFX.block(); if (from === P.pos && (e.ascSaid = (e.ascSaid || 0) + 1) === 1) say("Your blade goes through her. She is halfway out of the world.", 2600, true, "dark"); return; }
+    // the four the matron is defending. they are never killed and they never reach killEnemy at all: the blow that
+    // would take the last of one stands it up instead and gives back everything that was taken. this has to sit HERE,
+    // in the warden's ascend position, so it returns before the stun, before the knockback, before the xp and before
+    // hp is subtracted anywhere else — and so attachedDown never fires for them, which is correct, because the
+    // almoner's thank-you belongs to a different thing entirely and must not be reachable this way.
+    if (e.state === "seated") {
+      e.hp -= dmg;
+      e.flash = 0.12;
+      if (from === P.pos) { hitstop = 0.05; shake = Math.max(shake, 0.2); SFX.hit(false); }
+      if (e.hp <= 0) gehWake(e);
+      return;
+    }
+    // and once one is awake there is nothing left to take off it, so nothing can be done to it again
+    if (e.state === "grieve") { e.flash = 0.04; SFX.block(); return; }
     // the almoner cannot be hurt while he is healing you, and this has to sit HERE, in the warden's ascend position,
     // rather than anywhere lower down: it returns before the stun assignment, before the knockback, before the xp
     // grant and before hp is subtracted. every blow you land in his fight is struck into a hand reaching for somebody
@@ -15081,6 +15095,18 @@ const __boot = (async () => {
       // is the one capability field in the payload that nothing else in the game writes — the wind feather, the
       // skyfeather, windstep, petal step and the thornback bracelet have the other five between them.
       if (!FOUND.some(t => t === UNCLAIMED_GIFT)) grant(UNCLAIMED_GIFT, () => { P.bonus.run = Math.max(P.bonus.run || 0, 2.5); }, true, false, "geh:unclaimed");
+    } else if (e.kind === "matron") {
+      // no strength, no tally and no kill line, like everything else down here. she goes down between two of the
+      // ones she was defending, and the last thing she does is straighten one of them.
+      burst(e.pos.clone().add(V3(0, 1.4, 0)), 0xb8b0a4, 44, 5, 1.5, 0.2);
+      shake = Math.max(shake, 0.7);
+      // her door. the comment in updateGehenna said this call moves here when she is built, and it has.
+      gehOpenRoom();
+      // not idempotent, and the only reward in gehenna that is not: GRANTED is a Set applySave never restores, so a
+      // heart guarded on it alone would be handed out again on every reload-and-re-earn. FOUND is restored, so FOUND
+      // is what guards it. the label is a permanent save key and must never be reworded.
+      if (!FOUND.some(t => t === MATRON_GIFT)) grant(MATRON_GIFT, () => { P.maxHp++; P.hp = P.maxHp; }, true, false, "geh:matron");
+      if (window.GEHENNA) { try { GEHENNA.matronDown(); } catch (err) { console.error("Gehenna: matronDown threw", err); } }
     } else if (e.kind === "kindly") {
       // she does not drop anything and she is not worth anything. the after-story writes her death, because her
       // death is the argument the whole story is making and it is not a kill line.
@@ -16958,6 +16984,33 @@ const __boot = (async () => {
         [null, "", "None of it was worth anything to anybody.", 4200]
       ], 1.2);
     }
+    // ---- the fight, which is with the woman who has been bringing them in of a night for longer than anybody in
+    // the house has been in it. she is defending them, and she is right.
+    //
+    // she says one thing about it, once, flatly and without rhetoric, because she is certain nobody would do it. she
+    // never mentions it again, whatever the player does next.
+    //
+    // her speaker drops out of the interact scan the moment she arms, for the same reason the kindly one's does when
+    // she dies: a prompt over somebody who is walking at you is a prompt the player will press, and the after-story
+    // would then hold a conversation with a boss mid-swing.
+    function matronArm() {
+      for (const s of speakers) if (s.id === "matron") s.leaving = true;
+      chainSay([
+        [V.matron, "The Matron", "You can't touch me while they're settled."],
+        [V.matron, "The Matron", "Wake one, then. Go on. I'll wait."]
+      ], 0.8);
+    }
+    function matronDown() {
+      chainSay([
+        [null, "", "She goes down between two of them.", 3600],
+        [null, "", "The last thing she does is straighten one of their collars.", 5000]
+      ], 1.8);
+    }
+    // the sound one of the woken makes, about every eight seconds, for the rest of the descent. the voice lives here
+    // with the other voices rather than being copied into the world file as a number.
+    function mumbleHeld(dist) {
+      SFX.mumble(V.held.voice, dist || 0);
+    }
     function interactGeh() {
       if (!GEH.root || P.pos.y > DIVIDE) return false;
       // no talking over the arrival, her death, or any other unattended beat. the press is eaten, not queued.
@@ -17134,6 +17187,12 @@ const __boot = (async () => {
       attachedBark,
       attachedDown,
       almonerDown,
+      matronArm,
+      matronDown,
+      mumbleHeld,
+      get busy() {
+        return busy();
+      },
       get fight() {
         return state.fight;
       },
@@ -17533,7 +17592,10 @@ const __boot = (async () => {
       g.add(bodyM, headM);
       // the seated stay geometry and nothing else, but where they are is wanted twice: the almoner kneels among them
       // in his last phase, and it is the list the matron's four are chosen out of. world coordinates, built once.
-      GEH.seats = SEATS.map(s => { const x = GEH.cx + s[0], z = GEH.cz + s[1]; return { x, y: gehH(x, z), z, face: s[2] }; });
+      GEH.seats = SEATS.map((s, i) => { const x = GEH.cx + s[0], z = GEH.cz + s[1]; return { i, x, y: gehH(x, z), z, face: s[2] }; });
+      // the instanced bodies themselves, because four of them stop being geometry when the matron arms: an instance
+      // collapsed to zero scale is how one leaves without the other nineteen moving.
+      GEH.seatMesh = { body: bodyM, head: headM };
     }
 
     // ---- ash in the air. one Points object that is MOVED to the player rather than animated, so the whole effect is
@@ -17895,19 +17957,327 @@ const __boot = (async () => {
         if (dist > 6) { e.pos.x += (dx / d) * 2.6 * dt; e.pos.z += (dz / d) * 2.6 * dt; }
         break;
       }
+      // the two the matron's fight adds. neither of them moves, neither of them can reach hold, and neither of them
+      // can ever be killed — damageEnemy intercepts both at the top, so killEnemy is not reachable from here at all.
+      case "seated":
+        break;
+      case "grieve":
+        e.mumbleT -= dt;
+        if (e.mumbleT <= 0) {
+          e.mumbleT = 7 + Math.random() * 3;
+          const a = gehSay();
+          if (a && typeof a.mumbleHeld === "function") { try { a.mumbleHeld(dist); } catch (err) { console.error("Gehenna: mumbleHeld threw", err); } }
+        }
+        break;
     }
     resolveStructs(e.pos, 0.5);
     e.pos.y = gehGroundAt(e.pos.x, e.pos.z, e.pos.y + 2);
     e.mesh.position.copy(e.pos);
     e.visH = turnToward(e.visH === undefined ? e.heading : e.visH, e.heading, dt * 6);
     e.mesh.rotation.y = e.visH;
-    const settled = e.state === "calm" || e.state === "sat";
+    const settled = e.state === "calm" || e.state === "sat" || e.state === "seated" || e.state === "grieve";
     const reach = e.state === "reach" || e.state === "hold" ? -1.25 : settled ? -0.1 : -0.4;
     for (const a of e.arms) a.rotation.x = damp(a.rotation.x, reach, 7, dt);
     // a seated body made out of the standing one rather than out of new geometry: the cone and the head come down
     // together and the figure reads as sitting at the same height as the twenty on the instanced benches.
-    e.mesh.scale.y = damp(e.mesh.scale.y, e.state === "sat" ? 0.62 : 1, 3, dt);
+    e.mesh.scale.y = damp(e.mesh.scale.y, e.state === "sat" || e.state === "seated" ? 0.62 : 1, 3, dt);
+    // one who has been woken stands to full height and keeps their head down, and does not do anything else again
+    e.mesh.rotation.x = damp(e.mesh.rotation.x, e.state === "grieve" ? 0.26 : 0, 3, dt);
   }
+
+  // ---- the matron. she has run the house since before anybody currently in it arrived, she has twenty-eight people
+  // in her care, and one of them is having a difficult day because a stranger came through with a sword and killed
+  // the woman who ran the intake. she is standing where you have to walk past her, on the way back to the water.
+  //
+  // she is defending them from you, and she is right.
+  //
+  // two axes and they are independent. e.tier is how many of them you have woken up, it only ever goes up, and it is
+  // the only thing that makes her killable. e.phase is her own pace and it comes off her health. the asymmetry
+  // between them is the entire boss: step out of her corridor and her health comes back, and the people do not.
+  const MATRON_GIFT = "Twenty-eight names cut into a wall: +1 heart";
+  const MAT_GUARD = [0.2, 0.34, 0.52, 0.76, 1];
+  const MAT_BAR = [0, 1, 1.5, 1.5, 2.5];
+  // her corridor. she holds it and she does not leave it, and she will not follow anybody into the yard.
+  const matInCorridor = p => p.x > GEH.cx + 30 && p.x < GEH.cx + 100 && Math.abs(p.z - GEH.cz) < 16;
+  // and the narrower band her four are chosen from, which is NOT the same range. her corridor runs to the edge of
+  // the yard; the four she is defending have to be among the rows, where the seat table already puts them, or two of
+  // them end up out on the swept ash with nothing around them.
+  const matSeatBand = s => s.x > GEH.cx + 42 && s.x < GEH.cx + 88 && Math.abs(s.z - GEH.cz) < 12;
+
+  function gehSpawnMatron() {
+    if (!GEH.root || !GEH.M || GEH.matron) return null;
+    const grp = new THREE.Group();
+    // her own materials, for the reason gehSpawnAttached gives: the flash pass writes emissive on every material in a
+    // body that is not e.mat, and M.pale and M.skin are the clerk, the seated and four other figures between them.
+    const robe = new THREE.MeshStandardMaterial({ color: toLin(0x6e6a64), roughness: 1, metalness: 0 });
+    const skin = new THREE.MeshStandardMaterial({ color: toLin(0x8a7c70), roughness: 1, metalness: 0 });
+    const body = new THREE.Mesh(new THREE.ConeGeometry(0.56, 2, 8), robe);
+    body.position.y = 1;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.27, 12, 9), skin);
+    head.position.y = 2.2;
+    const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.07, 1.15, 6), skin);
+    const armR = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.07, 1.15, 6), skin);
+    armL.position.set(-0.44, 1.55, 0.2); armR.position.set(0.44, 1.55, 0.2);
+    // empty hands, and that is deliberate. nothing in this fight is a weapon: she has an arm and she has her hands.
+    // the kindly one's shears are the one tool in gehenna and they stay hers.
+    grp.add(body, head, armL, armR);
+    grp.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
+    const x = GEH.cx + 96, z = GEH.cz, y = gehGroundAt(x, z, GEH.floor + 60);
+    grp.position.set(x, y, z);
+    scene.add(grp);
+    const e = {
+      nid: ++ENEMY_NID, kind: "matron", geh: true, boss: true, big: true, mesh: grp,
+      pos: V3(x, y, z), vel: V3(), hp: 240, maxHp: 240, r: 1, state: "post", t: 0, alive: true,
+      heading: Math.PI / 2, flash: 0, bar: makeHealthBar(), name: "The Matron", born: time, arms: [armL, armR],
+      phase: 1, tier: 0, guard: MAT_GUARD[0], spd: 7.6, atk: null, armed: false, said: false,
+      grabT: 14, roundT: 16, roundTgt: null, roofT: 0, lock: null, lockT: 0, hitDone: true
+    };
+    EXTRA.push(e);
+    GEH.enemies.push(e);
+    GEH.matron = e;
+    return e;
+  }
+
+  // she is not there until the woman who ran the intake is dead, and she does not start anything until the player is
+  // back inside her corridor on the way down. one hook, called from the frame hook that is already depth-guarded.
+  function gehMatronWatch() {
+    if (!WORLDSTATE.gehDone) return;
+    const e = GEH.matron || gehSpawnMatron();
+    if (!e || !e.alive || e.armed) return;
+    if (P.pos.x > GEH.cx + 96 || !matInCorridor(P.pos)) return;
+    // she waits out whatever is still being said. the clerk closing beats run on a chain that chainSay would cancel
+    // outright, and the ledger is the last thing that happens before this walk.
+    const api = gehSay();
+    if (api && api.busy) return;
+    gehArmMatron(e);
+  }
+
+  // arming turns four of the seated into bodies that can be struck. they are chosen out of GEH.seats, nearest her
+  // post first and inside her corridor, and their instanced originals are collapsed to zero scale so that the real
+  // body and the drawn one are never both there.
+  function gehArmMatron(e) {
+    e.armed = true;
+    const mine = (GEH.seats || [])
+      .filter(matSeatBand)
+      .sort((a, b) => Math.hypot(b.x - e.pos.x, b.z - e.pos.z) - Math.hypot(a.x - e.pos.x, a.z - e.pos.z))
+      .slice(-4);
+    const sm = GEH.seatMesh;
+    const mm = new THREE.Matrix4(), q = new THREE.Quaternion(), z0 = V3(0, 0, 0), pos = V3();
+    for (const s of mine) {
+      if (sm) {
+        pos.set(s.x, s.y, s.z);
+        mm.compose(pos, q, z0);
+        sm.body.setMatrixAt(s.i, mm);
+        sm.head.setMatrixAt(s.i, mm);
+      }
+      const a = gehSpawnAttached(s.x, s.z);
+      if (!a) continue;
+      a.state = "seated";
+      a.t = 0;
+      a.hp = 5;
+      a.maxHp = 5;
+      a.heading = s.face;
+      a.visH = s.face;
+      a.mesh.scale.y = 0.62;
+      a.said = true;
+    }
+    if (sm) { sm.body.instanceMatrix.needsUpdate = true; sm.head.instanceMatrix.needsUpdate = true; }
+    GEH.woken = 0;
+    const api = gehSay();
+    if (api && typeof api.matronArm === "function") { try { api.matronArm(); } catch (err) { console.error("Gehenna: matronArm threw", err); } }
+  }
+
+  // waking one. it is not a kill and it is not reversible, and the game never says what has been done.
+  function gehWake(a) {
+    a.hp = a.maxHp;
+    a.state = "grieve";
+    a.t = 0;
+    a.mumbleT = 1.2;
+    GEH.woken = (GEH.woken || 0) + 1;
+    burst(a.pos.clone().add(V3(0, 1, 0)), 0x8a7c70, 20, 4, 1, 0.16);
+    SFX.tone(210, 150, 1.6, 0.09, "sine", 0, 600);
+  }
+  const gehGrieving = () => (GEH.enemies || []).filter(x => x.kind === "attached" && x.alive && x.state === "grieve");
+
+  function gehMatronPhases(e) {
+    if (e.phase === 1 && e.hp < e.maxHp * 0.6) {
+      e.phase = 2;
+      e.spd = 8.4;
+      SFX.phase();
+      say("She stops being careful with you.", 3200, true, "geh");
+    }
+    // she stops leaving you to go and comfort anybody. there is no line for it and there must not be one.
+    if (e.phase === 2 && e.hp < e.maxHp * 0.25) { e.phase = 3; SFX.phase(); }
+  }
+  // she sets you down eight metres back toward the water, which is the direction she would like you to keep going in
+  function gehMatronSetDown(e) {
+    const bx = GEH.cx - P.pos.x, bz = GEH.cz - P.pos.z, bd = Math.hypot(bx, bz) || 1;
+    const nx = P.pos.x + (bx / bd) * 8, nz = P.pos.z + (bz / bd) * 8;
+    P.pos.set(nx, gehGroundAt(nx, nz, GEH.floor + 60) + 0.05, nz);
+    P.vel.set(0, 0, 0);
+    P.grounded = true;
+    lastSafeGeh.copy(P.pos);
+  }
+
+  function gehUpdateMatron(e, tgt, dx, dz, dist, dt) {
+    if (!e.armed) { e.mesh.position.copy(e.pos); e.mesh.rotation.y = e.heading; return; }
+    const local = tgt === P || tgt.pos === P.pos;
+    // the quarter-second stagger a heavy blow gives every boss is hers and she should have it: she is a person and
+    // she can be knocked about. it must not interrupt the two things she does that are not fighting.
+    if (e.state === "stun" && e.lock) { e.state = e.lock; e.t = Math.max(0, e.lockT - dt); }
+    gehMatronPhases(e);
+    e.tier = Math.min(4, GEH.woken || 0);
+    // being held on to, and kneeling with somebody she hurt, are both worth more to the player than any tier is.
+    // hitting her while she is doing either is the best thing you can do, and she does not defend herself. the two
+    // states also set this the moment they are ENTERED, further down, because a guard recomputed only at the top of
+    // the next frame leaves one frame in which the best window in the fight is still paying tier rates.
+    e.guard = e.state === "hold" || e.state === "round" ? 1 : MAT_GUARD[e.tier];
+    const ph = e.phase >= 2 ? 0.8 : 1;
+    e.grabT -= dt;
+    e.roundT -= dt;
+    // the roof, and the hole it would otherwise open. at tiers 0 and 1 she has nothing that reaches upward, while a
+    // player on a roof can still dive off it for triple damage — a free kill on the pacifist path. she does not jump,
+    // she does not throw anything and she does not wait underneath. she goes back to her post.
+    const high = local && !P.grounded && tgt.pos.y > e.pos.y + 2.5;
+    e.roofT = high ? e.roofT + dt : 0;
+    const baited = e.tier <= 1 && e.roofT > 2.5;
+    if (e.state !== "post" && (baited || !local || !matInCorridor(tgt.pos))) {
+      // her health comes back and the people do not. that single asymmetry is the whole boss.
+      gehMatronStop(e);
+      e.state = "post";
+    }
+    switch (e.state) {
+      case "post": {
+        e.hp = Math.min(e.maxHp, e.hp + 12 * dt);
+        const px = GEH.cx + 96, pz = GEH.cz;
+        const ax = px - e.pos.x, az = pz - e.pos.z, ad = Math.hypot(ax, az) || 1;
+        if (ad > 0.7) { e.pos.x += (ax / ad) * e.spd * dt; e.pos.z += (az / ad) * e.spd * dt; e.heading = Math.atan2(ax, az); }
+        else e.heading = Math.PI / 2;
+        if (local && matInCorridor(tgt.pos) && !(e.tier <= 1 && e.roofT > 0)) e.state = "stalk";
+        break;
+      }
+      case "stalk": {
+        e.heading = Math.atan2(dx, dz);
+        const d = dist || 1;
+        if (dist > 3.4 + e.r - 0.5) { e.pos.x += (dx / d) * e.spd * dt; e.pos.z += (dz / d) * e.spd * dt; }
+        // the hold first. it is the tier-three answer to somebody who has learned to keep their distance, and a
+        // shield is not an answer to being picked up.
+        if (e.tier >= 3 && e.grabT <= 0 && dist < 12) { e.state = "grab"; e.t = 2; e.grabT = 14; break; }
+        // then the round, which is her leaving the fight to kneel with somebody you hurt
+        if (e.phase < 3 && e.roundT <= 0) {
+          const g = gehGrieving();
+          if (g.length) {
+            let best = g[0], bd = 1e9;
+            for (const q of g) { const qd = dist2D(q.pos, e.pos); if (qd < bd) { bd = qd; best = q; } }
+            e.state = "round";
+            e.t = 4;
+            e.roundT = 16;
+            e.roundTgt = best;
+            e.lock = "round";
+            e.guard = 1;
+            break;
+          }
+          e.roundT = 4;
+        }
+        // then the reach, for a player who has gone up. the state is named lunge so the tell ring covers it.
+        if (e.tier >= 2 && Math.abs(tgt.pos.y - e.pos.y) > 2.4 && dist < 4.5 + e.r) {
+          e.state = "lunge";
+          e.atk = "reach";
+          e.t = 0.7 * ph;
+          e.tellR = 4;
+          e.hitDone = false;
+          break;
+        }
+        if (dist <= 3.4 + e.r - 0.5) {
+          e.state = "windup";
+          e.atk = "bar";
+          e.t = 0.55 * ph;
+          e.tellR = 4.4;
+          e.hitDone = false;
+          if (dist < 40) SFX.tone(230, 640, 0.4, 0.08, "triangle");
+        }
+        break;
+      }
+      case "windup":
+      case "lunge":
+        e.heading = Math.atan2(dx, dz);
+        if (e.t <= 0) { e.state = "strike"; e.t = 0.22; e.hitDone = false; }
+        break;
+      case "strike": {
+        const reach = e.atk === "reach" ? 3 + e.r : 3.4 + e.r;
+        const ceil = e.atk === "reach" ? 7.5 : 2.6;
+        if (!e.hitDone && e.t < 0.15 && local && !death && dist < reach && Math.abs(tgt.pos.y - e.pos.y) < ceil) {
+          e.hitDone = true;
+          // at tier 0 the bar does no damage at all and still throws you clean out of the row. being thrown around
+          // for three minutes is frustrating; being thrown around AND chipped is unfair, so tier 0 is a positioning
+          // fight and nothing else. nothing she does ever pierces.
+          enemyStrike(e, MAT_BAR[e.tier], tgt, e.atk === "reach" ? 0.4 : 2.4, false);
+        }
+        if (e.t <= 0) { e.state = "recover"; e.t = (e.atk === "reach" ? 1.2 : 0.9) * ph; }
+        break;
+      }
+      // she opens both hands and walks straight at you. a jump avoids it, a dodge makes her overrun, and a shield
+      // does nothing at all — three answers and no cost, which is the right shape for a move that removes the shield.
+      case "grab": {
+        e.heading = Math.atan2(dx, dz);
+        const d = dist || 1;
+        e.pos.x += (dx / d) * 9 * dt;
+        e.pos.z += (dz / d) * 9 * dt;
+        if (local && !death && dist < 1.6 + e.r && Math.abs(tgt.pos.y - e.pos.y) < 2.2) {
+          e.state = "hold";
+          e.t = 1.2;
+          e.lock = "hold";
+          e.guard = 1;
+          SFX.tone(150, 110, 0.5, 0.1, "sine");
+          break;
+        }
+        if (e.t <= 0) { e.state = "recover"; e.t = 1; }
+        break;
+      }
+      case "hold": {
+        e.heading = Math.atan2(dx, dz);
+        if (!local || death || dist > 3 + e.r) { e.lock = null; e.state = "recover"; e.t = 0.8; break; }
+        // the attached's hold code, unchanged: the body is damped nearly to a stop and a little stamina goes, and
+        // there is no damage in it anywhere. it is the most humiliating attack in the game and it is non-violent.
+        P.vel.x *= Math.pow(0.06, dt);
+        P.vel.z *= Math.pow(0.06, dt);
+        P.stam = Math.max(0, P.stam - dt * 5);
+        // a dash breaks it, and it is the only thing that does
+        if (P.dodge > 0) { e.lock = null; e.state = "recover"; e.t = 0.8; break; }
+        if (e.t <= 0) { gehMatronSetDown(e); e.lock = null; e.state = "recover"; e.t = 0.8; }
+        break;
+      }
+      case "round": {
+        const g = e.roundTgt;
+        if (!g || !g.alive) { e.lock = null; e.roundTgt = null; e.state = "stalk"; break; }
+        const ax = g.pos.x - e.pos.x, az = g.pos.z - e.pos.z, ad = Math.hypot(ax, az) || 1;
+        e.heading = Math.atan2(ax, az);
+        if (ad > 1.3) { e.pos.x += (ax / ad) * e.spd * dt; e.pos.z += (az / ad) * e.spd * dt; e.t = 4; break; }
+        if (e.t <= 0) { e.lock = null; e.roundTgt = null; e.state = "stalk"; }
+        break;
+      }
+      case "recover": if (e.t <= 0) e.state = "stalk"; break;
+      case "stun": e.pos.x += e.vel.x * dt; e.pos.z += e.vel.z * dt; e.vel.multiplyScalar(Math.pow(0.02, dt)); if (e.t <= 0) e.state = "stalk"; break;
+    }
+    resolveStructs(e.pos, 0.9);
+    e.pos.y = gehGroundAt(e.pos.x, e.pos.z, e.pos.y + 2);
+    e.mesh.position.copy(e.pos);
+    e.visH = turnToward(e.visH === undefined ? e.heading : e.visH, e.heading, dt * (e.state === "windup" || e.state === "lunge" ? 10 : 5));
+    e.mesh.rotation.y = e.visH;
+    const kneeling = e.state === "round";
+    e.mesh.scale.y = damp(e.mesh.scale.y, kneeling ? 0.66 : 1, 5, dt);
+    const arms = e.state === "grab" || e.state === "hold" ? -1.5 : e.state === "lunge" ? -2.2 : e.state === "windup" ? -1.1 : e.state === "strike" ? 0.4 : kneeling ? -0.9 : -0.25;
+    for (const a of e.arms) a.rotation.x = damp(a.rotation.x, arms, 9, dt);
+    e.lockT = e.lock ? e.t : 0;
+  }
+  // everything she was in the middle of, put down, because she is going back to her post
+  function gehMatronStop(e) {
+    e.lock = null;
+    e.roundTgt = null;
+    e.atk = null;
+    e.hitDone = true;
+  }
+
 
   // ---- the almoner. he is the officer who distributes the relief: he walks the rows with a hand-cart and he takes
   // from people the things that are weighing on them, and he has done it for eight hundred years and he is good at
@@ -18637,9 +19007,10 @@ const __boot = (async () => {
     // every per-frame system down here needs its own depth guard, and this one has it by construction: the branch
     // above returns for a player above the seam, so nothing below this line runs in the valley.
     gehArmAlmoner();
-    // her door. it is hers to give and the matron's death is what will open it; until she is built, the kindly one's
-    // death is what earns the walk back, which is when the room is meant to be there. one condition, one call site.
-    if (GEH.room && !GEH.room.open && WORLDSTATE.gehDone) gehOpenRoom();
+    // her door, and it is hers to give. it used to open on the kindly one's death because the matron did not exist
+    // yet; killEnemy's matron branch is what opens it now. refusing her costs the room, the names and the heart, and
+    // that is the whole of what refusing costs.
+    gehMatronWatch();
     // the six light slots follow the six nearest lamps. ten candidates, no allocation, and no touching of the global
     // vlights array, which updateLightPool already filters and fully sorts on every frame of the game.
     if (GEH.lampPos && GEH.lampPos.length) {
@@ -18741,6 +19112,9 @@ const __boot = (async () => {
     GEH.room = null;
     GEH.almSeats = null;
     GEH.heapDown = false;
+    GEH.matron = null;
+    GEH.woken = 0;
+    GEH.seatMesh = null;
     GEH.motes = null;
     GEH.water = null;
     GEH.ledger = null;
@@ -21647,10 +22021,10 @@ const __boot = (async () => {
       // fell through to the wraith fade, which does nothing without a material, and then lay on the ash for eight
       // seconds. they deliberately have no SHARED material either — a shared one would have faded all four of the
       // attached at once, because the flash pass below writes emissive on every material that is not e.mat.
-      if (!e.alive) { e.t += dt; if (e.kind === "wolf") { e.mesh.rotation.z = lerp(e.mesh.rotation.z, 1.5, Math.min(1, dt * 3)); e.mesh.position.y = e.pos.y - Math.max(0, e.t - 6) * 0.3; } else if (e.kind === "almoner") { e.mesh.rotation.z = lerp(e.mesh.rotation.z, 1.4, Math.min(1, dt * 1.6)); e.mesh.position.y = e.pos.y - Math.max(0, e.t - 4.5) * 0.5; } else if (e.kind === "unclaimed") gehHeapSpill(e); else if (e.kind === "attached" || e.kind === "kindly") { e.mesh.rotation.z = lerp(e.mesh.rotation.z, 1.45, Math.min(1, dt * (e.kind === "kindly" ? 0.9 : 2.2))); e.mesh.position.y = e.pos.y - Math.max(0, e.t - (e.kind === "kindly" ? 6 : 1.6)) * 0.5; } else if (e.mat) { e.mat.opacity = Math.max(0, 0.55 - e.t * 0.5); } if (e.t > 8 || (e.wraith && e.t > 1.5) || (e.kind === "attached" && e.t > 4)) { removeEnemy(e); if (e.den) e.den.wolves = e.den.wolves.filter(w => w !== e); EXTRA.splice(i, 1); } continue; }
+      if (!e.alive) { e.t += dt; if (e.kind === "wolf") { e.mesh.rotation.z = lerp(e.mesh.rotation.z, 1.5, Math.min(1, dt * 3)); e.mesh.position.y = e.pos.y - Math.max(0, e.t - 6) * 0.3; } else if (e.kind === "almoner") { e.mesh.rotation.z = lerp(e.mesh.rotation.z, 1.4, Math.min(1, dt * 1.6)); e.mesh.position.y = e.pos.y - Math.max(0, e.t - 4.5) * 0.5; } else if (e.kind === "unclaimed") gehHeapSpill(e); else if (e.kind === "matron") { e.mesh.rotation.z = lerp(e.mesh.rotation.z, 1.45, Math.min(1, dt * 1.1)); e.mesh.position.y = e.pos.y - Math.max(0, e.t - 5) * 0.5; } else if (e.kind === "attached" || e.kind === "kindly") { e.mesh.rotation.z = lerp(e.mesh.rotation.z, 1.45, Math.min(1, dt * (e.kind === "kindly" ? 0.9 : 2.2))); e.mesh.position.y = e.pos.y - Math.max(0, e.t - (e.kind === "kindly" ? 6 : 1.6)) * 0.5; } else if (e.mat) { e.mat.opacity = Math.max(0, 0.55 - e.t * 0.5); } if (e.t > 8 || (e.wraith && e.t > 1.5) || (e.kind === "attached" && e.t > 4)) { removeEnemy(e); if (e.den) e.den.wolves = e.den.wolves.filter(w => w !== e); EXTRA.splice(i, 1); } continue; }
       const tgt = nearestPlayerTo(e.pos), dx = tgt.pos.x - e.pos.x, dz = tgt.pos.z - e.pos.z, dist = Math.hypot(dx, dz);
       e.t -= dt; e.flash = Math.max(0, e.flash - dt);
-      if (e.wraith) updateWraith(e, tgt, dx, dz, dist, dt); else if (e.kind === "wolf") updateWolf(e, tgt, dx, dz, dist, dt); else if (e.kind === "attached") gehUpdateAttached(e, tgt, dx, dz, dist, dt); else if (e.kind === "kindly") gehUpdateKindly(e, tgt, dx, dz, dist, dt); else if (e.kind === "almoner") gehUpdateAlmoner(e, tgt, dx, dz, dist, dt); else if (e.kind === "unclaimed") gehUpdateUnclaimed(e, tgt, dx, dz, dist, dt);
+      if (e.wraith) updateWraith(e, tgt, dx, dz, dist, dt); else if (e.kind === "wolf") updateWolf(e, tgt, dx, dz, dist, dt); else if (e.kind === "attached") gehUpdateAttached(e, tgt, dx, dz, dist, dt); else if (e.kind === "kindly") gehUpdateKindly(e, tgt, dx, dz, dist, dt); else if (e.kind === "almoner") gehUpdateAlmoner(e, tgt, dx, dz, dist, dt); else if (e.kind === "unclaimed") gehUpdateUnclaimed(e, tgt, dx, dz, dist, dt); else if (e.kind === "matron") gehUpdateMatron(e, tgt, dx, dz, dist, dt);
       e.mesh.traverse(o => { if (o.isMesh && o.material.emissive && o.material !== e.mat) o.material.emissive.setHex(e.flash > 0 ? 0xffffff : 0); });
       updateHealthBar(e, e.kind === "wolf" ? 1.8 : e.warden ? 7 : 3);
     }
