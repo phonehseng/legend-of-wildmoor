@@ -4,6 +4,107 @@ Every change, with the bug it fixes and how. Newest first.
 
 ---
 
+## 2.15.0 — The Queen's Thorn, and why the pool wakes
+
+### The fourth relic is not a tear any more
+
+**Reported:** *"change the fairy queen tear item to something else, as she has no
+attachments to have tears."*
+
+Which is right, and it was the loudest contradiction left in the fiction. The
+Fairy Queen is the one being in this game who has it right — she is not attached
+to her children, she is not looking for them, and her lines were rewritten in
+2.9.2 to say so plainly: *"If not one of them came back I should sit here exactly
+like this."* A tear is the single thing she would never produce, and it sat in
+the player's satchel for the whole back half of the game.
+
+It is **The Queen's Thorn** now: a black thorn as long as a finger, older than the
+kingdom. A thorn is what a rose grows to hold things off, and she stopped growing
+them. Her gift line needed no change and now means something better — *"This came
+off me a long time ago, when I still did that."* Her follow-up is new: *"Keep it
+close. It is the only part of me that ever wanted to keep anything."*
+
+**`WORLDSTATE.relics.tear` keeps its name**, because that string is a save key,
+and so do the four `["seal", "root", "warden", "tear"]` arrays, the `rb`
+whitelist and `WS_SHARED`. A key written before the rename loads, relabels
+itself, and shows the thorn.
+
+### Why the pool wakes — planted on five surfaces, stated on none
+
+**The pool wanted a second sacrifice and did not get it.** Ysolde was the first;
+Maren was meant to be the second. So **saving Maren is what makes the pool
+misbehave** — the player does the decent thing and takes away the payment that
+was holding the door, and the whole back half of the game is the bill for one
+good deed.
+
+Nobody says it:
+
+- **Hale in the stocks** reasons rather than raves, across seven beats — *"I was
+  never out of my wits. I did the arithmetic, and then I did what it said."* /
+  *"You found out who. You never once asked what for."* / *"It was not a
+  witch-burning. I'll not say the rest of it in a street full of people."*
+- **An eighth church page**, beside the sheep line: **THE WATER IS RISING AGAIN.
+  ONE WAS NEVER GOING TO BE ENOUGH EITHER.**
+- **The hermit** knows the shape and not the names — *"He fed it the miller's girl
+  and it went quiet, and quiet is not the same as paid."*
+- **Maren never suspects**, which is the knife: *"Every morning I get now is one I
+  wasn't going to get. I'll not spend any of them frightened."*
+- **The souring lines drift toward it and stop** — *"The pyre came down and the
+  water came up, the same week. I'm not saying that's anything."* and a child's
+  *"Da says we all did a good thing and this is the thanks."*
+
+### Hale and the hermit, five sideways things
+
+They were mentor and student, and nearly father and son. Nothing says so.
+
+1. **The ledger has two hands**, one stopping mid-line and never coming back; the
+   last dozen pages are the other name.
+2. **A second hand in the margin** of Hale's third page: *"Then stop keeping them.
+   There is a way to live with this that does not need anybody at all."* Nothing
+   is written under it.
+3. **A goat's bell on a nail** in the church, clapper tied off. *"Nobody in this
+   parish ever kept goats."* The hermit talks to his goats.
+4. **The same phrase in two mouths.** Hale's sixth page: *"I still say the hours.
+   I say them walking, in the dark, on the road."* The hermit, unprompted: *"I
+   still say the hours, walking. It's only a habit now."*
+5. **Hale recognises something and says nothing about it** — but only after the
+   hermit has given his four-relic speech: *"That is not something a stranger
+   works out."* / *"He remembered it, then. Good."*
+
+And the hermit's own ambiguity is never resolved, in his own voice: *"Letting a
+thing go and turning your back on it look the same from outside."* / *"I've had
+years to learn the difference and I haven't managed it."* He calls Hale *"never a
+liar and never a fool."*
+
+### Bug 121 — Every possessive item drew a packing crate after a reload · FIXED
+
+`parseSaveKey`'s sanitiser strips `'` out of every string it loads. So the moment
+a satchel has been through a save and back, its labels read *"The Kings Seal"* and
+*"The Bears Heart"* — and **every one of those missed its own icon rule and fell
+through to the crate.**
+
+It was invisible in a fresh session and appeared only after a reload, which is
+why it survived this long. Found because the same defect silently killed the
+Thorn's own migration on its first attempt, and the probe caught it. Every
+apostrophe in the icon table is optional now.
+
+### Measured
+
+Pickup ids **81 → 83**, and the diff is exactly the two new church props — so
+nothing renumbered and every existing `picked` list is unaffected. Line
+reachability driven through the real code paths rather than read: Hale 7 distinct
+before a repeat and 9 once the hermit has spoken, Maren 5, the hermit's 7 musings
+alternating with his relic count, and the souring pools **7/7, 8/8, 8/8** over
+forty thousand calls per band. A key written with the old label parses,
+`relics.tear` is still true, and the satchel shows the Thorn.
+
+### Still open, pre-existing
+
+`church:hale7` draws a crate. Its text says *"Scratched into the back of the
+altar"* and the carving rule lists "scratched in the stone", "cut in the stone",
+"carved into" and "scratched on the wall". The new eighth page is worded to hit
+the rule; the seventh still is not.
+
 ## 2.14.0 — A boss with no attack, and a log worth reading back
 
 ### The Almoner

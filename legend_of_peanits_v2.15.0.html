@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.14.0</title>
+<title>Legend of Peanits 2.15.0</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -451,7 +451,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.14.0</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.15.0</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -521,7 +521,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.14.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.15.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -892,6 +892,24 @@ const __boot = (async () => {
   const difficulty = () => 1 + 0.12 * relicCount() + 0.03 * villagesDone() + (WORLDSTATE.finaleStarted ? 0.2 : 0);
   const evidence = k => { if (!STORY.evidence.includes(k)) STORY.evidence.push(k); };
   const relicCount = () => ["seal", "root", "warden", "tear"].filter(k => WORLDSTATE.relics[k]).length;
+  // the fourth relic is a thorn and not a tear. the queen of the rose court does not grieve for her children and
+  // never did, so a tear is the one object she could not have produced. the save key stays `tear` because a save
+  // key is a save key and renaming one silently resets it for every existing save; this label is the only version
+  // of the thing a player ever sees.
+  const THORN_LABEL = "The Queen's Thorn: a black thorn as long as a finger, older than the kingdom";
+  // a conversation that walks instead of shuffling: one line per press of E, in the order written, looping at the
+  // end. a plain random pick makes a seven-beat thought unreadable, because the line that answers a question can
+  // arrive four presses before the line that asks it. the map has a null prototype so a pool key can never collide
+  // with something off Object, which would hand back a function where a line was expected.
+  const TALK_TURN = Object.create(null);
+  function walkLines(key, pool) {
+    const i = (TALK_TURN[key] || 0) % pool.length;
+    TALK_TURN[key] = i + 1;
+    return pool[i];
+  }
+  // subtitles hold for 55 ms a character, so a line's welcome is its length; a flat 8000 on a six-word beat leaves
+  // the player standing in front of an npc waiting for a box to go away
+  const beatMs = line => Math.max(3600, line.length * 55);
   // ============================================================ 3.0: dread — how far the valley has gone wrong, 0..1
   // a pure function of state that is already saved, so it survives a reload and a rejoin without a byte of new save
   // format. it is deliberately zero until the pool wakes: acts i and ii have to look EXACTLY as they always did,
@@ -5413,13 +5431,13 @@ const __boot = (async () => {
   // people leaving. band 2 (.75+): open hostility and religious panic. the hanged are up by band 2 and nobody names
   // them; a child says he is not allowed to look at the big oak, and that is the whole restraint budget spent.
   const DREAD_TOWN = [
-    ["The milk went sour in the pail. In the pail, mind, not the pan.", "My wife's started locking the door in the daytime. I've stopped asking why.", "Sun's going down earlier. My father would have known the reason. I don't.", "Did the bells ring last night? Everyone says no. I heard them.", "The dogs have stopped barking at goblins. They bark at the water now.", "I keep counting the children twice. I couldn't tell you what for."],
-    ["Somebody's been leaving salt on the doorsteps. I'd stop them, but I've started doing it myself.", "The priest's gone. Not dead, gone. Took the good candlesticks and the south road.", "We were never a godly town. Maybe that's the whole of it.", "You carry those old things about like a market basket. I'd not stand beside you at dusk.", "Old Tam took a hatchet to his own door last week. Said something knocked.", "They say you need the whole valley behind you. The whole valley. That's how big it is.", "Don't speak to me after dark. I can't always tell who's asking."],
-    ["Hale was right. There. I've said it. Somebody has to pay, and it won't be me.", "Whatever God had this valley, he's let go of it. We're on our own and it shows.", "Get away from my door. You've been at that water. I can smell it on you.", "There's a rope in every shed in this town now. Ask yourself why.", "My brother went out to the pool with a lamp. His boots came back.", "You'll fix it, will you. Everyone who says that ends up in the reeds.", "Don't look at the trees on the road. Just walk."]
+    ["The milk went sour in the pail. In the pail, mind, not the pan.", "My wife's started locking the door in the daytime. I've stopped asking why.", "Sun's going down earlier. My father would have known the reason. I don't.", "Did the bells ring last night? Everyone says no. I heard them.", "The dogs have stopped barking at goblins. They bark at the water now.", "I keep counting the children twice. I couldn't tell you what for.", "The pyre came down and the water came up, the same week. I'm not saying that's anything."],
+    ["Somebody's been leaving salt on the doorsteps. I'd stop them, but I've started doing it myself.", "The priest's gone. Not dead, gone. Took the good candlesticks and the south road.", "We were never a godly town. Maybe that's the whole of it.", "You carry those old things about like a market basket. I'd not stand beside you at dusk.", "Old Tam took a hatchet to his own door last week. Said something knocked.", "They say you need the whole valley behind you. The whole valley. That's how big it is.", "Don't speak to me after dark. I can't always tell who's asking.", "I keep thinking about that fire we never had. I couldn't tell you why."],
+    ["Hale was right. There. I've said it. Somebody has to pay, and it won't be me.", "Whatever God had this valley, he's let go of it. We're on our own and it shows.", "Get away from my door. You've been at that water. I can smell it on you.", "There's a rope in every shed in this town now. Ask yourself why.", "My brother went out to the pool with a lamp. His boots came back.", "You'll fix it, will you. Everyone who says that ends up in the reeds.", "Don't look at the trees on the road. Just walk.", "Somebody was owed something and never got it. That's the whole of this and nobody will say it."]
   ];
   const DREAD_HILL = [
     ["The sheep won't go down the east slope. They know something we've forgotten.", "Snow's come early and it's come grey. Grey snow. Look at it.", "We've sung the midwinter song in summer, three nights running. It felt right."],
-    ["Our grandmothers drew marks on the doorsteps. We laughed at them. We're drawing them now.", "Nobody's come up the road in a fortnight. That's a mercy and a worry both.", "The stone's warm at night. The stone. Feel it if you like. I'd rather not.", "Eight villages and four old things, they say. Sounds a lot. Then you see the water at night and it sounds like nothing."],
+    ["Our grandmothers drew marks on the doorsteps. We laughed at them. We're drawing them now.", "Nobody's come up the road in a fortnight. That's a mercy and a worry both.", "The stone's warm at night. The stone. Feel it if you like. I'd rather not.", "Eight villages and four old things, they say. Sounds a lot. Then you see the water at night and it sounds like nothing.", "They stopped a burning down in the kingdom and everybody cheered. Nobody's cheering now."],
     ["We've sealed the low houses. Whoever's still inside them chose it.", "The valley's finished. Up here we'll last a winter longer. That's all it is.", "You're the one carrying it about. Take it past our gate, not through it."]
   ];
   const DREAD_HUNTER = [
@@ -5434,7 +5452,7 @@ const __boot = (async () => {
   ];
   const DREAD_KID = [
     ["Mother says not to count the stars any more. She won't say why.", "We played hide and seek and found somebody we didn't know. So we went in."],
-    ["There's a new game. You stand still, and whoever moves first has to go to the pool.", "Da took my shutter off and nailed it on the outside. So it's dark in there now."],
+    ["There's a new game. You stand still, and whoever moves first has to go to the pool.", "Da took my shutter off and nailed it on the outside. So it's dark in there now.", "Da says we all did a good thing and this is the thanks. Then he wouldn't say any more."],
     ["Are you the one Mother says is making it worse? She said it quiet. I still heard.", "The men went up the road with a rope. They came back without it.", "I'm not allowed to look at the big oak. So I don't. Mostly."]
   ];
   const DREAD_KNIGHT = [
@@ -10875,14 +10893,22 @@ const __boot = (async () => {
       book(2.4, -11, "church:altar", "The altar is bare and the sockets are cold. Cut into the edge of the slab, small, by somebody kneeling: WE KEPT THE HOURS. NOBODY CAME.", 2.09); // on the platform at the corner of the slab, not inside it: the mensa runs to x 1.9 and z -11.28, and at (1.9, -12) the page sat half a metre inside the stone
       book(-4.6, 10.8, "church:font", "The font is dry and has been dry a long time. Dust in the bottom of it, one feather, and no green ring where water stands. It was emptied. Nobody empties a font by accident.");
       book(2.1, 14.9, "church:door", "Scratched into the doorpost at shoulder height, hard enough to skip: IT IS NOT THAT HE CANNOT HEAR. GO HOME.", 1.6);
-      book(-5.8, -2, "church:ledger", "A visitation ledger, swollen shut and prised open. The last dozen pages are one name in one hand, years of it: Hale. Hale. Hale. He kept the hours here long after everybody else had stopped.");
+      book(-5.8, -2, "church:ledger", "A visitation ledger, swollen shut and prised open. Two hands kept it for years, turn and turn about, until one of them stops in the middle of a line and does not come back. The last dozen pages are the other name over and over: Hale. Hale. Hale.");
       book(3.4, 12.8, "church:hale1", "A page in the Inquisitor's hand, folded into a psalter by the door: 'The water in the black pool stands higher than the rain accounts for. I have measured it four nights running. I have written to the See, and I will keep the hours until they answer.'");
       book(-3.4, 9.6, "church:hale2", "The same hand, later, the letters grown large: 'No answer from the See. None from the Archdeacon. None from anyone at all. I am a patient man. I have been patient in this building for most of my life.'");
-      book(2.4, 4.8, "church:hale3", "A page pressed flat under a fallen pew: 'I have been asking the wrong question. I asked why He is silent. The answer is that the house is empty, and has been empty a very long while, and we have all been keeping the hours for nobody.'");
+      book(2.4, 4.8, "church:hale3", "A page pressed flat under a fallen pew: 'I have been asking the wrong question. I asked why He is silent. The answer is that the house is empty, and has been empty a very long while, and we have all been keeping the hours for nobody.' Down the margin, in the smaller of the two hands: 'Then stop keeping them. There is a way to live with this that does not need anybody at all.' Nothing is written under it.");
       book(-3.4, 1.4, "church:hale4", "Torn from the ledger, burnt at one corner: 'There is nothing above the thing under that water. There is only us. If no one is holding the door, then somebody must pay the rent. I will begin with the sheep, and I will do it alone.'");
       book(3.4, -1.6, "church:hale5", "A page weighted under a stone: 'I carried out the plate myself, and the candlesticks, and the good cloth, so nobody could say the place was robbed. I emptied the font last. I could not make myself pour it on the ground, so I drank it.'");
       book(-2.6, -10.6, "church:hale6", "The last loose page, pinned under the altar slab: 'I still say the hours. I say them walking, in the dark, on the road. Nobody hears them and I cannot stop. This is what faith turns into if you leave it out in the weather.'", 2.09);
       book(0, -12.85, "church:hale7", "Scratched into the back of the altar, low down, by somebody lying flat on the flags to reach: A SHEEP IS NOT A PRICE. IT WAS NEVER GOING TO BE A SHEEP.", 1.6); // tucked against the back face of the altar block under the mensa overhang, which is where the text says he had to lie down to reach
+      // he cut this one after ysolde and before the pyre, which is why the hand is shallower and why it is the only
+      // page that is arithmetic rather than argument. the seven above run door to altar; this sits beside the last of
+      // them because it is the same thought finished. it says "scratched in the stone" so the carving rule catches it
+      // rather than the crate the icon table falls back to.
+      book(-1.6, -12.85, "church:hale8", "Scratched in the stone beside the other, the same hand but shallower, as if there were less arm left to press with: THE WATER IS RISING AGAIN. ONE WAS NEVER GOING TO BE ENOUGH EITHER.", 1.6);
+      // a goat bell in a parish church. it is the only object in the building that belongs somewhere else, and
+      // nothing in the game ever remarks on it.
+      book(-2.4, 14.6, "church:bell", "A goat's bell on a nail by the door, the clapper tied off with a bootlace so it cannot ring. Nobody in this parish ever kept goats.", 1.6);
     }
   }
   // the ysolde mystery: logs delivered to the woodcutter, goblin kills when the errand began, clues found at the pool, the lamp wick, whether the case is solved and reported, and the two rewards
@@ -12633,6 +12659,8 @@ const __boot = (async () => {
     roserest: '<svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="10" fill="#e0568f" stroke="#8c2453" stroke-width="1.3"/><path d="M16 6c5.5 0 10 4.5 10 10-3 0-4-2-4.5-4-.7-2.8-2.7-4.3-5.5-4.3Z" fill="#ff9fce"/><path d="M16 26C10.5 26 6 21.5 6 16c3 0 4 2 4.5 4 .7 2.8 2.7 4.3 5.5 4.3Z" fill="#bf3a70"/><path d="M16 22.6 11 17.7c-1.5-1.5-1.5-3.8 0-5.2 1.4-1.4 3.6-1.4 5 .1 1.4-1.5 3.6-1.5 5-.1 1.5 1.4 1.5 3.7 0 5.2Z" fill="#ffdcec" stroke="#8c2453" stroke-width="1.1"/></svg>',
     crown: '<svg viewBox="0 0 32 32"><path d="M5 24.5c4 2.5 18 2.5 22 0 0-2.2-1.6-3.4-3.2-3.8-4.2-1-11.4-1-15.6 0C6.6 21.1 5 22.3 5 24.5Z" fill="#4faa46" stroke="#2b6a2a" stroke-width="1.2"/><circle cx="8" cy="18.5" r="3.6" fill="#e0568f" stroke="#8c2453" stroke-width="1.1"/><circle cx="24" cy="18.5" r="3.6" fill="#e0568f" stroke="#8c2453" stroke-width="1.1"/><circle cx="16" cy="14.5" r="4.8" fill="#ff9fce" stroke="#8c2453" stroke-width="1.2"/><circle cx="16" cy="14.5" r="1.9" fill="#ffdcec"/></svg>',
     tear: '<svg viewBox="0 0 32 32"><path d="M16 3c5.2 7.4 8.4 11 8.4 15.2a8.4 8.4 0 0 1-16.8 0C7.6 14 10.8 10.4 16 3Z" fill="#ff9fce" stroke="#a33a72" stroke-width="1.4"/><path d="M12.6 18.6a3.4 3.4 0 0 0 3.4 3.4" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/><circle cx="12.8" cy="13" r="1.7" fill="#ffe6f3"/></svg>',
+    thorn: '<svg viewBox="0 0 32 32"><path d="M5.6 27.4c1.8-.8 3.7-1.2 5.8-1.2" fill="none" stroke="#3f8a3a" stroke-width="2.4" stroke-linecap="round"/><path d="M24.8 3c3 8.6.3 16.6-7.9 24-2.4 2.1-5.4 2.9-9 2.4 4.4-2.8 6.8-5.8 7.2-9.1.6-4.8 3.8-10.6 9.7-17.3Z" fill="#33101f" stroke="#12050b" stroke-width="1.3" stroke-linejoin="round"/><path d="M22.3 7.4c1.6 5.5.1 10.6-4.3 15.4" fill="none" stroke="#a33a72" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    bell: '<svg viewBox="0 0 32 32"><path d="M16 6.2c4.3 0 7 2.9 7 7.4 0 4 .9 6.6 2.6 8.6H6.4C8.1 20.2 9 17.6 9 13.6c0-4.5 2.7-7.4 7-7.4Z" fill="#b08d3a" stroke="#6a5220" stroke-width="1.3" stroke-linejoin="round"/><path d="M14.2 6.4c0-1 .8-1.8 1.8-1.8s1.8.8 1.8 1.8" fill="none" stroke="#6a5220" stroke-width="1.4"/><path d="M16 22.2c0 2.6-2.6 3.2-4.6 4" fill="none" stroke="#8a6a2a" stroke-width="1.6" stroke-linecap="round"/></svg>',
     petal: '<svg viewBox="0 0 32 32"><path d="M25 6c2 7.6-2.4 14.6-9.6 16.8-3.2 1-5.2-1-4-4.2C14 12.6 19.6 7.4 25 6Z" fill="#ff8fc4" stroke="#8c2453" stroke-width="1.3"/><path d="M22.4 8.6c-4 3.2-7 7.4-8.2 12.4" fill="none" stroke="#bf3a70" stroke-width="1.1"/><path d="M3 12h7M2 17.5h6M4 23h5" stroke="#e0b45a" stroke-width="1.9" stroke-linecap="round"/></svg>',
     skyfeather: '<svg viewBox="0 0 32 32"><path d="M28 3c-8.4 1-14.6 6.2-16.6 14.4L9.6 21l3.6-1.8C21.4 17 26.8 11.2 28 3Z" fill="#eef3ff" stroke="#7f88ad" stroke-width="1.3"/><path d="M12 19 25 6" stroke="#7f88ad" stroke-width="1.2"/><path d="M3 20.5 7 17l4 3.5M3 26 7 22.5l4 3.5" fill="none" stroke="#e0b45a" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     wind: '<svg viewBox="0 0 32 32"><path d="M4 10h13.5A3.4 3.4 0 1 0 14 6.6" fill="none" stroke="#dce9ff" stroke-width="2.7" stroke-linecap="round"/><path d="M4 16.5h17A3.4 3.4 0 1 1 17.5 20" fill="none" stroke="#9fc2f0" stroke-width="2.7" stroke-linecap="round"/><path d="M4 23h9.5A3 3 0 1 0 10.5 20" fill="none" stroke="#dce9ff" stroke-width="2.5" stroke-linecap="round"/></svg>',
@@ -12671,11 +12699,19 @@ const __boot = (async () => {
   // rose-rest branch dead code. the two catch-alls are demoted to the bottom where they belong.
   const ICON_RULES = [
     [/rose compass/, "rose"], [/rose rest/, "roserest"], [/rose crown/, "crown"],
-    [/queen's tear/, "tear"], [/petal step/, "petal"], [/skyfeather/, "skyfeather"],
+    // the tear rule is kept below the thorn rather than deleted: the fourth relic is a thorn now, but a save written
+    // before the rename still carries the old label until applySave relabels it, and an unmatched label draws a
+    // packing crate. both apostrophes are optional because parseSaveKey's sanitiser strips ' out of every string it
+    // loads, so any label that has been through a save comes back reading "The Queens Thorn".
+    [/queen'?s thorn/, "thorn"], [/queen'?s tear/, "tear"], [/petal step/, "petal"], [/skyfeather/, "skyfeather"],
     [/windstep/, "wind"], [/wind feather/, "feather"], [/lungs of the lake/, "lungs"],
-    [/king's seal/, "seal"], [/root word/, "rune"], [/warden's stone/, "warden"],
-    [/violet stone/, "violet"], [/bear's heart/, "bearheart"], [/king's tooth/, "tooth"],
-    [/grandmother's ring/, "ring"], [/boots/, "boots"], [/sash/, "sash"],
+    // EVERY apostrophe in this table is optional, for the same reason the thorn's is. parseSaveKey's sanitiser
+    // strips ' out of every string it loads, so the moment a satchel has been through a save and back these read
+    // "The Kings Seal" and "The Bears Heart" — and each one missed its own rule and drew a packing crate. it was
+    // invisible in a fresh session and only ever appeared after a reload, which is why it lasted this long.
+    [/king'?s seal/, "seal"], [/root word/, "rune"], [/warden'?s stone/, "warden"],
+    [/violet stone/, "violet"], [/bear'?s heart/, "bearheart"], [/king'?s tooth/, "tooth"],
+    [/grandmother'?s ring/, "ring"], [/boots/, "boots"], [/sash/, "sash"],
     [/bracelet/, "bracelet"], [/charm|patience/, "charm"], [/tonic|draught/, "bottle"],
     [/lantern/, "lantern"], [/knife/, "knife"], [/ashfall edge/, "edge"],
     [/candle/, "candles"], [/private note/, "note"], [/diary/, "diary"],
@@ -12688,6 +12724,7 @@ const __boot = (async () => {
     [/font is dry/, "carving"],
     [/scratched into the doorpost/, "carving"],
     [/visitation ledger/, "diary"],
+    [/goat'?s bell/, "bell"],
     [/scratched in the stone|cut in the stone|worn smooth|carved into|scratched on the wall/, "carving"],
     [/sword/, "sword"], [/spear/, "spear"], [/axe/, "axe"],
     [/fairy/, "fairy"], [/heart/, "heart"], [/\bring/, "ring"],
@@ -12755,7 +12792,7 @@ const __boot = (async () => {
         text: "The roses mend you as you go — one heart or so a minute, in a fight or out of it.",
         icon: ITEM_ICONS.roserest
       });
-    entries.push({ label: `Act ${storyAct()}: ${ACT_NAMES[storyAct()]}`, text: `The story so far.<br><br>Relics for the pool: ${["seal", "root", "warden", "tear"].map(k => (WORLDSTATE.relics[k] ? "✓ " : "✗ ") + { seal: "the King's Seal", root: "the Root Word", warden: "the Warden's Stone", tear: "the Queen's Tear" }[k]).join(", ")}.${WORLDSTATE.ending ? "<br><br>Ending: " + { bind: "the pool bound to the beacon's light", break: "the pool drained and the seal broken", fairy: "the thing beneath sung to sleep by the rose court" }[WORLDSTATE.ending] + "." : ""}`, icon: ITEM_ICONS.scroll });
+    entries.push({ label: `Act ${storyAct()}: ${ACT_NAMES[storyAct()]}`, text: `The story so far.<br><br>Relics for the pool: ${["seal", "root", "warden", "tear"].map(k => (WORLDSTATE.relics[k] ? "✓ " : "✗ ") + { seal: "the King's Seal", root: "the Root Word", warden: "the Warden's Stone", tear: "the Queen's Thorn" }[k]).join(", ")}.${WORLDSTATE.ending ? "<br><br>Ending: " + { bind: "the pool bound to the beacon's light", break: "the pool drained and the seal broken", fairy: "the thing beneath sung to sleep by the rose court" }[WORLDSTATE.ending] + "." : ""}`, icon: ITEM_ICONS.scroll });
     entries.push({ label: `Discoveries (${DISC_FOUND.size}/${Object.keys(DISCOVERIES).length})`, text: DISC_FOUND.size ? [...DISC_FOUND].map(id => DISCOVERIES[id].name).join("<br>") : "Nowhere named yet. Walk into places.", icon: ITEM_ICONS.map });
     // grant() pushes every label into FOUND and the pickup handler pushes clues into ITEMS as well, so every clue and
     // every lore book was taking two satchel slots. rendering only, so neither array's serialisation changes.
@@ -12812,7 +12849,7 @@ const __boot = (async () => {
     { text: "The King's Seal: the king wants the Goblin King dead before he'll part with it", done: () => WORLDSTATE.relics.seal, hint: () => (WORLDSTATE.goblinKingDefeated ? `The throne is ${dirTo(king.pos)}` : "The Goblin King comes to the walls at night. Wait for him outside the gate."), target: () => (WORLDSTATE.goblinKingDefeated ? king.pos : V3(0, PLATEAU, TOWN_R + 20)) },
     { text: "The Root Word: it is cut in the elves' tongue; Nim's mother will read it once Nim is home", done: () => WORLDSTATE.relics.root, hint: () => (rootReadable() ? `The stairs up the elder tree are ${dirTo(ELDERSTAIR)}; keep climbing past the huts` : `Thornback is ${dirTo(villages[2].center)}`), target: () => (rootReadable() ? RELIC_SPOTS.root || ELDERSTAIR : villages[2].center) },
     { text: "The Warden's Stone: it lies under the Old Bear's hoard, and the bear does not share", done: () => WORLDSTATE.relics.warden, hint: () => `The cave is ${dirTo(CAVE)}`, target: () => (CAVE ? V3(CAVE.x, CAVE.h, CAVE.z) : POOL) },
-    { text: "The Queen's Tear: bring ten of the rose court's children home and ask their mother", done: () => WORLDSTATE.relics.tear, hint: () => (FAIRY.found < 10 ? `${FAIRY.found}/10 children home. ${fairyHint()}` : `Queen Rosabel is ${dirTo(FAIRY.queen.pos)}`), target: () => FAIRY.queen.pos },
+    { text: "The Queen's Thorn: bring ten of the rose court's children home and ask their mother", done: () => WORLDSTATE.relics.tear, hint: () => (FAIRY.found < 10 ? `${FAIRY.found}/10 children home. ${fairyHint()}` : `Queen Rosabel is ${dirTo(FAIRY.queen.pos)}`), target: () => FAIRY.queen.pos },
     // act v: what lies beneath
     { text: "Earn the word of every village: the eight mountain villages each have an errand for you", done: () => villagesDone() >= 8, hint: () => `${villagesDone()}/8 villages stand with you. ${villageQuests().find(q => !q.done) ? "Next: " + villageQuests().find(q => !q.done).who : ""}`, target: () => { const q = villageQuests().find(q => !q.done); return q ? q.giver.pos : POOL; } },
     { text: "Carry the four to the black pool, at night", done: () => WORLDSTATE.finaleStarted, hint: () => `The black pool is ${dirTo(POOL)}. Go when the sun is down.`, target: () => POOL },
@@ -13394,7 +13431,12 @@ const __boot = (async () => {
         }
       }
       FOUND.length = 0;
-      FOUND.push(...d.found);
+      // the fourth relic's label changed and a label is display text, not a key: the key is WORLDSTATE.relics.tear
+      // and it is untouched. an old save is relabelled on the way in so the satchel does not go on calling the thing
+      // a tear for the rest of the game. the apostrophe is optional in the test because parseSaveKey's sanitiser
+      // strips ' from every string it loads — a save written today comes back reading "The Queens Thorn" — and
+      // rewriting the canonical label is also what puts the apostrophe back for the icon rules to match on.
+      FOUND.push(...d.found.map(t => (/^The Queen'?s (Tear|Thorn)\b/.test(t) ? THORN_LABEL : t)));
       ITEMS.length = 0;
       ITEMS.push(...d.items);
       for (const p of pickups)
@@ -17960,6 +18002,55 @@ const __boot = (async () => {
     if (WORLDSTATE.ending) return speak(king, WORLDSTATE.ending === "bind" ? "The beacon-keepers are a crown office now, with a salary. Someone will always know why the lamp burns. That is your doing." : WORLDSTATE.ending === "break" ? "The pool is a hollow of stones and the miller sits by it in the evenings. I have ordered a bench put there. That is your doing." : "My guards say the pool is full of petals and they hear singing at night. They are not afraid of it. That is your doing.", "King", 7000);
     speak(king, WORLDSTATE.hermitWarned ? "Four relics. The hall is with you, and so is the crown. Go carefully." : "The valley is yours to roam, Champion. Climb the elder tree if you want to see all of it at once.", "King", 5000);
   }
+  // ============================================================ what the three of them say once the pool is awake
+  // hale in the stocks, maren out of them, and the hermit on his moor. none of these pools is picked from at
+  // random: each is walked one beat per press of E, because every one of them is a single thought that only reads
+  // in order, and because a shuffled pool puts the answer three presses before the question.
+  //
+  // hale is not raving and never was. he is an intelligent man who did arithmetic, was frightened by the result,
+  // and talked himself round to the right to choose who pays. he gets closest to saying why the water rose again,
+  // and stops, and the reason he stops is that he is sitting in a public street. nothing here states it.
+  const HALE_AFTER = [
+    "The water's up. I could have given you the week it would happen.",
+    "You've felt it now. Then say it out loud: there is nobody above that water, and never was.",
+    "I was never out of my wits. I did the arithmetic, and then I did what it said.",
+    "You took the herbalist off that wood. I watched you do it from in here.",
+    "You found out who. You never once asked what for.",
+    "It was not a witch-burning. I'll not say the rest of it in a street full of people.",
+    "Ask me again when it's at your door. I'll still be here."
+  ];
+  // the last two only exist once the hermit has said his piece about the four and the eight, because they are hale
+  // recognising where a stranger could possibly have got that from, and then declining to say the name. they are
+  // appended rather than mixed in so he never reacts to a thing that has not happened yet.
+  const HALE_AFTER_TAUGHT = HALE_AFTER.concat([
+    "Four old things and the word of eight villages. That is not something a stranger works out.",
+    "He remembered it, then. Good."
+  ]);
+  // maren is the knife and she has no idea. she is alive, she is grateful, she is wrong about why the valley turned,
+  // and she must stay wrong. her working instruction leads, so a player who only wants the healing gets it first.
+  const MAREN_AFTER = [
+    "Bring me three herbs whenever you're hurt and I'll put you right. It's the least I owe you.",
+    "The marks Hale cut by the pool. I know them.",
+    "My grandmother drew them on the doorstep every midwinter and never once said why.",
+    "Whatever he woke, we've been keeping it asleep a hundred years without knowing it.",
+    "Every morning I get now is one I wasn't going to get. I'll not spend any of them frightened."
+  ];
+  // the hermit knows the shape of the debt and none of the names, and he will not be drawn on either. the first
+  // line here is the one that matters and nobody points at it: it is almost word for word what hale scratched on
+  // the sixth page in the church, and the two of them have never been in a room together in this game.
+  const HERMIT_MUSE = [
+    "I still say the hours, walking. It's only a habit now.",
+    "Rent's rent. It gets paid, or it gets collected.",
+    "It went quiet after the miller's girl. I let myself believe that was the end of the bill.",
+    "Letting a thing go and turning your back on it look the same from outside.",
+    "I've had years to learn the difference and I haven't managed it.",
+    "I gave up a great deal so I'd stop being frightened. I'm still not sure it took.",
+    "Something under there is still counting. I'd like very much to be wrong."
+  ];
+  // his relic count and his own thinking alternate, one per press, the way the queen's errand and her teaching do.
+  // the count is on every odd press including the first, so a player who only wants to know how many they have
+  // never has to sit through a musing to get it.
+  let hermitTurn = 0;
   // choose story dialogue and investigation responses for an important character
   function storyTalk(n) {
     if (n === HALE) {
@@ -17970,7 +18061,10 @@ const __boot = (async () => {
       // about the silence — only about the girl.
       if (STORY.solved) {
         if (WORLDSTATE.ysoldeBuried) return speak(n, "They put her in the ground. I heard the spades from here, and I was glad, and I have no right to be.", "Hale", 6000);
-        if (WORLDSTATE.blackPoolAwake) return speak(n, "You've felt it now. Then say it out loud: there is nobody above that water, and never was.", "Hale", 6000);
+        if (WORLDSTATE.blackPoolAwake) {
+          const line = walkLines("hale:awake", WORLDSTATE.hermitWarned ? HALE_AFTER_TAUGHT : HALE_AFTER);
+          return speak(n, line, "Hale", beatMs(line));
+        }
         return speak(n, "I kept the hours in that church for thirty years and nobody ever came. Somebody had to hold the door.", "Hale", 6000);
       }
       if (STORY.clues >= 3) {
@@ -18002,7 +18096,10 @@ const __boot = (async () => {
     }
     if (n === MAREN) {
       if (WORLDSTATE.marenFreed && P.herbs >= 3 && (P.hp < P.maxHp || P.stam < stamMax())) { P.herbs -= 3; P.hp = P.maxHp; P.stam = stamMax(); SFX.pickupBig(); return speak(n, "Three moor-herbs. Give them here. There: drink. That's what they had me in the stocks for, that. Bring three more whenever you're hurt.", "Maren", 6000); }
-      if (WORLDSTATE.marenFreed && !WORLDSTATE.ending && WORLDSTATE.blackPoolAwake) return speak(n, "The marks Hale cut by the pool. I know them. My grandmother drew them on the doorstep every midwinter and never said why. Whatever he woke, we've been keeping it asleep for a hundred years without knowing. Bring me three herbs if you're hurt; it's the least I owe you.", "Maren", 8000);
+      if (WORLDSTATE.marenFreed && !WORLDSTATE.ending && WORLDSTATE.blackPoolAwake) {
+        const line = walkLines("maren:awake", MAREN_AFTER);
+        return speak(n, line, "Maren", beatMs(line));
+      }
       if (STORY.solved)
         return speak(
           n,
@@ -18189,16 +18286,22 @@ const __boot = (async () => {
     if (near(hermitPos)) {
       if (WORLDSTATE.blackPoolAwake && !WORLDSTATE.hermitTold) {
         WORLDSTATE.hermitTold = true;
-        speak(hermitVoice, "You felt it too. Hale was a murderer, but he wasn't a liar. There's an old door under that pool, and the valley's been paying its rent in blood so long we forgot the tenant. He fed it the miller's girl. Now it's awake, and it's looking. Ask me again and I'll tell you how the old folk shut it.", "Hermit", 9000);
+        speak(hermitVoice, "You felt it too. Hale was a murderer, and he was never a liar and never a fool. There's an old door under that pool, and this valley's been paying its rent in blood so long we forgot the tenant. He fed it the miller's girl and it went quiet, and quiet is not the same as paid. Now it's awake, and it's looking. Ask me again and I'll tell you how the old folk shut it.", "Hermit", 10500);
         return;
       }
       if (WORLDSTATE.hermitTold && !WORLDSTATE.hermitWarned) {
         WORLDSTATE.hermitWarned = true;
-        speak(hermitVoice, "Four things shut it: the king's seal, the word cut in the elder's crown, the stone the bear sleeps on, and a tear from the queen of the rose court. And the villages' word: all eight of them, or the door won't hold. Bring it all to the pool at night. Whatever comes up, don't let it sing to you.", "Hermit", 10000);
+        speak(hermitVoice, "Four things shut it: the king's seal, the word cut in the elder's crown, the stone the bear sleeps on, and a thorn off the queen of the rose court. And the villages' word: all eight of them, or the door won't hold. Bring it all to the pool at night. Whatever comes up, don't let it sing to you.", "Hermit", 10000);
         return;
       }
       if (WORLDSTATE.hermitWarned && !WORLDSTATE.ending) {
-        speak(hermitVoice, relicCount() < 4 ? `${relicCount()} of four. The seal, the root word, the warden's stone, the queen's tear. Don't go near the water at night until you have them all.` : "Four. Then it's the pool, at night. I'll keep the fire lit. Come back and tell me the sky's still up.", "Hermit", 6500);
+        hermitTurn++;
+        if (hermitTurn % 2 === 0) {
+          const muse = walkLines("hermit:muse", HERMIT_MUSE);
+          speak(hermitVoice, muse, "Hermit", beatMs(muse));
+          return;
+        }
+        speak(hermitVoice, relicCount() < 4 ? `${relicCount()} of four. The seal, the root word, the warden's stone, the queen's thorn. Don't go near the water at night until you have them all.` : "Four. Then it's the pool, at night. I'll keep the fire lit. Come back and tell me the sky's still up.", "Hermit", 6500);
         return;
       }
       if (WORLDSTATE.ending) { speak(hermitVoice, WORLDSTATE.ending === "break" ? "Drained it. Ha. Nobody's owed anything now. I'll sleep tonight." : WORLDSTATE.ending === "fairy" ? "Sung to sleep. Never thought I'd see the little folk do a kindness for a monster. Or maybe it's the other way round." : "Bound it to the light. Then the light had better never go out. Keep an eye on that beacon, champion.", "Hermit", 6500); return; }
@@ -18850,13 +18953,13 @@ const __boot = (async () => {
     const qsay = line => say("Queen Rosabel: " + line, Math.max(3400, line.length * 55), true, "fairy");
     if (FAIRY.found >= 10 && !WORLDSTATE.relics.tear) {
       WORLDSTATE.relics.tear = true;
-      grant("The Queen's Tear: a drop of pink glass, warm as a hand", () => {});
+      grant(THORN_LABEL, () => {});
       qsay("Ten home. Here. This came off me a long time ago, when I still did that.");
       return;
     }
     if (WORLDSTATE.relics.tear && !FAIRY.tearTold) {
       FAIRY.tearTold = true;
-      qsay("Keep it close. It is the only part of me that still understands you.");
+      qsay("Keep it close. It is the only part of me that ever wanted to keep anything.");
       return;
     }
     if (!FAIRY.accepted) {
