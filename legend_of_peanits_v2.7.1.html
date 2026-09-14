@@ -8722,6 +8722,19 @@ const __boot = (async () => {
     true
   );
   const SIDE = [];
+  // a guided route for the quest arrow, and it is used by EXACTLY ONE objective — carrying Ysolde to her grave.
+  // everywhere else the arrow keeps pointing dead at the goal, walls or no walls, because that is the right answer for
+  // "the beacon is that way" and because an arrow that suddenly starts steering would be a worse arrow. a procession
+  // is the one case where the street you walk down and the people standing along it ARE the content, so that one
+  // objective opts in by returning routeGuide(...) from its target() and nothing else calls this.
+  // the index only ever advances, so wandering off cannot walk you backwards through a route you have already covered,
+  // and the advance radius sits outside the arrow's own 8 m hide distance so the two cannot flicker against each other.
+  function routeGuide(route) {
+    if (!route || !route.length) return null;
+    if (route.i === undefined) route.i = 0;
+    while (route.i < route.length - 1 && dist2D(route[route.i], P.pos) < (route[route.i].r || 11)) route.i++;
+    return route[route.i];
+  }
   let tracked = null; // side errands given by villagers (title, giver, check, done, reward); tracked: null = the main quest is shown, otherwise a side errand
   // register side quest and the data needed for later interaction
   function addSideQuest(q) {
@@ -12211,7 +12224,18 @@ const __boot = (async () => {
       if (d.ws !== undefined) {
         const rb = ["marenFreed", "haleExposed", "pyreDismantled", "blackPoolAwake", "hermitTold", "hermitWarned", "kingTrusts", "goblinKingDefeated", "bearDefeated", "fairyCourtOpen", "finaleStarted", "wardenDead", "home", "guardsOut", "gehUnlocked", "gehDone"]; // fairyCourtOpen is accepted from 2.0 keys and ignored
         const spec = {}; for (const k of rb) spec[k] = bool;
-        spec.gehSeed = v => num(v, 0, 999999) && Number.isInteger(v); // the generator only ever rolls an integer 1..999999, so the validator says the same thing — a fractional seed is a world it can never produce, and it ends up inside fbm spec.awokeAt = v => num(v, 0, 1e9); spec.deep = v => num(v, 0, 99); spec.ending = v => v === null || ["bind", "break", "fairy"].includes(v); spec.wolfChoice = v => v === null || ["wolves", "goblins", "leave"].includes(v);
+        // the seed generator only ever rolls an integer 1..999999, so the validator says the same thing: a fractional
+        // seed is a world it could never produce, and it ends up inside fbm.
+        // THIS COMMENT LIVES ON ITS OWN LINE FOR A REASON. it was written mid-line in 2.6.0 and swallowed the four
+        // assignments that followed it — awokeAt, deep, ending and wolfChoice. pickObj walks `for (const k in spec)`
+        // and silently drops every key the spec does not name, so for three versions no save key carried the ending or
+        // the wolf choice: you could finish the game, reload, and find the pool reverted, every closing line reverted,
+        // the act fallen from COMPLETE back to FINALE, and the dread climbing again.
+        spec.gehSeed = v => num(v, 0, 999999) && Number.isInteger(v);
+        spec.awokeAt = v => num(v, 0, 1e9);
+        spec.deep = v => num(v, 0, 99);
+        spec.ending = v => v === null || ["bind", "break", "fairy"].includes(v);
+        spec.wolfChoice = v => v === null || ["wolves", "goblins", "leave"].includes(v);
         spec.relics = v => !!v && typeof v === "object" && ["seal", "root", "warden", "tear"].every(k => v[k] === undefined || typeof v[k] === "boolean");
         d.ws = pickObj(d.ws, spec); if (!d.ws) return null;
       }
