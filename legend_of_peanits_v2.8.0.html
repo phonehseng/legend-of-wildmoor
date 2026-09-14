@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.7.1</title>
+<title>Legend of Peanits 2.8.0</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -378,7 +378,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.7.1</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.8.0</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -446,7 +446,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.7.1</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.8.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -8174,6 +8174,19 @@ const __boot = (async () => {
         rr = outR + Math.floor(k / 8) * 26, // widen the ring every eight tries rather than only sweeping the bearing
         c = findSpot(base.x + Math.sin(a) * rr, base.z + Math.cos(a) * rr, 0.6, 300, 4, 2);
       if (!c || insideInterior(c.x, c.z, 2.2) || pathDist(c.x, c.z) < 10) continue;
+      // flat ground only. findSpot's own slope test is a single sample and lets a tent stand across a hillside with
+      // one corner in the air — so the four corners of the actual footprint are measured instead, and thirty-five
+      // centimetres of fall across the whole pitch is the most a man would put canvas on.
+      {
+        let lo = 1e9, hi = -1e9, bad = false;
+        for (const [ox, oz] of [[-1.7, -2.5], [1.7, -2.5], [-1.7, 2.5], [1.7, 2.5], [0, 0]]) {
+          const th = terrainH(c.x + ox, c.z + oz);
+          if (isWater(c.x + ox, c.z + oz)) { bad = true; break; }
+          if (th < lo) lo = th;
+          if (th > hi) hi = th;
+        }
+        if (bad || hi - lo > 0.35 || slopeAt(c.x, c.z) > 0.6) continue;
+      }
       // never inside the walls, and never within sight of anybody's village
       if (Math.hypot(c.x, c.z) < TOWN_R + 70) continue;
       if (villages.some(v => dist2D(v.center, c) < 62)) continue;
@@ -12926,6 +12939,9 @@ const __boot = (async () => {
   // convert movement keys into a normalized camera-relative direction
   // ============================================================ damage
   function damageEnemy(e, dmg, from, kb, big) {
+    // while she is being drawn upward there is nothing of her to hit. this is not a mercy phase — it is the only
+    // stretch of the fight where you are not fighting HER, and the drowned arrive the whole time you cannot.
+    if (e.state === "ascend") { e.flash = 0.05; SFX.block(); if (from === P.pos && (e.ascSaid = (e.ascSaid || 0) + 1) === 1) say("Your blade goes through her. She is halfway out of the world.", 2600, true, "dark"); return; }
     if (e.shield && !big && from && e.alive) { // a shieldbearer turns blows that come at its face on the ground; the air, the flank and the heavy strokes get through
       const fx = from.x - e.pos.x, fz = from.z - e.pos.z, d = Math.hypot(fx, fz) || 1, facing = Math.sin(e.heading) * (fx / d) + Math.cos(e.heading) * (fz / d);
       if (facing > 0.45 && (from === P.pos ? P.grounded : true)) { e.flash = 0.06; SFX.block(); if (from === P.pos) { hitstop = 0.05; say("Its shield! Go over it or around.", 900); } return; }
@@ -13595,14 +13611,16 @@ const __boot = (async () => {
     else gainXP("endurance", 2);
   }
   // resolve a raised shield or an incoming hit
-  function enemyStrike(e, dmg, tgt, kb = 1) {
+  // pierce: a blow a dodge cannot answer. only the warden's lash sets it, and a raised shield still stops it — the
+  // point is to take away the one move that trivialises a slow boss, not to take away every move.
+  function enemyStrike(e, dmg, tgt, kb = 1, pierce = false) {
     dmg *= difficulty(); // the valley hits harder the further you have come
     if (tgt && tgt.id) { const a = NET.avatars.get(tgt.id); const p = a && NET.peers.get(a.via); if (p) netSend(p, { t: "ehit", to: tgt.id, dmg: +dmg.toFixed(2), k: e.kind, x: +e.pos.x.toFixed(1), z: +e.pos.z.toFixed(1), big: !!e.big, kb: +kb.toFixed(2) }); return; }
     const dx = P.pos.x - e.pos.x,
       dz = P.pos.z - e.pos.z,
       dist = Math.hypot(dx, dz) || 1,
       toP = V3(dx / dist, 0, dz / dist);
-    if (P.inv > 0 && P.dodge > 0) {
+    if (P.inv > 0 && P.dodge > 0 && !pierce) {
       P.flurry = 1.7;
       flashText("Flurry rush!");
       hitstop = 0.08;
@@ -14685,7 +14703,7 @@ const __boot = (async () => {
     // the finale: the four relics, the pool, the night
     if (relicCount() === 4 && villagesDone() >= 8 && !WORLDSTATE.finaleStarted && dayElev < 0.05 && dist2D(P.pos, POOL) < 20 && !roomNow) { if (netGuest()) { // a cooldown, not a latch: this used to be spent forever on the first ask, so a guest whose request went unanswered could never raise the warden again all session
       if (time > (NET.finaleAsked || 0)) { NET.finaleAsked = time + 20; for (const p of NET.peers.values()) netSend(p, { t: "finale" }); say("The relics burn cold. The water waits for the host's word.", 3000, true, "dark"); } } else startFinale(); }
-    if (WORLDSTATE.finaleStarted && !WORLDSTATE.wardenDead && WARDEN && !WARDEN.alive) { WORLDSTATE.wardenDead = true; releaseWatchers(); say("She goes under. Not onward — under. The children are still standing there, and none of them will look at you.", 8000, true, "dark"); if (POOL_STONE) POOL_STONE.mark.material.emissiveIntensity = 2.5; }
+    if (WORLDSTATE.finaleStarted && !WORLDSTATE.wardenDead && WARDEN && !WARDEN.alive) { WORLDSTATE.wardenDead = true; releaseWatchers(); dayBreak = 22; say("She goes under. Not onward — under. The children are still standing there, and none of them will look at you.", 8000, true, "dark"); if (POOL_STONE) POOL_STONE.mark.material.emissiveIntensity = 2.5; }
     if (POOL_STONE && WORLDSTATE.wardenDead && !WORLDSTATE.ending) { if (!POOL_STONE.prompt) POOL_STONE.prompt = makePrompt(); const near2 = dist2D(P.pos, POOL_STONE) < 3.2; POOL_STONE.prompt.visible = near2; if (near2) POOL_STONE.prompt.position.set(POOL_STONE.x, POOL_STONE.y + 2.2, POOL_STONE.z); }
   }
   function startFinale() {
@@ -16055,7 +16073,14 @@ const __boot = (async () => {
     // and gains a little, because a shorter day that was also a shorter night would just be a faster game.
     {
       const dr = dread();
-      dayT = (dayT + dt / (dayT < 0.5 ? DAY_LEN * (1 - 0.45 * dr) : DAY_LEN * (1 + 0.12 * dr))) % 1;
+      // the fight happens at midnight and stays there. dayT 0.75 is hour zero and the bottom of the sun's arc, so the
+      // clock simply stops moving while she is up — no dawn to outlast, no burning her off, nothing to do but fight.
+      // when she goes under, the night lets go: the clock runs about forty times normal until the sun is properly up,
+      // and then hands back to the ordinary day. it is the only moment in the game the sky moves faster than you can
+      // walk, which is what makes it read as the night breaking rather than as time passing.
+      if (WORLDSTATE.finaleStarted && !WORLDSTATE.wardenDead && WARDEN && WARDEN.alive) dayT = 0.75;
+      else if (WORLDSTATE.wardenDead && dayBreak > 0) { dayBreak -= dt; dayT = (dayT + dt * 40 / DAY_LEN) % 1; if (dayElev > 0.22) dayBreak = 0; }
+      else dayT = (dayT + dt / (dayT < 0.5 ? DAY_LEN * (1 - 0.45 * dr) : DAY_LEN * (1 + 0.12 * dr))) % 1;
     }
     const th = dayT * Math.PI * 2,
       sunDir = V3(Math.cos(th) * 0.75, Math.sin(th), Math.cos(th) * 0.35).normalize();
@@ -16604,6 +16629,10 @@ const __boot = (async () => {
   // how deep under the pool she starts and how long she takes to come up. long on purpose: a boss that is simply
   // there is a health bar, and a boss you watch surface is a thing that was always down there.
   const WARDEN_DEEP = 9, WARDEN_RISE = 6;
+  // the pull: how long she is out of reach, how often it takes her, and how much of herself she gets back for enduring
+  // it. the heal is deliberately small — nine seconds of holding on buys back about a tenth of her, so the fight can
+  // still be won, it just cannot be won in a hurry.
+  const WARDEN_ASC = 9, WARDEN_ASC_HEAL = 1.4, WARDEN_ASC_GAP = 26;
   // she is not a monster with a grudge, she is a sixteen-year-old who cannot put anything down. every line is a
   // thing she is still holding: the ring, the walk north, her father's sleep, being owed an apology.
   // everything she says is a thing she is still holding, and holding is the whole of what is wrong: there is somewhere
@@ -16699,7 +16728,18 @@ const __boot = (async () => {
     const speed = e.warden ? 3.2 * (e.phase === 3 ? 1.4 : 1) : 4.5;
     // not while she is surfacing. the blink applies to every wraith and starts at zero, so the warden went fully
     // invisible for a fifth of a second about twice during the six-second entrance built to be watched.
-    e.blink -= dt; if (e.blink <= 0 && e.state !== "rise") { e.blink = 2 + Math.random() * 3; e.mesh.visible = false; setTimeout(() => { if (e.alive) e.mesh.visible = true; }, 220); }
+    // she goes out constantly — you lose her, and she is closer when she comes back. still never during the rise,
+    // because the entrance is built to be watched.
+    e.blink -= dt; if (e.blink <= 0 && e.state !== "rise") { e.blink = e.warden ? 0.7 + Math.random() * 1.1 : 2 + Math.random() * 3; e.mesh.visible = false; setTimeout(() => { if (e.alive) e.mesh.visible = true; }, e.warden ? 150 + Math.random() * 120 : 220); }
+    // she does not leave the water. you can run, and dying sends you to a bed, but she is still standing in the pool
+    // when you come back and the fight picks up exactly where it stopped — there is no walking away from this one.
+    if (e.warden && e.alive && dist2D(e.pos, POOL) > 34 && e.state !== "rise" && e.state !== "ascend") {
+      const bx = POOL.x - e.pos.x, bz = POOL.z - e.pos.z, bd = Math.hypot(bx, bz) || 1;
+      e.pos.x += (bx / bd) * speed * 1.6 * dt;
+      e.pos.z += (bz / bd) * speed * 1.6 * dt;
+      e.heading = Math.atan2(bx, bz);
+      if (e.state === "windup" || e.state === "strike") { e.state = "drift"; e.hitDone = true; }
+    }
     if (e.warden) wardenPhases(e, tgt, dist, dt);
     switch (e.state) {
       // the surfacing. it eases out rather than running at a constant rate, so the last two metres are the slowest
@@ -16720,13 +16760,42 @@ const __boot = (async () => {
       // a thing that followed you out of the pool does not lose interest at thirty metres. it comes straight at you
       // from wherever it is, through walls, over hills and across water, and there is no outrunning it and nowhere to
       // hide from it — the only ways to be rid of one are to turn and fight it, or to last until dawn.
-      case "drift": if (dist > 2.6 + e.r) { const d = dist || 1; e.pos.x += (dx / d) * speed * dt; e.pos.z += (dz / d) * speed * dt; e.heading = Math.atan2(dx, dz); } else { e.state = "windup"; e.t = e.warden ? 1.1 : 0.8; if (dist < 40) SFX.tone(220, 660, 0.7, 0.14, "sine"); } break;
-      case "windup": e.heading = Math.atan2(dx, dz); e.mat.emissiveIntensity = 0.8 + (1 - e.t / 0.8) * 2.4; if (e.t <= 0) { e.state = "strike"; e.t = 0.25; e.hitDone = false; } break;
+      // she does not wind up. a wraith telegraphs at 0.8 s and the warden used to take 1.1, which with a 2.6 s recovery
+      // made a four-second cycle you could read and stroll away from. she is a tenth of a second now — the bear's
+      // cadence with the charge taken out — and every third blow is a lash with no tell at all that a dodge will not
+      // save you from. the shield still answers it, which is the one thread of counterplay left: it is meant to be
+      // miserable, not impossible.
+      case "drift": if (dist > 2.6 + e.r) { const d = dist || 1; e.pos.x += (dx / d) * speed * dt; e.pos.z += (dz / d) * speed * dt; e.heading = Math.atan2(dx, dz); } else { e.state = "windup"; e.swings = (e.swings || 0) + 1; e.pierce = e.warden && e.swings % 3 === 0; e.t = e.warden ? (e.pierce ? 0.1 : 0.28) : 0.8; if (dist < 40) SFX.tone(e.pierce ? 340 : 220, 660, e.warden ? 0.3 : 0.7, 0.14, "sine"); } break;
+      case "windup": e.heading = Math.atan2(dx, dz); e.mat.emissiveIntensity = 0.8 + (1 - e.t / (e.warden ? 0.28 : 0.8)) * (e.pierce ? 4.5 : 2.4); if (e.t <= 0) { e.state = "strike"; e.t = e.warden ? 0.18 : 0.25; e.hitDone = false; } break;
       // the warden reaches further than she looks and she reaches upward. jumping over a boss's swing is the oldest
       // way out of a fight in the world, and against her it should not work: she takes you out of the air and throws
       // you, which is the only thing in the game that does.
-      case "strike": if (!e.hitDone && e.t < 0.15 && dist < (e.warden ? 6.2 : 2.6) + e.r && Math.abs(tgt.pos.y - e.pos.y) < (e.warden ? 11 : 4)) { e.hitDone = true; enemyStrike(e, e.warden ? 2 : 1.5, tgt, e.warden ? 2.1 : 1); if (e.warden) { shake = Math.max(shake, 0.9); SFX.tone(60, 300, 0.6, 0.2, "sawtooth", 0.4, 500); } } if (e.t <= 0) { if (e.warden && e.phase === 3 && !e.second) { e.second = true; e.state = "windup"; e.t = 0.5; } else { e.second = false; e.state = "recover"; e.t = e.warden ? 2.6 : 1.5; } } break;
+      case "strike": if (!e.hitDone && e.t < 0.15 && dist < (e.warden ? 6.2 : 2.6) + e.r && Math.abs(tgt.pos.y - e.pos.y) < (e.warden ? 11 : 4)) { e.hitDone = true; enemyStrike(e, e.warden ? 2 : 1.5, tgt, e.warden ? 2.1 : 1, !!e.pierce); if (e.warden) { shake = Math.max(shake, 0.9); SFX.tone(60, 300, 0.6, 0.2, "sawtooth", 0.4, 500); } } if (e.t <= 0) { if (e.warden && e.phase === 3 && !e.second) { e.second = true; e.state = "windup"; e.t = 0.18; } else { e.second = false; e.state = "recover"; e.t = e.warden ? (e.phase === 3 ? 0.45 : 0.7) : 1.5; } } break;
       case "recover": e.mat.emissiveIntensity = 0.3; if (e.t <= 0) { e.state = "drift"; e.mat.emissiveIntensity = 0.8; } break;
+      // note: the warden's recovery is set where the strike resolves, and is short on purpose — see wardenPhases
+      // the pull. something past this is trying to take her and she is refusing it — she goes up, fights her way back
+      // down, and the whole time she is out of reach the drowned come for you instead. she is not resting: she is
+      // holding on, and holding on is what has always kept her here. she comes back a little stronger for it.
+      case "ascend": {
+        const k = 1 - Math.max(0, e.t) / WARDEN_ASC;
+        // up fast, then clawing down: she gets most of the way out before she drags herself back
+        const lift = Math.sin(Math.min(1, k * 1.15) * Math.PI) * 9.5;
+        e.pos.y = damp(e.pos.y, (e.ascY === undefined ? POOL.y : e.ascY) + lift, 4, dt);
+        e.heading += dt * 1.4;
+        e.mat.emissiveIntensity = 1.4 + Math.sin(time * 9) * 0.8;
+        e.hp = Math.min(e.maxHp, e.hp + dt * WARDEN_ASC_HEAL);
+        if (Math.random() < dt * 5) burst(e.pos.clone().add(V3((Math.random() - 0.5) * 2, -1.5, (Math.random() - 0.5) * 2)), 0x8ca0c8, 5, 4, 0.9, 0.12);
+        // the drowned come the entire time, and much faster than the ordinary call
+        e.ascCall = (e.ascCall || 0) - dt;
+        if (e.ascCall <= 0 && EXTRA.filter(x => x.wraith && !x.warden && x.alive).length < 9) {
+          e.ascCall = 1.1;
+          const a = Math.random() * 6.28, r = 9 + Math.random() * 7;
+          spawnWraith(POOL.x + Math.cos(a) * r, POOL.z + Math.sin(a) * r);
+          SFX.tone(180, 90, 0.4, 0.1, "sine", 0, 500);
+        }
+        if (e.t <= 0) { e.state = "drift"; e.ascSaid = 0; e.mat.emissiveIntensity = 0.8; say("She drags herself back down. She would rather be here, in this, than let go.", 4200, true, "dark"); }
+        break;
+      }
       case "stun": e.pos.x += e.vel.x * dt; e.pos.z += e.vel.z * dt; e.vel.multiplyScalar(Math.pow(0.02, dt)); if (e.t <= 0) e.state = "drift"; break;
     }
     // opacity used to jump between three fixed values, so an attack read as four separate pops. it eases, which keeps
@@ -16748,13 +16817,15 @@ const __boot = (async () => {
     // while her chase walked her up the bank, so from about thirty metres out she ended up buried in the hillside —
     // reaching 7.8m with an 11m vertical tolerance, against a player swing of 3m. an eight-metre band where she was
     // lethal and untouchable, on roughly a fifth of the compass. the terrain was the wall.
-    else if (e.state !== "rise") e.pos.y = damp(e.pos.y, Math.max(POOL.y + 0.3, groundAt(e.pos.x, e.pos.z, e.pos.y + 2) + 0.3) + Math.sin(time * 1.5) * 0.3, 3, dt);
+    else if (e.state !== "rise" && e.state !== "ascend") e.pos.y = damp(e.pos.y, Math.max(POOL.y + 0.3, groundAt(e.pos.x, e.pos.z, e.pos.y + 2) + 0.3) + Math.sin(time * 1.5) * 0.3, 3, dt);
     e.mesh.position.copy(e.pos);
     // wraiths and the warden had no heading smoothing either, so a blink or a turn snapped
     e.visH = turnToward(e.visH === undefined ? e.heading : e.visH, e.heading, dt * (e.state === "windup" ? 12 : 5));
     e.mesh.rotation.y = e.visH;
     // a wraith burns off at dawn
-    if (!e.warden && dayElev > 0.08 && e.alive) { e.hp -= dt * 1.5; if (e.hp <= 0) killEnemy(e, false, 0, true); }
+    // daylight still hurts them — that is what daylight is for — but it no longer wipes them out on the hour. they burn
+    // slowly enough to cross a field and reach you, so a noon walk to the pool is a running fight rather than a stroll.
+    if (!e.warden && dayElev > 0.08 && e.alive) { e.hp -= dt * 0.45; if (e.hp <= 0) killEnemy(e, false, 0, true); }
   }
   // the warden's three phases: alone; the pool surges and the wraiths come; and the last desperate pace
   function wardenPhases(e, tgt, dist, dt) {
@@ -16763,6 +16834,20 @@ const __boot = (async () => {
     // she talks while she fights, and what she says is a list of things she is still carrying. the fight is not with
     // a monster; it is with a girl who cannot put anything down, which is the whole of what the pool does to people.
     updateWatchers(dt);
+    // whatever is past this keeps reaching for her, and it takes her whether she likes it or not. never during the
+    // entrance, and never so late in a phase that it robs the kill.
+    e.ascT = (e.ascT === undefined ? WARDEN_ASC_GAP * 0.8 : e.ascT) - dt;
+    if (e.ascT <= 0 && e.state !== "rise" && e.state !== "ascend" && e.hp > e.maxHp * 0.12) {
+      e.ascT = WARDEN_ASC_GAP;
+      e.state = "ascend";
+      e.t = WARDEN_ASC;
+      e.ascY = Math.max(POOL.y + 0.3, groundAt(e.pos.x, e.pos.z, e.pos.y + 2) + 0.3);
+      e.ascCall = 0;
+      e.ascSaid = 0;
+      e.hitDone = true;
+      SFX.phase();
+      say("Something above the water reaches for her, and she fights it.", 4000, true, "dark");
+    }
     e.wrath = (e.wrath === undefined ? 6 : e.wrath) - dt;
     if (e.wrath <= 0 && e.state !== "rise" && dist < 46) {
       e.wrath = e.phase === 3 ? 5.5 : 8.5;
@@ -16814,6 +16899,7 @@ const __boot = (async () => {
   }
   // wraiths haunt the pool at night once it has woken
   let wraithT = 5, wraithHeat = 0, wraithSeen = 0;
+  let dayBreak = 0; // seconds of accelerated clock still owed after the warden goes under, so the night can break
   function updateWraithSpawns(dt) {
     if (netGuest() || !WORLDSTATE.blackPoolAwake || WORLDSTATE.ending || WORLDSTATE.finaleStarted) return;
     if (P.pos.y < DIVIDE) return; // the drowned belong to the pool, not to what is under it — and every distance test below is 2D
@@ -16826,10 +16912,17 @@ const __boot = (async () => {
     else if (count > 0) wraithHeat = Math.min(6, wraithHeat + 1);
     wraithSeen = count;
     wraithT = Math.max(2.6, 9 - wraithHeat * 1.1);
-    const night = dayElev < 0.05, near = dist2D(P.pos, POOL) < 70 || (relicCount() >= 2 && Math.random() < 0.15 * relicCount()), cap = 2 + relicCount() + wraithHeat;
+    // the drowned no longer keep office hours. they came out only after dark, which meant a player could simply not
+    // play at night and never meet one; now they come whenever, and the closer you are to being able to call her up
+    // the harder they come. readiness is the finale's own gate — four relics and eight villages — read as a fraction,
+    // so the pressure and the thing it is warning you about are literally the same number.
+    const ready = (relicCount() / 4) * 0.6 + (Math.min(8, villagesDone()) / 8) * 0.4,
+      night = dayElev < 0.05,
+      near = dist2D(P.pos, POOL) < 70 || Math.random() < (0.05 + 0.35 * ready) * (night ? 1.6 : 1),
+      cap = 1 + Math.round(relicCount() * (night ? 1 : 0.6)) + Math.round(ready * 4) + wraithHeat;
     // the !roomNow guard only covers the case where the PLAYER is indoors, and this branch sites 18-28m from the
     // player anywhere in the world, so a wraith could materialise in a villager's bedroom and walk out through the wall
-    if (night && near && count < cap && dist2D(P.pos, POOL) > 12 && !roomNow) { if (dist2D(P.pos, POOL) >= 70) { const a = Math.random() * 6.28, r = 18 + Math.random() * 10; const x = P.pos.x + Math.cos(a) * r, z = P.pos.z + Math.sin(a) * r; if (inBounds(x, z) && !isWater(x, z) && !insideInterior(x, z, 2)) { spawnWraith(x, z); say("Something has followed you from the pool.", 2500, false, "dark"); } return; } const a = Math.random() * 6.28, r = 16 + Math.random() * 10; const x = POOL.x + Math.cos(a) * r, z = POOL.z + Math.sin(a) * r; if (inBounds(x, z) && !isWater(x, z) && !insideInterior(x, z, 2)) { spawnWraith(x, z); if (count === 0) SFX.dread(); } }
+    if (near && count < cap && dist2D(P.pos, POOL) > 12 && !roomNow) { if (dist2D(P.pos, POOL) >= 70) { const a = Math.random() * 6.28, r = 18 + Math.random() * 10; const x = P.pos.x + Math.cos(a) * r, z = P.pos.z + Math.sin(a) * r; if (inBounds(x, z) && !isWater(x, z) && !insideInterior(x, z, 2)) { spawnWraith(x, z); say("Something has followed you from the pool.", 2500, false, "dark"); } return; } const a = Math.random() * 6.28, r = 16 + Math.random() * 10; const x = POOL.x + Math.cos(a) * r, z = POOL.z + Math.sin(a) * r; if (inBounds(x, z) && !isWater(x, z) && !insideInterior(x, z, 2)) { spawnWraith(x, z); if (count === 0) SFX.dread(); } }
   }
   function updateSlimes(dt, rdt) {
     if (netGuest()) return; // slimes too are the host's
@@ -17879,12 +17972,17 @@ const __boot = (async () => {
       }
       cy = Math.max(cy, c.h + 0.8);
     }
-    camera.position.lerp(V3(cx, cy, cz), Math.min(1, rdt * 9));
+    // a slower arm. at 9 the camera snapped onto every corner and every ledge and the whole picture jolted; 4.5 lets it
+    // trail and settle, which reads as a camera following you rather than a camera stapled to you.
+    camera.position.lerp(V3(cx, cy, cz), Math.min(1, rdt * 4.5));
     shake = Math.max(0, shake - rdt * 2.5);
     const shk = shake * shake * 0.6;
     camera.position.add(V3((Math.random() - 0.5) * shk, (Math.random() - 0.5) * shk, (Math.random() - 0.5) * shk));
     camera.lookAt(P.pos.x, visY + 2.2 + Math.max(0, -camPitch) * 6, P.pos.z);
-    camera.fov = lerp(camera.fov, P.flurry > 0 ? 52 : roomNow ? 78 : 60 + clamp(sp / 46, 0, 1) * 18, rdt * 6);
+    // and a much gentler zoom. the speed term used to swing eighteen degrees of field of view and chase it at rdt*6,
+    // so every sprint and every stop pumped the lens — which is most of what read as jarring. twelve degrees, eased at
+    // 1.8, and the doorway change to 78 now takes about a second instead of snapping.
+    camera.fov = lerp(camera.fov, P.flurry > 0 ? 54 : roomNow ? 74 : 60 + clamp(sp / 46, 0, 1) * 12, rdt * 1.8);
     camera.updateProjectionMatrix();
 
     if (flashTimer > 0) {

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Peanits Save Key Editor</title>
+<style>
+  /* the game's own palette, so the tool does not feel like it came from somewhere else */
+  :root {
+    --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --bronze: #b8823f;
+    --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --pink: #ff8fca;
+    --box: #241a3f; --box2: #1b1430; --edge: #695194; --hi: #a58bd5; --dim: #bcb0d8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--ink); color: var(--bone); font: 14px/1.45 "Trebuchet MS", Verdana, Georgia, serif; }
+  body { padding: 0 0 60px; }
+
+  header { position: sticky; top: 0; z-index: 20; background: linear-gradient(#2b2049, #1a1330); border-bottom: 3px solid var(--edge); padding: 10px 16px; }
+  header h1 { font-size: 17px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); text-shadow: 2px 2px 0 #000; }
+  header p { font-size: 12px; color: var(--dim); margin-top: 2px; }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+  button { font: inherit; font-size: 12px; color: var(--bone); background: linear-gradient(#5b3f96, #3a2865); border: 2px solid var(--hi); padding: 5px 10px; cursor: pointer; }
+  button:hover { background: linear-gradient(#7052b8, #46317b); }
+  button:active { transform: translateY(1px); }
+  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button.ghost { background: #2a1f4a; border-color: #4b3a78; }
+  button.big { font-size: 14px; padding: 8px 14px; border-color: var(--accent); background: linear-gradient(#6b4fa8, #3f2b72); }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 16px; padding: 16px; align-items: start; max-width: 1500px; margin: 0 auto; }
+  @media (max-width: 1080px) { .layout { grid-template-columns: minmax(0, 1fr); } aside { position: static !important; } }
+
+  section { background: var(--box); border: 2px solid var(--edge); box-shadow: inset 0 0 0 1px #0c081b; margin-bottom: 14px; }
+  section > h2 { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); background: #1c1435; padding: 7px 12px; border-bottom: 2px solid var(--edge); cursor: pointer; user-select: none; display: flex; justify-content: space-between; }
+  section > h2 .tag { color: var(--dim); letter-spacing: 0; text-transform: none; font-size: 11px; }
+  section > .body { padding: 10px 12px 12px; }
+  section.closed > .body { display: none; }
+  .note { font-size: 12px; color: var(--dim); margin: 4px 0 10px; }
+  .note b { color: var(--bone); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 4px 14px; }
+  .grid.wide { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+  .grid.nums { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px 14px; }
+
+  label.ck { display: flex; align-items: flex-start; gap: 7px; padding: 2px 0; cursor: pointer; font-size: 13px; }
+  label.ck input { margin-top: 3px; flex: none; accent-color: var(--hi); width: 15px; height: 15px; }
+  label.ck span small { display: block; color: var(--dim); font-size: 11px; }
+
+  .fld { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--dim); }
+  .fld > span { display: flex; justify-content: space-between; gap: 6px; }
+  .fld > span b { color: var(--bone); font-weight: normal; }
+  .fld .rng { display: flex; align-items: center; gap: 6px; }
+  input[type=number], input[type=text], select, textarea { font: inherit; font-size: 13px; background: #150f2a; color: var(--bone); border: 1px solid #4b3a78; padding: 4px 6px; width: 100%; }
+  input[type=range] { width: 100%; accent-color: var(--hi); }
+  input[type=color] { width: 36px; height: 26px; padding: 0; border: 1px solid #4b3a78; background: #150f2a; }
+  textarea { min-height: 62px; resize: vertical; font-family: Consolas, "Courier New", monospace; font-size: 12px; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row .fld { flex: 1; }
+
+  table.q { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.q th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); padding: 3px 4px; border-bottom: 1px solid #4b3a78; }
+  table.q td { padding: 3px 4px; border-bottom: 1px solid #ffffff10; vertical-align: top; }
+  table.q td.c { text-align: center; width: 54px; }
+  table.q small { color: var(--dim); display: block; font-size: 11px; }
+
+  aside { position: sticky; top: 84px; }
+  canvas#map { display: block; width: 100%; max-width: 100%; aspect-ratio: 1; background: #0c0a18; border: 2px solid var(--edge); cursor: crosshair; touch-action: none; }
+  .mapbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; font-size: 12px; }
+  .goto { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .goto button { font-size: 11px; padding: 3px 7px; }
+  #key { width: 100%; min-height: 130px; font-family: Consolas, "Courier New", monospace; font-size: 11px; word-break: break-all; }
+  #json { width: 100%; min-height: 180px; }
+  .ok { color: var(--green); } .bad { color: var(--red); } .warn { color: var(--accent); }
+  #status { font-size: 12px; min-height: 18px; margin-top: 4px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 0; }
+  .chips button { font-size: 11px; padding: 2px 7px; }
+  hr { border: 0; border-top: 1px solid #ffffff18; margin: 10px 0; }
+  h3 { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--bronze); margin: 12px 0 5px; }
+  h3:first-child { margin-top: 0; }
+  code { font-family: Consolas, "Courier New", monospace; background: #150f2a; padding: 0 3px; color: var(--blue); }
+</style>
+</head>
+<body>
