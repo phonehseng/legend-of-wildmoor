@@ -83,7 +83,7 @@
 <body>
 <header>
   <h1>Legend of Peanits &mdash; Save Key Editor</h1>
-  <p>Builds a <code>WM1-</code> key (format <b>v4</b>) that the game's <b>Load key</b> box accepts. Nothing here loads or needs the game; the payload is constructed from scratch. Field names, bounds, quest titles and landmark coordinates were read out of the game source.</p>
+  <p>Builds a <code>WM1-</code> key (format <b>v5</b>) for <b>2.24.2</b>. Imports v3, v4 and v5 keys, preserving quest rewards, shared progress and your personal fairy rescues. The editor works offline.</p>
   <div class="presets">
     <button class="big" data-preset="fresh">Fresh start</button>
     <button class="big" data-preset="stats">Max stats only</button>
@@ -125,11 +125,11 @@
     </div></section>
 
     <section id="sec-quests"><h2><span>Side quests</span> <span class="tag">all 14, by exact title</span></h2><div class="body">
-      <p class="note">The payload keys these by <b>title string</b>, so the titles below are copied character for character out of the game. <b>Taken</b> means accepted; <b>done</b> means handed in and paid. Marking a quest done here does <b>not</b> hand you its reward &mdash; the reward lives in <code>bonus</code>, <code>maxHp</code> or <code>owned</code>, so set those too if you want the quest's keepsake.</p>
+      <p class="note"><b>Taken</b> means accepted. <b>Done</b> records completion; <b>Paid</b> records your reward separately. Setting Paid does not add the keepsake: set <code>bonus</code>, <code>maxHp</code> or <code>owned</code> too. Imported shared progress is preserved; fairy errands always use your own rescues.</p>
       <div class="chips">
         <button data-q="all">All done</button><button data-q="taken">All taken, none done</button><button data-q="none">None</button>
       </div>
-      <table class="q"><thead><tr><th>Quest</th><th class="c">Taken</th><th class="c">Done</th></tr></thead><tbody id="quests"></tbody></table>
+      <table class="q"><thead><tr><th>Quest</th><th class="c">Taken</th><th class="c">Done</th><th class="c">Paid</th></tr></thead><tbody id="quests"></tbody></table>
     </div></section>
 
     <section id="sec-disc"><h2><span>Discoveries</span> <span class="tag">13 named places</span></h2><div class="body">
@@ -141,7 +141,7 @@
       <div class="grid" id="fairybools"></div>
       <div class="grid nums" id="fairynums" style="margin-top:8px"></div>
       <h3>The 25 children <span style="color:var(--dim);text-transform:none;letter-spacing:0">(ids are their build order, 0&ndash;24)</span></h3>
-      <p class="note">Ticking children here sets <b>found</b> to match, because the milestones read <code>FAIRY.found</code> while the map and the compass read the children themselves. Milestones fire at 5 (Rose Rest), 10 (the compass, and the Queen's Tear), 15 (Petal Step), 20 (the grove opens) and 25 (the Rose Crown) &mdash; tick the matching flags above if you want them already granted rather than granted on your next child.</p>
+      <p class="note">These are <b>your personal rescues</b>, including when playing with friends. Selecting children keeps found and completion in sync; counted rescues never come from shared quest progress. Milestones occur at 5 (Rose Rest), 10 (compass and the Queen's Thorn), 15 (Petal Step), 20 (grove) and 25 (Rose Crown). Reward flags and already granted hearts can be edited separately.</p>
       <div class="chips"><button data-k="all">All 25</button><button data-k="none">None</button><button data-k="10">First 10</button><button data-k="20">First 20</button></div>
       <div class="grid" id="kids" style="margin-top:6px;grid-template-columns:repeat(auto-fill,minmax(74px,1fr))"></div>
     </div></section>
@@ -266,18 +266,30 @@
     ["bearDefeated", "The Old Bear is beaten", ""],
     ["finaleStarted", "The finale has begun", "the warden rises from the pool"],
     ["wardenDead", "The Drowned Warden is dead", ""],
-    ["home", "You have been given the cottage", "builds the trophy shelf on load"],
+    ["home", "Legacy cottage flag", "retained for older saves; grants no current house or shelf"],
     ["guardsOut", "The guards have moved outside the walls", ""],
     ["gehUnlocked", "The way down is open", "the bed of the pool can be dived through &mdash; but only once she is buried too"],
-    ["ysoldeBuried", "Ysolde is buried under the elder tree", "this and gehUnlocked together open the water; the dive needs both"],
-    ["gehDone", "The descent has been made", "you have been down and come back"]
+    ["ysoldeBuried", "Ysolde is buried at the south gate", "the burial is complete"],
+    ["ysoldeLifted", "Ysolde has been lifted from the water", "restores carrying her until burial"],
+    ["kingMourned", "The king has mourned Ysolde", ""],
+    ["processionRear", "The procession reached the rear gate", ""],
+    ["processionHale", "The procession passed Hale", ""],
+    ["hermitChurchTaken", "The hermit's last-watch errand is accepted", ""],
+    ["hermitChurchFound", "The church clapper has been found", ""],
+    ["hermitChurchDone", "The clapper has been returned", ""],
+    ["gehAlmonerDown", "The Almoner's gate is open", ""],
+    ["gehMatronDown", "The Matron's ward is open", ""],
+    ["gehHeapDown", "The Unclaimed store is open", ""],
+    ["gehDone", "The Kindly One encounter is complete", "opens the way to Pride"],
+    ["luciferDefeated", "Lucifer has abandoned his plan", "shared victory; Lucifer survives"],
+    ["gehFinaleWitnessed", "You witnessed Lucifer's final scene", "personal eligibility for Stay or Move on"]
   ];
 
   var RELICS = [
     ["seal", "The King's Seal", "the king wants the Goblin King dead first"],
     ["root", "The Root Word", "the crown of the elder tree"],
     ["warden", "The Warden's Stone", "under the Old Bear's hoard"],
-    ["tear", "The Queen's Tear", "ten children home, then ask their mother"]
+    ["tear", "The Queen's Thorn", "ten children home, then ask their mother"]
   ];
 
   var STORY_BOOLS = [
@@ -314,7 +326,9 @@
     ["dashCost", "Dash stamina cost", 4, 15, 0.5, 15, "LOWER is better"]
   ];
 
-  var SKILLS = ["attack", "strength", "agility", "speed", "endurance", "swimming"];
+  var SKILLS = ["attack", "strength", "agility", "speed", "endurance", "swimming", "blocking"];
+  var QUEST_GOALS = [[3], [5, 2], [4], [1], [1], [1], [1], [3], [1], [3], [2], [2], [3], [25]];
+  function personalFairy(title) { return QUESTS.slice(11).some(function (q) { return q[0] === title; }); }
   var HAIR = ["short", "long", "bun", "ponytail", "braid", "curly", "mohawk", "bob", "bald"];
 
   /* pickup ids that are fixed in the source. every other pickup is id'd type:index from its build order,
@@ -324,6 +338,7 @@
     ["clue:diary", "Evidence: the diary page"], ["clue:ritual", "Evidence: the ritual marks"],
     ["clue:note", "Evidence: Hale's note"],
     ["quest:stonefold", "The violet stone"], ["quest:greytor", "The ring at the beacon's foot"],
+    ["church:watch-clapper", "The abandoned church's watch-clapper"],
     ["relic:root", "The Root Word"], ["relic:warden", "The Warden's Stone"],
     ["relic:windstep", "Windstep (dash reaches half again as far)"],
     ["grove:heart", "The Grove's Heart (a heart piece)"], ["grove:stone", "The stone in the grove"],
@@ -380,7 +395,17 @@
   function validate(d) {
     var bad = [], num = function (v, lo, hi) { return typeof v === "number" && isFinite(v) && v >= lo && v <= hi; };
     var k, e, i;
-    if (!d || (d.v !== 3 && d.v !== 4)) bad.push("v must be 3 or 4");
+    if (!d || typeof d !== "object") return ["The payload must be an object"];
+    if ([3, 4, 5].indexOf(d.v) < 0) bad.push("v must be 3, 4 or 5");
+    for (i = 0; i < ["bonus", "story", "sk", "fairy", "ws", "settings", "custom", "owned", "side"].length; i++) {
+      k = ["bonus", "story", "sk", "fairy", "ws", "settings", "custom", "owned", "side"][i];
+      if (!d[k] || typeof d[k] !== "object" || Array.isArray(d[k])) return [k + " must be an object"];
+    }
+    for (i = 0; i < ["picked", "found", "items", "herbsTaken", "owed"].length; i++) {
+      k = ["picked", "found", "items", "herbsTaken", "owed"][i];
+      if (!Array.isArray(d[k])) return [k + " must be a list"];
+    }
+    if (!Array.isArray(d.fairy.kids)) return ["fairy.kids must be a list"];
     if (!Array.isArray(d.pos) || d.pos.length !== 3 || !d.pos.every(function (v) { return num(v, -2000, 2000); })) bad.push("pos must be three numbers within +/-2000");
     if (!num(d.day, 0, 1)) bad.push("day must be 0..1");
     if (!num(d.hp, -1, 60)) bad.push("hp must be -1..60");
@@ -392,17 +417,35 @@
     if (!num(d.story.campLeft, -1, 3)) bad.push("story.campLeft must be -1..3");
     if (!num(d.story.logsGiven, 0, 99)) bad.push("story.logsGiven must be 0..99");
     if (!Array.isArray(d.story.evidence) || d.story.evidence.length > 5) bad.push("story.evidence must be at most five ids");
-    if (d.story.weaver0 !== undefined && !(typeof d.story.weaver0 === "string" && d.story.weaver0.length < 200)) bad.push("story.weaver0 must be a string under 200 characters");
+    else if (!d.story.evidence.every(function (id) { return EVIDENCE.some(function (entry) { return entry[0] === id; }); })) bad.push("story.evidence contains an unknown clue");
+    if (d.story.partySlimes !== undefined && !num(d.story.partySlimes, 0, 6)) bad.push("story.partySlimes must be 0..6");
+    [[d.story, STORY_BOOLS.map(function (b) { return b[0]; }).concat(["weaverVisited"])],
+     [d.fairy, ["accepted", "complete", "seen", "compass", "rest", "petal", "grove", "crown"]],
+     [d.owned, ["sword", "spear", "axe"]], [d.bonus, ["herbSight"]],
+     [d.settings, ["fps", "arrow", "rose", "hq", "grass", "voice"]]].forEach(function (scope) {
+      scope[1].forEach(function (field) { if (scope[0][field] !== undefined && typeof scope[0][field] !== "boolean") bad.push(field + " must be true or false"); });
+    });
+    if (d.story.weaver0 !== undefined && !(typeof d.story.weaver0 === "string" && d.story.weaver0.length <= 120)) bad.push("story.weaver0 must be a string of at most 120 characters");
     if (!Array.isArray(d.flags) || d.flags.length !== 5 || !d.flags.every(function (v) { return typeof v === "boolean"; })) bad.push("flags must be exactly five booleans");
     for (i = 0; i < SKILLS.length; i++) { e = d.sk[SKILLS[i]]; if (!Array.isArray(e) || !num(e[0], 1, 99) || !num(e[1], 0, 1e6)) bad.push("sk." + SKILLS[i] + " must be [level 1..99, xp 0..1000000]"); }
     ["herbs", "logs", "kills", "gkills", "hits", "blocks", "swordSheep", "swordDeer"].forEach(function (n) { if (!num(d[n], 0, 1e6)) bad.push(n + " must be 0..1000000"); });
     if (!num(d.fairy.found, 0, 25)) bad.push("fairy.found must be 0..25");
     if (!num(d.fairy.hearts, 0, 10)) bad.push("fairy.hearts must be 0..10");
-    if (!d.fairy.kids.every(function (v) { return num(v, 0, 99); })) bad.push("fairy.kids must be numbers 0..99");
+    if (!d.fairy.kids.every(function (v) { return Number.isInteger(v) && num(v, 0, 24); }) || new Set(d.fairy.kids).size !== d.fairy.kids.length) bad.push("fairy.kids must be unique child ids 0..24");
+    if (d.fairy.found !== d.fairy.kids.length) bad.push("fairy.found must match your selected children");
+    if (d.fairy.complete !== (d.fairy.found === 25)) bad.push("fairy.complete must match whether all 25 children are selected");
     if (!(num(d.ws.gehSeed, 0, 999999) && Number.isInteger(d.ws.gehSeed))) bad.push("ws.gehSeed must be a whole number 0..999999");
     if (!num(d.ws.awokeAt, 0, 1e9)) bad.push("ws.awokeAt must be 0..1000000000");
     if (!(d.ws.ending === null || ["bind", "break", "fairy"].indexOf(d.ws.ending) >= 0)) bad.push("ws.ending must be null, bind, break or fairy");
     if (!(d.ws.wolfChoice === null || ["wolves", "goblins", "leave"].indexOf(d.ws.wolfChoice) >= 0)) bad.push("ws.wolfChoice must be null, wolves, goblins or leave");
+    if (!(d.ws.afterlife === null || ["stay", "moveOn"].indexOf(d.ws.afterlife) >= 0)) bad.push("ws.afterlife must be null, stay or moveOn");
+    WS_BOOLS.forEach(function (b) { if (typeof d.ws[b[0]] !== "boolean") bad.push("ws." + b[0] + " must be true or false"); });
+    Object.keys(d.side).forEach(function (title) {
+      var row = d.side[title], qi = QUESTS.findIndex(function (q) { return q[0] === title; }), goals = QUEST_GOALS[qi];
+      if (!Array.isArray(row) || [2, 4].indexOf(row.length) < 0 || typeof row[0] !== "boolean" || typeof row[1] !== "boolean") { bad.push("Invalid quest row: " + title); return; }
+      if (row.length === 4 && (typeof row[2] !== "boolean" || !goals || (row[3] !== null && (!Array.isArray(row[3]) || row[3].length !== goals.length || !row[3].every(function (v, j) { return Number.isInteger(v) && num(v, 0, goals[j]); }))))) bad.push("Invalid shared quest progress: " + title);
+      if (personalFairy(title) && row[3] != null) bad.push("Fairy quest progress must remain personal");
+    });
     if (!d.picked.every(function (s) { return typeof s === "string" && s.length <= 40; })) bad.push("picked ids must be strings of 40 characters or fewer");
     if (!d.found.every(function (s) { return typeof s === "string" && s.length <= 200; })) bad.push("found lines must be 200 characters or fewer");
     if (!d.items.every(function (s) { return typeof s === "string" && s.length <= 2000; })) bad.push("items lines must be 2000 characters or fewer");
@@ -419,15 +462,19 @@
   /* ============================================================ state */
   function fresh() {
     var side = {}, sk = {}, i;
-    for (i = 0; i < QUESTS.length; i++) side[QUESTS[i][0]] = [false, false];
+    for (i = 0; i < QUESTS.length; i++) side[QUESTS[i][0]] = [false, false, false, null];
     for (i = 0; i < SKILLS.length; i++) sk[SKILLS[i]] = [1, 0];
     return {
-      v: 4,
+      v: 5,
       ws: {
         marenFreed: false, haleExposed: false, pyreDismantled: false, blackPoolAwake: false, awokeAt: 0,
         hermitTold: false, hermitWarned: false, kingTrusts: false, goblinKingDefeated: false,
         bearDefeated: false, finaleStarted: false, wardenDead: false, ending: null,
         gehUnlocked: false, gehSeed: 0, ysoldeBuried: false, gehDone: false,
+        ysoldeLifted: false, kingMourned: false, processionRear: false, processionHale: false,
+        hermitChurchTaken: false, hermitChurchFound: false, hermitChurchDone: false,
+        gehAlmonerDown: false, gehMatronDown: false, gehHeapDown: false,
+        luciferDefeated: false, gehFinaleWitnessed: false, afterlife: null,
         relics: { seal: false, root: false, warden: false, tear: false },
         wolfChoice: null, home: false, guardsOut: false
       },
@@ -442,7 +489,7 @@
       kills: 0, gkills: 0, hits: 0, blocks: 0,
       sk: sk,
       story: {
-        logsGiven: 0, gobKills0: 0, clues: 0, evidence: [], campLeft: -1,
+        logsGiven: 0, gobKills0: 0, partySlimes: 0, clues: 0, evidence: [], campLeft: -1,
         wick: false, solved: false, reported: false, spear: false, boots: false,
         bearHeart: false, kingTooth: false, kingKills: 0, wolfDone: false,
         smith0: 0, potter0: 0, ferry0: 0, wager0: [0, 0]
@@ -607,6 +654,8 @@
     host = $("storynums");
     mkNum(host, "clues found", { min: 0, max: 5, step: 1, slider: true, int: true, fmt: function (v) { return v + "/5"; } },
       function () { return S.story.clues; }, function (v) { S.story.clues = v; });
+    mkNum(host, "partySlimes <b>shared beacon progress</b>", { min: 0, max: 6, step: 1, int: true },
+      function () { return S.story.partySlimes || 0; }, function (v) { S.story.partySlimes = v; });
     mkNum(host, "logsGiven", { min: 0, max: 99, step: 1, int: true }, function () { return S.story.logsGiven; }, function (v) { S.story.logsGiven = v; });
     mkNum(host, "campLeft", { min: -1, max: 3, step: 1, int: true, fmt: function (v) { return v < 0 ? "no camp" : ""; } },
       function () { return S.story.campLeft; }, function (v) { S.story.campLeft = v; });
@@ -624,7 +673,7 @@
 
     var w = $("weaver0");
     w.addEventListener("input", function () {
-      if (w.value.trim()) S.story.weaver0 = w.value.slice(0, 199); else delete S.story.weaver0;
+      if (w.value.trim()) S.story.weaver0 = w.value.slice(0, 120); else delete S.story.weaver0;
       refresh();
     });
     binds.push(function () { if (w !== document.activeElement) w.value = S.story.weaver0 === undefined ? "" : S.story.weaver0; });
@@ -640,6 +689,9 @@
       mkChk(host, r[1], r[2], function () { return !!S.ws.relics[r[0]]; }, function (v) { S.ws.relics[r[0]] = v; });
     });
     host = $("wschoice");
+    mkSel(host, "afterlife <b>your personal ending</b>", [
+      [null, "not chosen"], ["stay", "Stay — return alive to Wildmoor"], ["moveOn", "Move on — modern ending"]
+    ], function () { return S.ws.afterlife; }, function (v) { S.ws.afterlife = v; if (v) { S.ws.luciferDefeated = true; S.ws.gehFinaleWitnessed = true; } });
     mkSel(host, "ending <b>the valley's fate</b>", [
       [null, "not chosen yet"], ["bind", "bind &mdash; hold it through the beacon"],
       ["break", "break &mdash; bring the place down on it"], ["fairy", "fairy &mdash; give it to the rose court"]
@@ -656,22 +708,24 @@
   function buildQuests() {
     var tb = $("quests");
     QUESTS.forEach(function (q) {
-      var tr = el("tr"), td = el("td"), a = el("td", "c"), b = el("td", "c");
+      var tr = el("tr"), td = el("td"), a = el("td", "c"), b = el("td", "c"), paid = el("td", "c");
       td.innerHTML = q[0].replace(/&/g, "&amp;").replace(/</g, "&lt;") + "<small>" + q[1] + "</small>";
-      var ia = el("input"), ib = el("input");
-      ia.type = "checkbox"; ib.type = "checkbox";
+      var ia = el("input"), ib = el("input"), ip = el("input");
+      ia.type = "checkbox"; ib.type = "checkbox"; ip.type = "checkbox";
       ia.setAttribute("aria-label", q[0] + " taken");
       ib.setAttribute("aria-label", q[0] + " done");
-      a.appendChild(ia); b.appendChild(ib);
-      tr.appendChild(td); tr.appendChild(a); tr.appendChild(b); tb.appendChild(tr);
+      ip.setAttribute("aria-label", q[0] + " paid");
+      a.appendChild(ia); b.appendChild(ib); paid.appendChild(ip);
+      tr.appendChild(td); tr.appendChild(a); tr.appendChild(b); tr.appendChild(paid); tb.appendChild(tr);
       ia.addEventListener("change", function () { S.side[q[0]][0] = !!ia.checked; refresh(); });
       ib.addEventListener("change", function () { S.side[q[0]][1] = !!ib.checked; if (ib.checked) { S.side[q[0]][0] = true; ia.checked = true; } refresh(); });
-      binds.push(function () { ia.checked = !!S.side[q[0]][0]; ib.checked = !!S.side[q[0]][1]; });
+      ip.addEventListener("change", function () { S.side[q[0]][2] = !!ip.checked; refresh(); });
+      binds.push(function () { ia.checked = !!S.side[q[0]][0]; ib.checked = !!S.side[q[0]][1]; ip.checked = !!S.side[q[0]][2]; });
     });
     document.querySelectorAll("[data-q]").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var m = btn.getAttribute("data-q");
-        QUESTS.forEach(function (q) { S.side[q[0]] = m === "all" ? [true, true] : m === "taken" ? [true, false] : [false, false]; });
+        QUESTS.forEach(function (q) { S.side[q[0]] = m === "all" ? [true, true, true, null] : m === "taken" ? [true, false, false, null] : [false, false, false, null]; });
         pull(); refresh();
       });
     });
@@ -701,11 +755,18 @@
      ["grove", "The grove is open", "granted at 20"],
      ["crown", "Rose Crown", "granted at 25: the court answers you at the pool"]
     ].forEach(function (f) {
-      mkChk(host, f[1], f[2], function () { return !!S.fairy[f[0]]; }, function (v) { S.fairy[f[0]] = v; });
+      mkChk(host, f[1], f[2], function () { return !!S.fairy[f[0]]; }, function (v) {
+        S.fairy[f[0]] = v;
+        if (f[0] === "complete") { if (v) S.fairy.kids = allKids(); else if (S.fairy.kids.length === 25) S.fairy.kids.pop(); syncFairyCount(); pull(); }
+      });
     });
     host = $("fairynums");
     mkNum(host, "found", { min: 0, max: 25, step: 1, slider: true, int: true, fmt: function (v) { return v + "/25"; } },
-      function () { return S.fairy.found; }, function (v) { S.fairy.found = v; });
+      function () { return S.fairy.found; }, function (v) {
+        S.fairy.kids = S.fairy.kids.slice(0, v);
+        for (var id = 0; S.fairy.kids.length < v && id < 25; id++) if (!inList(S.fairy.kids, id)) S.fairy.kids.push(id);
+        syncFairyCount(); pull();
+      });
     mkNum(host, "hearts", { min: 0, max: 10, step: 1, slider: true, int: true },
       function () { return S.fairy.hearts; }, function (v) { S.fairy.hearts = v; });
 
@@ -713,16 +774,23 @@
     var i;
     for (i = 0; i < 25; i++) (function (id) {
       mkChk(host, String(id), "", function () { return inList(S.fairy.kids, id); },
-        function (v) { toggleIn(S.fairy.kids, id, v); S.fairy.kids.sort(function (a, b) { return a - b; }); S.fairy.found = S.fairy.kids.length; });
+        function (v) { toggleIn(S.fairy.kids, id, v); S.fairy.kids.sort(function (a, b) { return a - b; }); syncFairyCount(); pull(); });
     })(i);
     document.querySelectorAll("[data-k]").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var m = btn.getAttribute("data-k"), n = m === "all" ? 25 : m === "none" ? 0 : +m, a = [], j;
         for (j = 0; j < n; j++) a.push(j);
-        S.fairy.kids = a; S.fairy.found = n;
+        S.fairy.kids = a; syncFairyCount();
         pull(); refresh();
       });
     });
+  }
+
+  function syncFairyCount() {
+    S.fairy.found = S.fairy.kids.length;
+    S.fairy.complete = S.fairy.found === 25;
+    S.side[QUESTS[13][0]][1] = S.fairy.complete;
+    QUESTS.slice(11).forEach(function (q) { S.side[q[0]][3] = null; });
   }
 
   function buildPlayer() {
@@ -1042,7 +1110,7 @@
   /* ============================================================ presets */
   function allQuests(v) {
     var o = {}, i;
-    for (i = 0; i < QUESTS.length; i++) o[QUESTS[i][0]] = v ? [true, true] : [false, false];
+    for (i = 0; i < QUESTS.length; i++) o[QUESTS[i][0]] = v ? [true, true, true, null] : [false, false, false, null];
     return o;
   }
   function allKids() { var a = [], i; for (i = 0; i < 25; i++) a.push(i); return a; }
@@ -1071,6 +1139,7 @@
       d.flags = [true, true, true, true, true];
       d.ws.marenFreed = d.ws.haleExposed = d.ws.pyreDismantled = true;
       d.ws.blackPoolAwake = d.ws.hermitTold = d.ws.hermitWarned = d.ws.kingTrusts = true;
+      d.ws.hermitChurchTaken = d.ws.hermitChurchFound = d.ws.hermitChurchDone = true;
       d.ws.home = d.ws.guardsOut = true;
       d.ws.relics.root = true; d.ws.relics.tear = true;
       d.story.wick = d.story.solved = d.story.reported = d.story.spear = d.story.boots = true;
@@ -1087,7 +1156,7 @@
       d.bonus = { air: 1.6, lung: 2.2, stam: 34, run: 1.5, dmg: 1.1, slime: 1.77, jumps: 3, guard: 0.8, dash: 1.5, dashCost: 8 };
       d.herbs = 10; d.logs = 10; d.flint = true; d.kills = 40; d.gkills = 40;
       d.picked = ["clue:cloth", "clue:ring", "clue:diary", "clue:ritual", "clue:note",
-        "quest:stonefold", "quest:greytor", "relic:root", "relic:windstep", "grove:heart", "grove:stone"];
+        "quest:stonefold", "quest:greytor", "church:watch-clapper", "relic:root", "relic:windstep", "grove:heart", "grove:stone"];
       d.settings.rose = true;
       d.pos = [0, 9, 74];
       return d;
@@ -1101,6 +1170,7 @@
       d.ws.finaleStarted = d.ws.wardenDead = d.ws.gehUnlocked = true;
       /* the whirlpool checks both flags, so unlocking the way down without burying her leaves the water shut */
       d.ws.ysoldeBuried = true;
+      d.ws.ysoldeLifted = d.ws.kingMourned = d.ws.processionRear = d.ws.processionHale = true;
       d.ws.relics.seal = true; d.ws.relics.warden = true;
       d.ws.ending = null;
       d.ws.gehSeed = 0;
@@ -1152,8 +1222,13 @@
      instead of leaving half of it undefined and throwing on the first bind */
   function adopt(d) {
     var base = fresh(), k;
-    for (k in base) if (d[k] !== undefined) base[k] = d[k];
-    base.v = 4;
+    if (!d || typeof d !== "object" || Array.isArray(d)) return base;
+    for (k in d) if (Object.prototype.hasOwnProperty.call(d, k)) base[k] = d[k];
+    base.v = 5;
+    ["ws", "story", "bonus", "owned", "custom", "fairy", "settings", "sk"].forEach(function (name) {
+      if (!base[name] || typeof base[name] !== "object" || Array.isArray(base[name])) base[name] = fresh()[name];
+    });
+    ["disc", "found", "items", "picked", "herbsTaken", "owed"].forEach(function (name) { if (!Array.isArray(base[name])) base[name] = []; });
     if (d.ws) { base.ws = fresh().ws; for (k in d.ws) if (k !== "relics") base.ws[k] = d.ws[k]; if (d.ws.relics) for (k in d.ws.relics) base.ws.relics[k] = !!d.ws.relics[k]; }
     if (d.story) { base.story = fresh().story; for (k in d.story) base.story[k] = d.story[k]; }
     if (d.bonus) { base.bonus = fresh().bonus; for (k in d.bonus) base.bonus[k] = d.bonus[k]; }
@@ -1162,11 +1237,27 @@
     if (d.fairy) { base.fairy = fresh().fairy; for (k in d.fairy) base.fairy[k] = d.fairy[k]; }
     if (d.settings) { base.settings = fresh().settings; for (k in d.settings) base.settings[k] = d.settings[k]; }
     if (d.sk) { base.sk = fresh().sk; for (k in d.sk) if (Array.isArray(d.sk[k])) base.sk[k] = [d.sk[k][0], d.sk[k][1]]; }
+    if (!d.sk || !d.sk.blocking) {
+      var practice = Math.max(0, +base.blocks || 0), level = 1;
+      while (level < 30 && practice >= 22 * Math.pow(1.32, level - 1)) { practice -= 22 * Math.pow(1.32, level - 1); level++; }
+      base.sk.blocking = [level, practice];
+    }
+    if (d.ws && d.ws.gehFinaleWitnessed === undefined) base.ws.gehFinaleWitnessed = d.ws.luciferDefeated === true;
+    [["gehAlmonerDown", "The Almoner's Blanket"], ["gehMatronDown", "Twenty-eight names cut into a wall"], ["gehHeapDown", "A shoe, a comb, a wooden horse"]].forEach(function (entry) {
+      if (!d.ws || d.ws[entry[0]] === undefined) base.ws[entry[0]] = (base.found || []).some(function (label) { return String(label).replace(/['’]/g, "").indexOf(entry[1].replace(/['’]/g, "")) === 0; });
+    });
+    if (base.ws.luciferDefeated) base.ws.gehDone = true;
+    if (base.ws.gehDone) base.ws.gehHeapDown = true;
+    if (base.ws.gehHeapDown) base.ws.gehMatronDown = true;
+    if (base.ws.gehMatronDown) base.ws.gehAlmonerDown = true;
     /* every one of the fourteen titles must exist or the checkbox binds have nothing to read; unknown titles
        from another build are kept rather than dropped, because dropping them would quietly lose that state */
     base.side = {};
-    if (d.side) for (k in d.side) if (Array.isArray(d.side[k])) base.side[k] = [!!d.side[k][0], !!d.side[k][1]];
-    QUESTS.forEach(function (q) { if (!base.side[q[0]]) base.side[q[0]] = [false, false]; });
+    if (d.side) for (k in d.side) if (Array.isArray(d.side[k])) {
+      var row = d.side[k], known = QUESTS.some(function (q) { return q[0] === k; });
+      base.side[k] = known ? [!!row[0], !!row[1], row.length > 2 ? !!row[2] : !!row[1], !personalFairy(k) && Array.isArray(row[3]) ? row[3].slice() : null] : row.slice();
+    }
+    QUESTS.forEach(function (q) { if (!base.side[q[0]]) base.side[q[0]] = [false, false, false, null]; });
     ["disc", "found", "items", "picked", "herbsTaken", "owed"].forEach(function (n) { if (!Array.isArray(base[n])) base[n] = []; });
     if (!Array.isArray(base.fairy.kids)) base.fairy.kids = [];
     if (!Array.isArray(base.story.evidence)) base.story.evidence = [];
@@ -1222,12 +1313,12 @@
     var out = $("loadStatus"), d;
     try { d = decodeKey($("inkey").value); } catch (err) { d = null; }
     if (!d) { out.className = "bad"; out.textContent = "That is not a readable WM1- key."; return; }
-    if (d.v !== 3 && d.v !== 4) { out.className = "bad"; out.textContent = "Key format v" + d.v + "; the game only accepts 3 or 4."; return; }
+    if ([3, 4, 5].indexOf(d.v) < 0) { out.className = "bad"; out.textContent = "Key format v" + d.v + "; supported formats are 3, 4 and 5."; return; }
     S = adopt(d);
     posNote = "";
     pull(); refresh();
     out.className = "ok";
-    out.textContent = "Loaded a v" + d.v + " key" + (d.v === 3 ? " and upgraded it to v4" : "") + ".";
+    out.textContent = "Loaded a v" + d.v + " key" + (d.v < 5 ? " and upgraded it to v5" : "") + ".";
   });
 
   $("roundtrip").addEventListener("click", function () {

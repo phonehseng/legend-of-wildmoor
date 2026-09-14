@@ -2,6 +2,17 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 2.24.2 — his hands open
+
+[screenshots + download](docs/updates/2.24.2.md) · [test notes](docs/QA_2.24.2.md)
+
+- lucifer grows beneath the hand, then shrinks through three phases as the children speak. he gives up his plan and survives. stay or move on is still your choice.
+- the matron and kindly leave clearer openings in their fights.
+- fairy quests, rescues and rose upgrades are personal, even when joining a party already in progress.
+- guests who never went below return to solo wildmoor when the host moves on. they keep their own progress without getting the host's gehenna completion.
+- the save editor reads current saves and keeps the newer quest, skill and story fields.
+- restored the 2.23.0 camera. the see-through character effect stays local to each player.
+
 ## 2.24.1 — take the road west
 
 [screenshots + download](docs/updates/2.24.1.md) · [test notes](docs/QA_2.24.1.md)
@@ -11,7 +22,7 @@ all notable **Legend of Peanits** changes live here. newest first.
 - shared story errands, story rewards, quest highlights, and co-op gehenna bosses. the finder returns quest items; optional rewards stay personal. outfit and goblin quest givers swapped.
 - one carrier and a visible burial for the whole party. smoother movement updates, 16-player capacity, and optional host-controlled pvp.
 - fixed shared clues and missing hearts, guest hit practice, bear wake-ups, swimming targets, forbidden respawn beds, blocked-storage loads, failed joins, old network snapshots, and character cleanup.
-- the new lucifer surrender ending and unique shared fairy rescues are next. this release keeps the existing ending to get the kingdom out sooner.
+- this release kept the existing ending to get the kingdom out sooner. 2.24.2 adds lucifer's surrender and keeps fairy rescues personal.
 
 ## 2.24.0 — The Still Kingdom
 

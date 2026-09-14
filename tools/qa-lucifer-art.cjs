@@ -8,7 +8,7 @@ function loadPlaywright() {
 const { chromium } = loadPlaywright();
 
 async function main() {
-  const source = fs.readFileSync(path.resolve(process.argv[2] || 'legend_of_peanits_v2.24.1.html'), 'utf8');
+  const source = fs.readFileSync(path.resolve(process.argv[2] || 'legend_of_peanits_v2.24.2.html'), 'utf8');
   const scripts = [...source.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]);
   scripts.forEach(script => new Function(script));
   const start = source.indexOf('  function gehBuildFinale() {');

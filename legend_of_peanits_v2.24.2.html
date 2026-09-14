@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.24.1</title>
+<title>Legend of Peanits 2.24.2</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#1b1626, #0d0a14); --edge: #6c583a; --hi: #8a6a3e; }
@@ -535,7 +535,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.24.1</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.24.2</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -606,7 +606,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.24.1</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.24.2</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -9602,24 +9602,26 @@ const __boot = (async () => {
   };
   const sideQuestById = id => SIDE.find(q => q.wireId === id) || null;
   const sideSpec = q => q && SIDE_SPECS[q.wireId];
+  const sidePersonalFairy = q => !!q && ["rose-children", "hollowmere-fairies", "lookout-fairies"].includes(q.wireId);
   function sideRead(q) {
     const s = sideSpec(q); if (!s) return [];
     let a; try { a = s.read(); } catch (_) { a = []; }
     return s.goals.map((g, i) => clamp(Number.isFinite(+a[i]) ? Math.floor(+a[i]) : 0, 0, 100000));
   }
   function sidePrepare(q) { if (q.wireId === "washing" && !q.taken) STORY.gobKills0 = P.gkills; const s = sideSpec(q); if (s && s.prepare) s.prepare(); }
-  function sideProgressValues(q) { return Array.isArray(q.partyProgress) ? q.partyProgress : sideRead(q); }
-  function sideProgressText(q) { const s = sideSpec(q); return s && Array.isArray(q.partyProgress) ? s.text(sideProgressValues(q)) : q.progress(); }
-  const sideSharesReward = q => q && (q === FAIRY.quest || (q.giver && q.giver.village !== undefined));
+  function sideProgressValues(q) { return !sidePersonalFairy(q) && Array.isArray(q.partyProgress) ? q.partyProgress : sideRead(q); }
+  function sideProgressText(q) { const s = sideSpec(q); return s ? s.text(sideProgressValues(q)) : q.progress(); }
+  const sideSharesReward = q => q && !sidePersonalFairy(q) && q.giver && q.giver.village !== undefined;
   function sideReady(q) { if (!sideSharesReward(q)) return q.check(); const s = sideSpec(q); return s && Array.isArray(q.partyProgress) ? s.goals.every((g, i) => (q.partyProgress[i] || 0) >= g) : q.check(); }
   function sideHostEnsure(q) {
-    const s = sideSpec(q); if (!s || !q.taken) return false;
+    const s = sideSpec(q); if (!s || !q.taken || sidePersonalFairy(q)) return false;
     if (!Array.isArray(q.partyProgress)) q.partyProgress = sideRead(q).map((v, i) => Math.min(v, s.goals[i]));
     if (!Number.isInteger(q.partyRev) || q.partyRev < 1) q.partyRev = 1;
     if (!(q.partySeen instanceof Map)) q.partySeen = new Map();
     return true;
   }
   function sideHostBegin(q, offered, actor) {
+    if (sidePersonalFairy(q)) { sidePrepare(q); q.taken = true; q.partyProgress = null; return; }
     sidePrepare(q); q.taken = true; q.partyRev = Math.max(1, (q.partyRev || 0) + 1);
     const spec = sideSpec(q), local = sideRead(q);
     q.partyProgress = local.map((v, i) => Math.min(v, spec.goals[i]));
@@ -9630,17 +9632,17 @@ const __boot = (async () => {
     }
   }
   function sideSnapshot() {
-    for (const q of SIDE) if (q.taken) sideHostEnsure(q);
-    return { t: "sq", q: SIDE.filter(q => q.taken).map(q => [q.wireId, q.partyRev, q.done && sideSharesReward(q) ? 1 : 0, q.partyProgress.slice()]) };
+    for (const q of SIDE) if (q.taken && !sidePersonalFairy(q)) sideHostEnsure(q);
+    return { t: "sq", q: SIDE.filter(q => q.taken && !sidePersonalFairy(q)).map(q => [q.wireId, q.partyRev, q.done && sideSharesReward(q) ? 1 : 0, q.partyProgress.slice()]) };
   }
   function sideBroadcast() { if (NET.role === "host") netBroadcast(sideSnapshot()); }
-  function sideActivityRows() { return SIDE.filter(q => q.taken && Number.isInteger(q.partyRev)).map(q => [q.wireId, q.partyRev, sideRead(q)]); }
+  function sideActivityRows() { return SIDE.filter(q => q.taken && !sidePersonalFairy(q) && Number.isInteger(q.partyRev)).map(q => [q.wireId, q.partyRev, sideRead(q)]); }
   function sideHostMerge(actor, rows) {
     if (typeof actor !== "string" || !Array.isArray(rows) || rows.length > SIDE.length) return false;
     let changed = false;
     for (const row of rows) {
       if (!Array.isArray(row) || row.length !== 3 || typeof row[0] !== "string" || !Number.isInteger(row[1]) || !Array.isArray(row[2])) continue;
-      const q = sideQuestById(row[0]), s = sideSpec(q); if (!q || !s || !q.taken || q.done || row[1] !== q.partyRev || row[2].length !== s.goals.length) continue;
+      const q = sideQuestById(row[0]), s = sideSpec(q); if (!q || !s || sidePersonalFairy(q) || !q.taken || q.done || row[1] !== q.partyRev || row[2].length !== s.goals.length) continue;
       if (!row[2].every((v, i) => Number.isInteger(v) && v >= 0 && v <= 100000)) continue;
       sideHostEnsure(q); const now = row[2].slice(), before = q.partySeen.get(actor); if (!before && q.partySeen.size >= 16) { const live = new Set([NET.myId, ...NET.avatars.keys()]); for (const id of q.partySeen.keys()) if (!live.has(id)) q.partySeen.delete(id); if (q.partySeen.size >= 16) continue; }
       if (!before) { q.partySeen.set(actor, now); continue; } // joining late establishes a baseline; old solo progress is not imported
@@ -9657,7 +9659,7 @@ const __boot = (async () => {
     }
     for (const row of m.q) {
       if (!Array.isArray(row) || row.length !== 4) continue;
-      const q = sideQuestById(row[0]), s = sideSpec(q); if (!q || !s || !Number.isInteger(row[1]) || row[1] < 1 || (row[2] !== 0 && row[2] !== 1) || !Array.isArray(row[3]) || row[3].length !== s.goals.length) continue;
+      const q = sideQuestById(row[0]), s = sideSpec(q); if (!q || !s || sidePersonalFairy(q) || !Number.isInteger(row[1]) || row[1] < 1 || (row[2] !== 0 && row[2] !== 1) || !Array.isArray(row[3]) || row[3].length !== s.goals.length) continue;
       if (!row[3].every((v, i) => Number.isInteger(v) && v >= 0 && v <= s.goals[i])) continue;
       if (!q.taken) { sidePrepare(q); q.taken = true; }
       if (q.netSessionRev !== undefined && row[1] < q.netSessionRev) continue;
@@ -9679,7 +9681,7 @@ const __boot = (async () => {
   function sideComplete(q) { q.done = true; sideRewardOnce(q); sideBroadcast(); }
   function sideHostRequest(peer, m) {
     const q = sideQuestById(m.id), a = sidePeerAvatar(peer);
-    if (!q || !a || a.state.pos.y < DIVIDE || dist2D(a.target || a.state.pos, q.giver.pos) > 7 || Math.abs(a.state.pos.y - q.giver.pos.y) > 5) return netSend(peer, { t: "sqack", id: m.id, op: m.op, ok: false });
+    if (!q || sidePersonalFairy(q) || !a || a.state.pos.y < DIVIDE || dist2D(a.target || a.state.pos, q.giver.pos) > 7 || Math.abs(a.state.pos.y - q.giver.pos.y) > 5) return netSend(peer, { t: "sqack", id: m.id, op: m.op, ok: false });
     if (m.op === "take" && !q.taken && ((!q.available || q.available()) || (q.wireId === "nim" && Array.isArray(m.p) && m.p[0] === 1))) { sideHostBegin(q, m.p, a.id); sideBroadcast(); netSend(peer, { t: "sqack", id: q.wireId, op: "take", ok: true }); return; }
     if (m.op === "take" && q.taken) { netSend(peer, sideSnapshot()); netSend(peer, { t: "sqack", id: q.wireId, op: "take", ok: true }); return; }
     if (m.op === "turnin" && q.taken && sideCanDeliver(q, m.p, peer) && (sideSharesReward(q) ? !q.done && sideReady(q) : true)) {
@@ -9691,7 +9693,7 @@ const __boot = (async () => {
   function sideRewardOnce(q) {
     if (!q || q.rewarded) return false; q.rewarded = true; if (tracked === q) tracked = null; q.reward(); autoSave("after an errand"); return true;
   }
-  function sideSendRequest(q, op) { const peer = NET.peers.get("host"); if (!peer || q.netPending) return; if (op === "take" && !q.taken) sidePrepare(q); q.netPending = op; netSend(peer, { t: "sqreq", id: q.wireId, op, p: sideRead(q) }); }
+  function sideSendRequest(q, op) { if (sidePersonalFairy(q)) return; const peer = NET.peers.get("host"); if (!peer || q.netPending) return; if (op === "take" && !q.taken) sidePrepare(q); q.netPending = op; netSend(peer, { t: "sqreq", id: q.wireId, op, p: sideRead(q) }); }
   function sidePing(q) {
     if (!q || !q.taken || q.done || P.carry || P.pos.y < DIVIDE || priorityQuest()) return;
     const now = performance.now(); if (now - (NET.sidePingAt || 0) < 2000) return; NET.sidePingAt = now;
@@ -9728,7 +9730,7 @@ const __boot = (async () => {
     if (!WORLDSTATE.wardenDead || WORLDSTATE.luciferDefeated) return null;
     if (!WORLDSTATE.ysoldeLifted) return { text: "Lift Ysolde from the water", hint: "Wick asks you to carry her to the grave.", target: BODY.pos };
     if (!WORLDSTATE.ysoldeBuried) return { text: processionStageLabel(), hint: "Let them see her. Follow the gold arrow.", target: processionTarget() };
-    if (!WORLDSTATE.gehUnlocked) return { text: "Rest in the nearest open bed", hint: "There is nothing else to do tonight.", target: nearestOpenBed() };
+    if (!gehAccessOpen()) return { text: "Rest in the nearest open bed", hint: "There is nothing else to do tonight.", target: nearestOpenBed() };
     return { text: "Enter the black pool portal", hint: "Swim into the turning water.", target: POOL };
   }
   function sideQuestTarget(q) {
@@ -10601,7 +10603,7 @@ const __boot = (async () => {
       SIDE.filter(q => q.taken)
         .map(
           (q, i) =>
-            `<div class="q ${tracked === q ? "on" : ""} ${q.done && q.rewarded ? "finished" : ""}" data-side="${SIDE.indexOf(q)}">${netOnline() && !q.done ? `<button class="q-ping" data-ping="${q.wireId}" title="Highlight this errand for the party" style="float:right;padding:2px 6px;font-size:10px">Highlight</button>` : ""}${q.title}${!q.done ? `<small>${sideProgressText(q)}</small>` : !q.rewarded ? `<small>Reward waiting at ${q.who}.</small>` : ""}</div>`
+            `<div class="q ${tracked === q ? "on" : ""} ${q.done && q.rewarded ? "finished" : ""}" data-side="${SIDE.indexOf(q)}">${netOnline() && !q.done && !sidePersonalFairy(q) ? `<button class="q-ping" data-ping="${q.wireId}" title="Highlight this errand for the party" style="float:right;padding:2px 6px;font-size:10px">Highlight</button>` : ""}${q.title}${!q.done ? `<small>${sideProgressText(q)}</small>` : !q.rewarded ? `<small>Reward waiting at ${q.who}.</small>` : ""}</div>`
         )
         .join("") || "<p>No errands yet. Villagers with a <b>!</b> have one.</p>";
     for (const button of document.querySelectorAll("#questbook .q-ping"))
@@ -13849,7 +13851,7 @@ const __boot = (async () => {
     { text: "Take her up out of the water", done: () => WORLDSTATE.ysoldeLifted || WORLDSTATE.ysoldeBuried, hint: () => `She is lying where she has always been. The black pool is ${dirTo(POOL)}.`, target: () => BODY.pos },
     { text: "Carry her through the kingdom to the grave at the gate", done: () => WORLDSTATE.ysoldeBuried, hint: () => "Somebody dug it at the front of the kingdom while you were in the water. Go the way the arrow goes, and let them see her.", target: () => processionTarget() },
     { text: "Tell the king it is done", done: () => WORLDSTATE.kingMourned, hint: () => `The throne is ${dirTo(king.pos)}`, target: () => king.pos },
-    { text: "Sleep. There is nothing else to do tonight", done: () => WORLDSTATE.gehUnlocked, hint: () => "Any bed will do. The king was not asking.", target: () => null },
+    { text: "Sleep. There is nothing else to do tonight", done: () => gehAccessOpen(), hint: () => "Any bed will do. The king was not asking.", target: () => null },
     { text: "The black pool is turning. Go down.", done: () => WORLDSTATE.gehDone, hint: () => `The black pool is ${dirTo(POOL)}. Swim out to the middle of it.`, target: () => POOL },
     {
       text: "Wildmoor remembers what you did. Climb the elder tree and see it all.",
@@ -14127,7 +14129,7 @@ const __boot = (async () => {
       sk: Object.fromEntries(Object.entries(SK).map(([k, v]) => [k, [v.lvl, v.xp]])),
       story: STORY,
       flags: [talkedOnce, gaveHerbs, lit, talkedKing, metKing],
-      side: Object.fromEntries(SIDE.map(q => [q.title, [!!q.taken, !!q.done, !!q.rewarded, Array.isArray(q.partyProgress) ? q.partyProgress : null]])),
+      side: Object.fromEntries(SIDE.map(q => [q.title, [!!q.taken, !!q.done, !!q.rewarded, !sidePersonalFairy(q) && Array.isArray(q.partyProgress) ? q.partyProgress : null]])),
       found: FOUND,
       items: ITEMS,
       picked: pickups.filter(p => p.taken).map(p => p.id),
@@ -14519,6 +14521,8 @@ const __boot = (async () => {
           }
         }
       }
+      for (const q of SIDE) if (sidePersonalFairy(q)) q.partyProgress = null;
+      FAIRY.quest.done = FAIRY.complete;
       if (d.custom) {
         Object.assign(CUSTOM, d.custom);
         const nm = document.getElementById("c-name");
@@ -15432,10 +15436,12 @@ const __boot = (async () => {
     if (netRequestEnemyHit(e, dmg, from, kb, big)) return;
     if (e.kind === "unclaimed" && !WORLDSTATE.gehMatronDown || e.kind === "kindly" && !(GEH_SCRIPT && GEH_SCRIPT.fight)) return;
     if (e.kind === "lucifer") {
-      if (!e.armed || (afterlifeLocked() && from === P.pos)) return;
-      e.hp = Math.max(0, e.hp - dmg); e.flash = 0.12;
+      if (!e.armed || e.holdPause > 0 || (afterlifeLocked() && from === P.pos) || !(dmg > 0)) return;
+      // A strong hit still gives each child time to answer.
+      const floor = [60, 30, 0][Math.min(2, e.phase || 0)];
+      e.hp = Math.max(floor, e.hp - dmg); e.flash = 0.12;
       SFX.hit(big);
-      if (e.hp <= 0) killEnemy(e, true, dist2D(e.pos, P.pos));
+      if (e.hp === floor) gehLuciferBreak(e);
       return;
     }
     // while she is being drawn upward there is nothing of her to hit. this is not a mercy phase — it is the only
@@ -15465,7 +15471,8 @@ const __boot = (async () => {
       if (facing > 0.45 && (from === P.pos ? P.grounded : true)) { e.flash = 0.06; SFX.block(); if (from === P.pos) { hitstop = 0.05; say(e.shieldLine || "Its shield! Go over it or around.", 900); } return; }
     }
     if (e.wraith && e.alive && e.state !== "recover" && !big) dmg *= 0.5; // a wraith is only half there until it has struck
-    if (e.guard) dmg *= e.guard; // the enraged king's hide
+    if (e.kind === "kindly") e.guard = e.state === "windup" || e.state === "strike" ? 0.4 : 1;
+    if (e.guard) dmg *= e.guard;
     // Host validates and resolves all remote enemy blows before confirming practice.
     if (from && from.netFrom) e.lastHitBy = from.netFrom; else if (from === P.pos) e.lastHitBy = null;
     if (e.kind === "bear" && !e.awake) {
@@ -15475,7 +15482,7 @@ const __boot = (async () => {
     e.hp -= dmg;
     netConfirmPractice(from, dmg);
     e.flash = 0.12;
-    if (!e.boss || big) {
+    if ((!e.boss || big) && !(e.kind === "kindly" && (e.state === "windup" || e.state === "strike"))) {
       e.state = "stun";
       e.t = e.boss ? 0.25 : big ? 0.5 : 0.3;
     }
@@ -15501,6 +15508,7 @@ const __boot = (async () => {
   // handle enemy death, rewards and respawn timing
   function killEnemy(e, byPlayer = false, distToPlayer = 0, quiet = false) {
     if (!e || !e.alive) return;
+    if (e.kind === "lucifer") { gehLuciferDown(); return; } // surrender never enters the corpse or kill-reward path
     // credit: a boss brought down together is everyone's — every player present gets the line, the strength and the drop (once per save);
     // an ordinary goblin or slime goes to whoever struck it last
     if (NET.role === "host" && NET.peers.size) {
@@ -15584,8 +15592,6 @@ const __boot = (async () => {
       // is what guards it. the label is a permanent save key and must never be reworded.
       if (netGehennaBelow(P.pos) && !FOUND.some(t => t === MATRON_GIFT)) grant(MATRON_GIFT, () => { P.maxHp++; P.hp = P.maxHp; }, true, false, "geh:matron");
       if (window.GEHENNA) { try { GEHENNA.matronDown(); } catch (err) { console.error("Gehenna: matronDown threw", err); } }
-    } else if (e.kind === "lucifer") {
-      gehLuciferDown();
     } else if (e.kind === "kindly") {
       // she does not drop anything and she is not worth anything. the after-story writes her death, because her
       // death is the argument the whole story is making and it is not a kill line.
@@ -15887,7 +15893,7 @@ const __boot = (async () => {
   // One host-owned lease names the only shoulder Ysolde can occupy. `age` is sent instead of an absolute clock so
   // browsers with unrelated performance clocks still render the same point in the four-second graveside action.
   const BURIAL = { carrier: null, phase: "idle", phaseAt: 0, token: 0, drop: null, syncT: 0, earthT: 0 };
-  const NET_MAX_PLAYERS = 16, NET_PROTOCOL = 2;
+  const NET_MAX_PLAYERS = 16, NET_PROTOCOL = 3;
   const NET_VOLATILE = new Set(["s", "states", "en", "day"]);
   const NET_ICE = { iceServers: [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }] };
   const netEl = id => document.getElementById(id);
@@ -15947,7 +15953,7 @@ const __boot = (async () => {
   }
   function netDrop(peer) {
     if (NET.peers.get(peer.id) !== peer) return; // an older attempt closing must not remove a newer one under the same name
-    clearTimeout(peer.graceT); clearTimeout(peer.joinTimeout);
+    clearTimeout(peer.graceT); clearTimeout(peer.joinTimeout); clearTimeout(peer.worldCloseTimer);
     NET.peers.delete(peer.id);
     const gone = [...NET.avatars.values()].filter(a => a.via === peer.id);
     burialPlayersGone(gone);
@@ -15957,6 +15963,7 @@ const __boot = (async () => {
     netStatus(NET.peers.size ? `${netPlayerCount()} players.` : "The connection ended.");
     if (!NET.peers.size && NET.role === "guest") {
       netCloseGuestBoard();
+      netEndGehennaSession();
       NET.role = null;
       NET.mirroring = false;
       // the host's goblins die with the connection. this used to hand them back instead — every mirror turned real,
@@ -16172,7 +16179,7 @@ const __boot = (async () => {
 
   // what everyone is told about you, about fifteen times a second
   function netMyState() {
-    const f = (P.moving ? 1 : 0) | (P.run ? 2 : 0) | (P.sliding ? 4 : 0) | (P.grounded ? 8 : 0) | (P.swim ? 16 : 0) | (P.block ? 32 : 0) | (P.armed > 0 ? 64 : 0) | (P.lying ? 128 : 0) | (P.dive ? 256 : 0) | (P.airSlash ? 512 : 0) | (death ? 1024 : 0) | (P.dodge > 0 ? 2048 : 0);
+    const f = (P.moving ? 1 : 0) | (P.run ? 2 : 0) | (P.sliding ? 4 : 0) | (P.grounded ? 8 : 0) | (P.swim ? 16 : 0) | (P.block ? 32 : 0) | (P.armed > 0 ? 64 : 0) | (P.lying ? 128 : 0) | (P.dive ? 256 : 0) | (P.airSlash ? 512 : 0) | (death ? 1024 : 0) | (P.dodge > 0 ? 2048 : 0) | (P.gehDive ? 4096 : 0);
     return { t: "s", seq: ++NET.seq, id: NET.myId, x: +P.pos.x.toFixed(2), y: +P.pos.y.toFixed(2), z: +P.pos.z.toFixed(2), h: +P.heading.toFixed(3), vx: +P.vel.x.toFixed(2), vy: +P.vel.y.toFixed(2), vz: +P.vel.z.toFixed(2), f, w: P.weapon, a: P.atk ? P.atk.stage : -1, at: P.atk ? +P.atk.t.toFixed(2) : 0, hp: P.hp, mh: P.maxHp, yc: BURIAL.carrier === NET.myId };
   }
   function netAcceptSnapshot(peer, m, field) {
@@ -16193,10 +16200,12 @@ const __boot = (async () => {
         if (!peer.playerId) peer.items = new Set((Array.isArray(m.items) ? m.items : []).filter(id => ["quest:stonefold", "quest:greytor", "church:watch-clapper"].includes(id)));
         peer.playerId = m.id;
       }
-      if (!peer.hello && NET.role === "guest") { BURIAL.token = -1; NET.sideJoined = false; peer.enemySeqSeen = 0; peer.daySeqSeen = 0; }
+      if (!peer.hello && NET.role === "guest") { netBeginGehennaSession(); BURIAL.token = -1; NET.sideJoined = false; peer.enemySeqSeen = 0; peer.daySeqSeen = 0; }
       peer.hello = true;
     } else if (!peer.hello) return;
     if (NET.role === "host" && ((m.t === "s" && m.id !== peer.playerId) || (m.t === "hit" && m.from !== peer.playerId))) return;
+    if (netHandleWorldClosed(peer, m)) return;
+    if (NET.role === "guest" && NET.worldClosing) return;
     if (m.t === "rules" && NET.role === "guest") { if (typeof m.pvp === "boolean") { NET.pvp = m.pvp; netUpdateRules(); } return; }
     if (m.t === "states" && NET.role === "guest") {
       for (const state of (Array.isArray(m.s) ? m.s : []).slice(0, NET_MAX_PLAYERS)) { const a = state && NET.avatars.get(state.id); if (a) netApplyState(a, state); }
@@ -16212,7 +16221,7 @@ const __boot = (async () => {
     if (m.t === "qslime" && NET.role === "host") { hostQuestSlimes(peer); return; }
     if (m.t === "qslime" && NET.role === "guest" && peer.id === "host" && m.ok === true) { const q = SIDE.find(q => /three slimes/i.test(q.title)); if (q && q.taken && !q.done) q.slimeRemote = true; return; }
     if (m.t === "hello" && typeof m.id === "string" && m.look) { netAddAvatar(m.id, m.look, peer.id, m.hp, m.maxHp); if (NET.role === "host") { netSend(peer, mainProgress()); netSend(peer, { t: "rules", pvp: NET.pvp }); netUpdateRules(); netSend(peer, burialSnapshot()); netSend(peer, sideSnapshot()); netSend(peer, netEnemySnapshot()); netBroadcast(m, peer.id); for (const a of NET.avatars.values()) if (a.id !== m.id) netSend(peer, { t: "hello", v: NET_PROTOCOL, id: a.id, look: a.look, hp: a.state.hp, maxHp: a.state.maxHp }); } return; }
-    if (m.t === "s" && typeof m.id === "string") { const a = NET.avatars.get(m.id); if (a && netApplyState(a, m) && NET.role === "host") peer.lastState = m; return; }
+    if (m.t === "s" && typeof m.id === "string") { const a = NET.avatars.get(m.id); if (a && netApplyState(a, m) && NET.role === "host") { peer.lastState = m; netGehennaPeerEntered(peer); } return; }
     if (m.t === "hit" && typeof m.to === "string") { if (NET.role === "host") netHostHit(peer, m); else if (m.to === NET.myId) netTakeHit(m); return; }
     if (m.t === "day" && NET.role === "guest") { if (!Number.isFinite(m.dayT) || m.dayT < 0 || m.dayT > 1 || !netAcceptSnapshot(peer, m, "daySeqSeen")) return; if (Math.abs(m.dayT - dayT) > 0.02) dayT = m.dayT; return; }
     if (m.t === "bye" && NET.role === "guest" && typeof m.id === "string") { netRemoveAvatar(m.id); if (NET.role === "host") netBroadcast(m, peer.id); return; }
@@ -16308,7 +16317,7 @@ const __boot = (async () => {
       if (!a.samples.length || a.target.distanceTo(pos) > 20 || (a.target.y < DIVIDE) !== (pos.y < DIVIDE)) { a.samples.length = 0; a.state.pos.copy(pos); }
       a.target.copy(pos); a.tvel.copy(vel); a.heading = m.h;
       a.samples.push({ at: a.lastAt, pos, vel, h: m.h }); if (a.samples.length > 8) a.samples.shift();
-    const st = a.state, f = m.f | 0; st.moving = !!(f & 1); st.run = !!(f & 2); st.sliding = !!(f & 4); st.grounded = !!(f & 8); st.swim = !!(f & 16); st.block = !!(f & 32); st.armed = f & 64 ? 3 : 0; st.lying = !!(f & 128); st.dive = !!(f & 256); st.dead = !!(f & 1024); st.dodge = f & 2048 ? 0.2 : 0;
+    const st = a.state, f = m.f | 0; st.moving = !!(f & 1); st.run = !!(f & 2); st.sliding = !!(f & 4); st.grounded = !!(f & 8); st.swim = !!(f & 16); st.block = !!(f & 32); st.armed = f & 64 ? 3 : 0; st.lying = !!(f & 128); st.dive = !!(f & 256); st.dead = !!(f & 1024); st.dodge = f & 2048 ? 0.2 : 0; st.gehDive = !!(f & 4096);
     // yc is a rendering hint only. Ownership changes exclusively through the host's validated yi/yb path.
     st.carry = m.yc === true && BURIAL.carrier === a.id;
     st.airSlash = f & 512 ? st.airSlash || { t: 0.1, hitDone: true, motion: { damage: 1, knockback: 1, kick: false } } : null;
@@ -16389,6 +16398,74 @@ const __boot = (async () => {
     }
     return e.gehNetId;
   }
+  // A visit to Wildmoor does not complete a guest's personal journey below it.
+  const GEH_PERSONAL_KEYS = ["gehUnlocked", "gehSeed", ...GEH_NET_FLAGS, "gehFinaleWitnessed", "afterlife"];
+  function netBeginGehennaSession() {
+    if (NET.gehPersonal) return;
+    NET.gehPersonal = Object.fromEntries(GEH_PERSONAL_KEYS.map(k => [k, WORLDSTATE[k]]));
+    NET.gehEntered = !!P.gehDive || netGehennaBelow(P.pos);
+    NET.gehAccess = false; NET.gehApplied = false; NET.gehState = null; NET.gehShared = false;
+    NET.worldClosing = false;
+  }
+  function gehAccessOpen() { return NET.role === "guest" ? NET.gehAccess === true : !!WORLDSTATE.gehUnlocked; }
+  function netGehennaPeerEntered(peer) {
+    const a = NET.avatars.get(peer.playerId);
+    if (a && a.via === peer.id && a.seq > 0 && (netGehennaBelow(a.target) || (a.state.gehDive && dist2D(a.target, POOL) < 24))) peer.gehEntered = true;
+    return peer.gehEntered === true;
+  }
+  function netEndGehennaSession() {
+    if (NET.gehPersonal && !NET.gehEntered) for (const k of GEH_PERSONAL_KEYS) WORLDSTATE[k] = NET.gehPersonal[k];
+    if (NET.gehApplied && GEH.root) {
+      if (!netGehennaBelow(P.pos) && !P.gehDive && !AFTERLIFE.phase) gehTeardown("the shared visit has ended");
+      else {
+        // A participant keeps the floor and current encounter when the host disappears.
+        // Release the remote bindings so its existing enemies can run locally.
+        for (const e of GEH.enemies || []) { delete e.gehMirror; delete e.netRow; delete e.netTarget; delete e.gehNetId; }
+        GEH.netIds = {};
+      }
+    }
+    NET.gehPersonal = null; NET.gehState = null; NET.gehShared = false; NET.gehApplied = false;
+    NET.gehEntered = false; NET.gehAccess = false; NET.worldClosing = false;
+    // Keep guestedThisSession: a detached visit must not autosave over an unrelated solo run.
+  }
+  function netCloseBystanderWorlds() {
+    if (NET.role !== "host") return;
+    for (const peer of NET.peers.values()) {
+      if (!peer.ready || !peer.hello || !peer.playerId || netGehennaPeerEntered(peer) || peer.worldCloseToken) continue;
+      const token = NET.worldCloseSeq = (NET.worldCloseSeq || 0) + 1;
+      peer.worldCloseToken = token;
+      netSend(peer, { t: "worldclosed", reason: "host-move-on", to: peer.playerId, token });
+      peer.worldCloseTimer = setTimeout(() => {
+        if (NET.peers.get(peer.id) === peer && peer.worldCloseToken === token) {
+          if (netGehennaPeerEntered(peer)) peer.worldCloseToken = null;
+          else netDrop(peer);
+        }
+      }, 1800);
+    }
+  }
+  function netHandleWorldClosed(peer, m) {
+    if (m.t !== "worldclosed" && m.t !== "worldclosed-ack") return false;
+    if (!Number.isSafeInteger(m.token) || m.token < 1) return true;
+    if (NET.role === "host" && m.t === "worldclosed-ack" && m.token === peer.worldCloseToken) {
+      const a = NET.avatars.get(peer.playerId);
+      if (m.state && m.state.id === peer.playerId && a && a.via === peer.id) netApplyState(a, m.state);
+      clearTimeout(peer.worldCloseTimer); peer.worldCloseToken = null;
+      if (!netGehennaPeerEntered(peer)) netDrop(peer);
+    } else if (NET.role === "guest" && peer.id === "host" && m.t === "worldclosed" && m.reason === "host-move-on" && m.to === NET.myId) {
+      if (P.gehDive || netGehennaBelow(P.pos)) NET.gehEntered = true;
+      // The entry may cross the departure packet in flight. A fresh, identity-bound pose
+      // lets the host keep that participant connected instead of closing a newer descent.
+      netSend(peer, { t: "worldclosed-ack", token: m.token, state: netMyState() });
+      if (NET.gehEntered) return true;
+      NET.worldClosing = true;
+      clearTimeout(peer.worldCloseTimer);
+      peer.worldCloseTimer = setTimeout(() => {
+        if (NET.peers.get(peer.id) === peer && NET.worldClosing) netDrop(peer);
+      }, 700);
+    }
+    return true;
+  }
+
   function netGehennaEnsure() {
     if (GEH.root || GEH.netBuilding || GEH.failed || !WORLDSTATE.gehUnlocked || !netGehennaActive()) return;
     if (netGuest() && !NET.gehState) return;
@@ -16417,13 +16494,13 @@ const __boot = (async () => {
       hp: +e.hp.toFixed(2), max: e.maxHp, h: e.heading, s: e.state, alive: !!e.alive, removed: !!e.removed,
       t: e.t, armed: !!e.armed, phase: e.phase || 0, tier: e.tier || 0, guard: e.guard || 1, atk: e.atk || null,
       target: e.netTarget || null, tellR: e.tellR || 0, heat: e.heat || 0,
-      scenePhase: e.scenePhase || null, sceneT: e.sceneT || 0, beat: e.beat || 0, bodyScale: e.bodyScale || 0,
+      scenePhase: e.scenePhase || null, sceneT: e.sceneT || 0, beat: e.beat || 0, bodyScale: e.bodyScale || 0, noBar: !!e.noBar,
       pose: netGehennaTransform(e.mesh), arms: (e.arms || []).map(netGehennaTransform),
       body: netGehennaTransform(e.body), ring: netGehennaTransform(e.ring), thrown: netGehennaTransform(e.thrown), cart: netGehennaTransform(e.cart)
     })) : [];
     return { seed: WORLDSTATE.gehSeed, ws: GEH_NET_FLAGS.map(k => !!WORLDSTATE[k]), ready, actors,
       woken: GEH.woken || 0, script: GEH_SCRIPT.netState(), hand: ready ? netGehennaTransform(GEH.godHand) : null,
-      finale: GEH.netFinale ? { t: GEH.netFinale.t, members: GEH.netFinale.members } : null };
+      finale: GEH.netFinale ? { t: GEH.netFinale.t, scale: GEH.netFinale.scale, handY: GEH.netFinale.handY, members: GEH.netFinale.members } : null };
   }
   function netGehennaGrant() {
     if (!netGehennaBelow(P.pos)) return;
@@ -16434,9 +16511,15 @@ const __boot = (async () => {
   }
   function netApplyGehenna(s) {
     if (!netGuest() || !s || !netGehennaSeed(s.seed) || !Array.isArray(s.ws) || s.ws.length !== GEH_NET_FLAGS.length || !s.ws.every(v => typeof v === "boolean")) return;
-    const first = !NET.gehState;
+    if (NET.worldClosing) return;
+    if (!NET.gehPersonal) netBeginGehennaSession();
+    NET.gehState = s; NET.gehShared = true;
+    if (!NET.gehEntered && !P.gehDive && !netGehennaBelow(P.pos)) return;
+    NET.gehEntered = true;
+    const first = !NET.gehApplied;
     if (GEH.root && (GEH.seed !== s.seed || first)) gehTeardown("joining the host's Gehenna");
-    NET.gehState = s; NET.gehShared = true; WORLDSTATE.gehSeed = s.seed;
+    if (first) { WORLDSTATE.afterlife = null; WORLDSTATE.gehFinaleWitnessed = false; NET.gehFinaleLocal = false; }
+    NET.gehApplied = true; WORLDSTATE.gehUnlocked = true; WORLDSTATE.gehSeed = s.seed;
     GEH_NET_FLAGS.forEach((k, i) => { WORLDSTATE[k] = s.ws[i]; });
     netGehennaEnsure();
     if (!GEH.root || !GEH.netBuilt || !s.ready) return;
@@ -16460,6 +16543,7 @@ const __boot = (async () => {
       e.hp = r.hp; e.maxHp = r.max; e.state = r.s; e.t = r.t; e.heading = r.h; e.armed = !!r.armed;
       e.phase = r.phase; e.tier = r.tier; e.guard = r.guard; e.atk = r.atk; e.tellR = r.tellR; e.heat = r.heat;
       e.scenePhase = r.scenePhase; e.sceneT = r.sceneT; e.beat = r.beat; e.bodyScale = r.bodyScale || e.bodyScale;
+      e.noBar = !!r.noBar;
       if (!e.netPlaced) { e.pos.set(...r.p); e.netPlaced = true; }
       if (r.removed && !e.removed) removeEnemy(e);
     }
@@ -16467,7 +16551,10 @@ const __boot = (async () => {
     if (WORLDSTATE.gehMatronDown) gehOpenRoom();
     netGehennaSetTransform(GEH.godHand, s.hand);
     netGehennaGrant();
-    if (s.finale && Array.isArray(s.finale.members) && s.finale.members.includes(NET.myId) && !NET.gehFinaleLocal && netGehennaRoom(P.pos)) gehLuciferDown(true);
+    if (s.finale && Number.isFinite(s.finale.t) && Array.isArray(s.finale.members)) {
+      GEH.netFinale = { t: clamp(s.finale.t, 0, 18), scale: clamp(+s.finale.scale || 0.62, 0.62, 2.4), handY: Number.isFinite(s.finale.handY) ? s.finale.handY : GEH.floor + 14, members: s.finale.members.slice(0, 32) };
+      if (s.finale.members.includes(NET.myId) && !NET.gehFinaleLocal && netGehennaRoom(P.pos)) gehLuciferDown(true);
+    }
   }
   function netMirrorGehenna(dt) {
     for (const e of GEH.enemies || []) {
@@ -16477,7 +16564,7 @@ const __boot = (async () => {
       netGehennaSetTransform(e.mesh, r.pose); e.mesh.position.copy(e.pos);
       (e.arms || []).forEach((a, i) => netGehennaSetTransform(a, (r.arms || [])[i]));
       netGehennaSetTransform(e.body, r.body); netGehennaSetTransform(e.ring, r.ring); netGehennaSetTransform(e.thrown, r.thrown); netGehennaSetTransform(e.cart, r.cart);
-      if (e.kind === "lucifer" && e.alive) gehPoseLucifer(e, r.scenePhase === "run" ? "run" : ["grow", "hold"].includes(r.scenePhase) ? "hold" : "children", r.bodyScale || 0.62, time);
+      if (e.kind === "lucifer" && e.alive) gehPoseLucifer(e, r.scenePhase === "run" ? "run" : ["grow", "hold"].includes(r.scenePhase) ? "hold" : ["release", "released"].includes(r.scenePhase) ? "release" : "children", r.bodyScale || 0.62, time);
       if (e.kind === "unclaimed" && !e.alive) gehHeapSpill(e);
       if (e.bar) updateHealthBar(e, e.kind === "lucifer" ? 3.5 * e.bodyScale : 3);
       if (r.target === NET.myId && e.alive && netGehennaBelow(P.pos) && dist2D(e.pos, P.pos) < 5 && !death) {
@@ -16500,11 +16587,11 @@ const __boot = (async () => {
     if (NET.role === "host" && p) netSend(p, { t: "gfx", to: tgt.id, seed: WORLDSTATE.gehSeed, kind, ...data });
     return true;
   }
-  function netGehennaSpeak(who, line, ms, lucifer = false) {
-    if (NET.role === "host") for (const a of NET.avatars.values()) if (!a.state.dead && (lucifer ? netGehennaRoom(a.state.pos) : netGehennaBelow(a.state.pos))) {
-      const p = NET.peers.get(a.via); if (p) netSend(p, { t: "gsay", who, line, ms, lucifer, seed: WORLDSTATE.gehSeed });
+  function netGehennaSpeak(who, line, ms, lucifer = false, roomOnly = lucifer) {
+    if (NET.role === "host") for (const a of NET.avatars.values()) if (!a.state.dead && (roomOnly ? netGehennaRoom(a.state.pos) : netGehennaBelow(a.state.pos))) {
+      const p = NET.peers.get(a.via); if (p) netSend(p, { t: "gsay", who, line, ms, lucifer, roomOnly, seed: WORLDSTATE.gehSeed });
     }
-    return lucifer ? netGehennaRoom(P.pos) : netGehennaBelow(P.pos);
+    return roomOnly ? netGehennaRoom(P.pos) : netGehennaBelow(P.pos);
   }
   function netHandleGehenna(peer, m) {
     if (!["ga", "ged", "gfx", "gsay"].includes(m.t)) return false;
@@ -16531,7 +16618,7 @@ const __boot = (async () => {
     }
     if (!netGuest() || peer.id !== "host" || m.seed !== WORLDSTATE.gehSeed) return true;
     if (m.t === "gsay") {
-      if (!netGehennaBelow(P.pos) || (m.lucifer && !netGehennaRoom(P.pos)) || typeof m.line !== "string" || m.line.length > 600 || typeof m.who !== "string") return true;
+      if (!netGehennaBelow(P.pos) || ((m.lucifer || m.roomOnly) && !netGehennaRoom(P.pos)) || typeof m.line !== "string" || m.line.length > 600 || typeof m.who !== "string") return true;
       if (m.lucifer && GEH.lucifer) luciferSay(GEH.lucifer, m.line, clamp(+m.ms || 5500, 1000, 30000));
       else { logTalk(m.who, m.line); say(m.who ? m.who + ": " + m.line : m.line, clamp(+m.ms || 4200, 1000, 30000), true, "geh", true); }
       return true;
@@ -16540,22 +16627,22 @@ const __boot = (async () => {
     if (m.kind === "setdown" && [m.x, m.y, m.z].every(Number.isFinite) && m.y < DIVIDE && dist2D(P.pos, m) < 12) { P.pos.set(m.x, m.y, m.z); P.vel.set(0, 0, 0); P.grounded = true; lastSafeGeh.copy(P.pos); }
     else if (m.kind === "mended") P.stam = stamMax();
     else if (m.kind === "strike" && [m.x, m.y, m.z, m.dmg].every(Number.isFinite) && m.y < DIVIDE) {
-      if (m.nonlethal && P.hp <= m.dmg + 0.01) { GEH_SCRIPT.threadHit(); return true; }
       if (P.block) { recordBlock(); lowerShield(true); SFX.block(); }
+      else if (m.nonlethal) gehKindlyHit(clamp(m.dmg, 0, 6), V3(m.x, m.y, m.z), clamp(+m.kb || 1, 0.4, 2.5), m.pierce === true);
       else hurtPlayer(clamp(m.dmg, 0, 6), V3(m.x, m.y, m.z), clamp(+m.kb || 1, 0.4, 2.5), m.pierce === true);
     }
     return true;
   }
   function netGehennaFinaleTick(dt) {
     const f = GEH.netFinale, e = GEH.lucifer;
-    if (NET.role !== "host" || !f || !e || !GEH.godHand) return;
-    f.t += dt;
-    if (AFTERLIFE.phase === "fall") return;
-    const scale = lerp(f.scale, 0.62, smooth(clamp(f.t / 0.65, 0, 1)));
-    gehPoseLucifer(e, "hold", scale, time);
-    const fall = Math.pow(clamp((f.t - 0.65) / 1.25, 0, 1), 2);
-    GEH.godHand.position.y = lerp(lerp(f.handY, e.pos.y + 1.15 + e.holdPalmHeight * 0.62, smooth(clamp(f.t / 0.65, 0, 1))), e.pos.y + 1.18, fall);
-    e.mesh.scale.y = Math.min(scale, Math.max(0.03, GEH.godHand.position.y - 1.15 - e.pos.y) / e.holdPalmHeight);
+    if (!f || !e || !GEH.godHand) return;
+    f.t = Math.min(18, f.t + dt);
+    e.sceneT = f.t;
+    e.scenePhase = f.t < 18 ? "release" : "released";
+    gehPoseLucifer(e, "release", lerp(f.scale, 0.62, smooth(clamp(f.t / 3, 0, 1))), time);
+    GEH.godHand.position.y = lerp(f.handY, e.pos.y + 35, smooth(clamp(f.t / 5, 0, 1)));
+    GEH.godHand.visible = f.t < 5;
+    gehPrideChildren(f.t);
   }
 
   // the host's picture of every enemy near a player, ten times a second
@@ -16626,8 +16713,10 @@ const __boot = (async () => {
     else STORY.partySlimes = Math.min(6, (STORY.partySlimes || 0) + Math.max(0, P.kills - NET.mainKillBase));
     NET.mainKillBase = P.kills;
   }
-  const mainProgress = () => ({ t: "mq", metKing, talkedKing, talkedOnce, gaveHerbs, lit, flint: !!P.flint, clues: STORY.clues, evidence: STORY.evidence.slice(), wick: !!STORY.wick, solved: !!STORY.solved, reported: !!STORY.reported, ws: Object.fromEntries(WS_SHARED.map(k => [k, !!WORLDSTATE[k]])), relics: { ...WORLDSTATE.relics }, ending: WORLDSTATE.ending, kills: P.kills, slimes: beaconSlimeKills() });
+  const mainProgress = () => ({ t: "mq", metKing, talkedKing, talkedOnce, gaveHerbs, lit, flint: !!P.flint, clues: STORY.clues, evidence: STORY.evidence.slice(), wick: !!STORY.wick, solved: !!STORY.solved, reported: !!STORY.reported, ws: Object.fromEntries(WS_SHARED.map(k => [k, k === "gehUnlocked" ? gehAccessOpen() : !!WORLDSTATE[k]])), relics: { ...WORLDSTATE.relics }, ending: WORLDSTATE.ending, kills: P.kills, slimes: beaconSlimeKills() });
   function applyMainProgress(m, peer) {
+    if (NET.role === "guest" && !NET.gehPersonal) netBeginGehennaSession();
+    if (NET.role === "guest" && m.ws && typeof m.ws.gehUnlocked === "boolean") { NET.gehAccess = m.ws.gehUnlocked; if (NET.gehEntered) WORLDSTATE.gehUnlocked = NET.gehAccess; }
     if (NET.role === "guest" && Number.isInteger(m.slimes) && m.slimes >= 0 && m.slimes <= 6) STORY.partySlimes = m.slimes;
     // a guest's world is the host's, and everything below folds the host's story into this player's own globals for
     // good. the autosave forfeits for the rest of the session rather than later writing a run this player never
@@ -16643,7 +16732,7 @@ const __boot = (async () => {
     if (Number.isInteger(m.clues) && m.clues >= 0 && m.clues <= 5 && m.clues > STORY.clues) STORY.clues = m.clues;
     if (Array.isArray(m.evidence)) for (const k of m.evidence) if (["cloth", "ring", "diary", "ritual", "note"].includes(k)) evidence(k);
     if (m.wick) STORY.wick = true; if (m.solved) { if (!STORY.solved) { STORY.solved = true; beginArrest(); } } if (m.reported === true) { STORY.reported = true; claimInvestigationHeart(); }
-    if (m.ws && typeof m.ws === "object") for (const k of WS_SHARED) if (m.ws[k] === true && !WORLDSTATE[k]) { if (k === "blackPoolAwake") awakenPool(); else if (k === "pyreDismantled") dismantlePyre(); else if (k === "guardsOut") guardsOutside(); else if (k === "ysoldeLifted") ysoldeOffTheWater(); else if (k === "ysoldeBuried") ysoldeIntoTheGround(); else if (k === "marenFreed") beginArrest(); else WORLDSTATE[k] = true; if (k === "finaleStarted" && NET.role === "host" && !WORLDSTATE.wardenDead && !(WARDEN && WARDEN.alive)) spawnWarden(); } // progress only ever moves forward; a transition function sets its own flag and does its work
+    if (m.ws && typeof m.ws === "object") for (const k of WS_SHARED) if (!(k === "gehUnlocked" && NET.role === "guest") && m.ws[k] === true && !WORLDSTATE[k]) { if (k === "blackPoolAwake") awakenPool(); else if (k === "pyreDismantled") dismantlePyre(); else if (k === "guardsOut") guardsOutside(); else if (k === "ysoldeLifted") ysoldeOffTheWater(); else if (k === "ysoldeBuried") ysoldeIntoTheGround(); else if (k === "marenFreed") beginArrest(); else WORLDSTATE[k] = true; if (k === "finaleStarted" && NET.role === "host" && !WORLDSTATE.wardenDead && !(WARDEN && WARDEN.alive)) spawnWarden(); } // progress only ever moves forward; a transition function sets its own flag and does its work
     if (m.relics && typeof m.relics === "object") for (const k of ["seal", "root", "warden", "tear"]) if (m.relics[k] === true) WORLDSTATE.relics[k] = true;
     // the ending is the one piece of shared progress that cannot be undone: endTheStory rewrites the pool, sets the
     // flag and returns early ever after. it used to be applied from any peer with no authority check at all, so a
@@ -16747,7 +16836,8 @@ const __boot = (async () => {
       // kb and pierce were both computed here and then dropped on the floor: the local branch called hurtPlayer with
       // two arguments while the NETWORKED branch above forwarded kb faithfully. so the warden's 2.1x launch reached a
       // friend across the wire and never once reached the player standing in front of her.
-      hurtPlayer(dmg, e.pos, kb, pierce);
+      if (e.kind === "kindly") gehKindlyHit(dmg, e.pos, kb, pierce);
+      else hurtPlayer(dmg, e.pos, kb, pierce);
     }
   }
   // restore the player at the gate and reset nearby combat state
@@ -16922,12 +17012,13 @@ const __boot = (async () => {
     DIVE_HOLD = 9, // and the longest the water will hold you at the ceiling waiting for a build that has not finished
     DIVE_CEIL = 34; // gehenna's ceiling over its floor. the fall ends here and the arrival puts you on the ground
   function gehBeginDive() {
-    if (WORLDSTATE.luciferDefeated && WORLDSTATE.afterlife === "stay") {
+    if (NET.worldClosing) return false;
+    if (netGuest() && (!NET.gehState || !netGehennaSeed(NET.gehState.seed))) { say("The host is preparing the way down.", 1800); return false; }
+    if ((!netGuest() || NET.gehEntered) && WORLDSTATE.luciferDefeated && WORLDSTATE.afterlife === "stay") {
       showAfterlifeChoice();
       return true;
     }
-    if (P.gehDive || death || !WORLDSTATE.gehUnlocked || GEH.failed) return false;
-    if (netGuest() && (!NET.gehState || !netGehennaSeed(WORLDSTATE.gehSeed))) { say("The host is preparing the way down.", 1800); return false; }
+    if (P.gehDive || death || !gehAccessOpen() || GEH.failed) return false;
     if (!Number.isFinite(P.pos.y)) return false;
     // the rim is worked out now, while the player is still standing in the valley, because the abort needs somewhere
     // real to put them and by then the body is eight hundred metres away and the pool is not under it any more.
@@ -16938,6 +17029,7 @@ const __boot = (async () => {
     // until the build finishes and a fall that stopped at the ceiling would have to teleport the last thirty metres —
     // which the camera would then chase down in a visible swoop. this way the last few metres are just more falling.
     P.gehDive = { t: 0, y0: P.pos.y, v: Math.max(8, (P.pos.y - GEH.floor) / DIVE_T), moved: false, fail: null, rim: V3(rx, groundAt(rx, rz, 1e9) + 0.05, rz) };
+    if (netGuest()) { NET.gehEntered = true; netApplyGehenna(NET.gehState); const peer = NET.peers.get("host"); if (peer) netSend(peer, netMyState()); }
     P.swim = false;
     P.swimVol = null;
     P.grounded = false;
@@ -16958,7 +17050,7 @@ const __boot = (async () => {
     // screen. __stage is safe to call after boot: both element lookups are null-guarded, window.__drawLoading is set
     // to null the moment the title appears so the title camera cannot fight the game camera, and what is left is two
     // writes onto a hidden bar and a 20 ms yield.
-    if (!GEH.root) {
+    if (!GEH.root && !GEH.netBuilding) {
       if (!WORLDSTATE.gehSeed) WORLDSTATE.gehSeed = 1 + Math.floor(Math.random() * 999999);
       GEH.seed = WORLDSTATE.gehSeed;
       const build = typeof window.gehBuildWorld === "function" ? window.gehBuildWorld : gehBuildFloor;
@@ -17196,7 +17288,7 @@ const __boot = (async () => {
     }
     function scriptFor(id) {
       const W = WORLDSTATE;
-      const absent = "Ysolde? No one with that name has been through here. No one with that name will be reborn.";
+      const absent = "Ysolde? I have no one here by that name. I'm sorry.";
       switch (id) {
         case "sweeper": return [
           "Your Majesty, without a crown again. The Porter under the gold lamp can tell you where this road goes.",
@@ -17223,7 +17315,7 @@ const __boot = (async () => {
           "Take the ledger through the gate to Pride. The king keeps his room at the centre of the kingdom."
         ] : [
           "You left your throne to seek enlightenment, Your Majesty; Wildmoor held you instead. The Fairy Queen does not hold you, oddly enough.",
-          `${buildThreads().slice(0, 3).map(t => t.who).join(", ")} still carry your name. Ysolde has no page: you ended her, and there is no one left to arrive.`,
+          `${buildThreads().slice(0, 3).map(t => t.who).join(", ")} still carry your name. I looked for Ysolde again. Her page is still missing.`,
           "My sister will try to take the names off you. I see you have already decided to keep them."
         ];
         case "kindly": return [
@@ -17285,7 +17377,7 @@ const __boot = (async () => {
       if (!best) {
         const seat = (GEH.seats || []).find(a => Math.hypot(a.x - P.pos.x, a.z - P.pos.z) < 3 && Math.abs(a.y - P.pos.y) < 4);
         const held = (GEH.enemies || []).find(e => e.kind === "attached" && e.alive && dist2D(e.pos, P.pos) < 3);
-        if (!GEH.inPride && (seat || held)) { gsay("One of the Unburdened", "Ysolde? No one with that name has been through here. No one with that name will be reborn."); return true; }
+        if (!GEH.inPride && (seat || held)) { gsay("One of the Unburdened", "Ysolde? I have no one here by that name. I'm sorry."); return true; }
         return false;
       }
       chain.length = 0;
@@ -18255,6 +18347,10 @@ const __boot = (async () => {
     a.t = 0;
     a.mumbleT = 1.2;
     GEH.woken = (GEH.woken || 0) + 1;
+    // The first returned grief draws her away from the fight at its next safe pause.
+    // Later blows cannot keep resetting this opening, and phase three no longer comforts anyone.
+    const matron = GEH.matron;
+    if (GEH.woken === 1 && matron && matron.alive && matron.armed && matron.phase < 3) matron.roundT = 0;
     burst(a.pos.clone().add(V3(0, 1, 0)), 0x8a7c70, 20, 4, 1, 0.16);
     SFX.tone(210, 150, 1.6, 0.09, "sine", 0, 600);
   }
@@ -19138,8 +19234,7 @@ const __boot = (async () => {
           SFX.tone(900, 300, 0.18, 0.12, "square");
           // the non-lethal clause. if the blow would take the last of the player, the name is still taken and the
           // life is not: threadHit is what her swing is FOR, and hurtPlayer only ever carried it as a passenger.
-          if (tgt.id || P.hp > e.dmg + 0.01) enemyStrike(e, e.dmg, tgt, 0.7);
-          else if (api) { try { api.threadHit(); } catch (err) { console.error("Gehenna: threadHit threw", err); } }
+          enemyStrike(e, e.dmg, tgt, 0.7);
         }
         if (e.t <= 0) { e.state = "recover"; e.t = 1.1; }
         break;
@@ -19155,6 +19250,13 @@ const __boot = (async () => {
     for (const a of e.arms) a.rotation.x = damp(a.rotation.x, raise, 9, dt);
   }
 
+  function gehKindlyHit(dmg, from, kb = 0.7, pierce = false) {
+    if (death || (P.inv > 0 && !(pierce && P.dodge > 0))) return;
+    const loss = dmg / (1 + Math.max(0, heroLevel() - 1) * TUNE.combat.damagePerHeroLevel) * (P.bonus.guard || 1);
+    if (P.hp <= loss + 0.01) { if (GEH_SCRIPT && GEH_SCRIPT.fight) GEH_SCRIPT.threadHit(); }
+    else hurtPlayer(dmg, from, kb, pierce);
+  }
+
   // ---- the frame hook. it drives the after-story's own clock, and it owns the teardown, on one rule: whenever
   // gehenna exists and the player is provably not in it and not falling toward it, it comes down. that single rule
   // covers leaving, dying, loading a save, being recovered from an impossible position, and any future way out,
@@ -19166,18 +19268,14 @@ const __boot = (async () => {
     if (!hero) return;
     hero.traverse(o => {
       if (!o.isMesh || !o.material) return;
-      if (!o.userData.livingMaterials) {
-        o.userData.livingMaterials = o.material;
-        const clone = m => { const c = m.clone(); c.transparent = true; c.opacity = Math.min(m.opacity, 0.42); c.depthWrite = false; return c; };
-        o.userData.ghostMaterials = Array.isArray(o.material) ? o.material.map(clone) : clone(o.material);
-      }
-      o.material = WORLDSTATE.afterlife === "stay" ? o.userData.ghostMaterials : o.userData.livingMaterials;
+      if (!o.userData.livingMaterials) o.userData.livingMaterials = o.material;
+      o.material = o.userData.livingMaterials; // staying is a return, not an imposed death
     });
   }
   function gehennaObjective() {
     const enemy = kind => (GEH.enemies || []).find(e => e.kind === kind && e.alive);
     const target = (kind, x, z) => { const e = enemy(kind); return e ? e.pos : V3(GEH.cx + x, gehH(GEH.cx + x, GEH.cz + z), GEH.cz + z); };
-    if (WORLDSTATE.luciferDefeated) return { text: "Stay, or move on", hint: "The cycle waits for your answer.", target: null };
+    if (WORLDSTATE.luciferDefeated) return { text: "Stay, or move on", hint: "The road is open. This choice belongs to you.", target: null };
     if (!WORLDSTATE.gehAlmonerDown) return { text: "Slay the Almoner, the demonic beast", hint: "I · The Intake. Speak to the Porter under the gold lamp; circle the cart when the Almoner kneels.", target: target("almoner", 44, 1) };
     if (!WORLDSTATE.gehMatronDown) return { text: "Slay the Matron, keeper of the ward", hint: `II · The Residential Ward. Strike the four seated people to wake them (${Math.min(4, GEH.woken || 0)}/4); her guard weakens when they grieve.`, target: target("matron", 56, 3.4) };
     if (!WORLDSTATE.gehHeapDown) return { text: "Slay the Unclaimed, the hoarding beast", hint: "III · The Unclaimed Store. The Caller explains the heap; leave room for what it throws back.", target: target("unclaimed", 104, 6) };
@@ -19188,7 +19286,7 @@ const __boot = (async () => {
     }
     const e = enemy("lucifer");
     if (!GEH.inPride) return { text: "Slay Lucifer, Lord of Pride", hint: "V · The Still Kingdom. Follow the empty avenue to the white tear at the kingdom's centre.", target: V3(GEH.cx + 48, GEH.floor + 9, GEH.cz + 78) };
-    const hint = e && e.armed ? "He is holding the hand above the children. Your sword is ready." : e && e.beat >= 5 ? "Follow Lucifer to the centre of the room." : "Speak to Lucifer beside the children.";
+    const hint = e && e.armed ? "Break his hold. Listen when the children speak." : e && e.beat >= 5 ? "Follow Lucifer to the centre of the room." : "Speak to Lucifer beside the children.";
     return { text: "Slay Lucifer, Lord of Pride", hint: "VI · The Impossible Room. " + hint, target: e ? e.pos : V3(GEH.cx - 73, GEH.floor + 9, GEH.cz + 54) };
   }
   // The almshouse was a waystation. The city beyond has finished its work:
@@ -19326,7 +19424,7 @@ const __boot = (async () => {
     }
     if (!city.transit && city.cooldown <= 0 && !afterlifeLocked()) {
       const enter = !GEH.inPride && WORLDSTATE.gehDone && Math.abs(P.pos.y - city.y) < 2.5 && Math.abs(P.pos.x - city.portal.x) < 1.35 && Math.abs(P.pos.z - city.portal.z) < 2.6;
-      const leave = GEH.inPride && !(GEH.lucifer && GEH.lucifer.beat >= 5) && Math.abs(P.pos.x - (GEH.cx - 85)) < 1.6 && P.pos.z < GEH.cz + 41.2;
+      const leave = GEH.inPride && (WORLDSTATE.luciferDefeated || !(GEH.lucifer && GEH.lucifer.beat >= 5)) && Math.abs(P.pos.x - (GEH.cx - 85)) < 1.6 && P.pos.z < GEH.cz + 41.2;
       if (enter || leave) {
         city.transit = { t: 0, enter, moved: false };
         if (!GEH.portalVeil) {
@@ -19343,9 +19441,6 @@ const __boot = (async () => {
     if (transit.t >= 0.23 && !transit.moved) {
       transit.moved = true; GEH.inPride = transit.enter;
       P.pos.set(GEH.cx + (transit.enter ? -85 : 51.5), city.y + 0.05, GEH.cz + (transit.enter ? 42 : 78));
-      camYaw = transit.enter ? Math.PI : -Math.PI / 2;
-      camPitch = 0.22;
-      P.heading = transit.enter ? 0 : Math.PI / 2;
       P.grounded = true; P.jumps = 0; P.swim = false; P.swimVol = null; P.dive = false; P.sliding = false; P.climb = null; P.airSlash = null;
       visY = P.pos.y; lastSafePos.copy(P.pos);
       if (GEH.prideRoom) GEH.prideRoom.visible = GEH.inPride;
@@ -19363,11 +19458,11 @@ const __boot = (async () => {
     GEH.prideRoom = GEH.prideRoot = room;
     room.visible = !!GEH.inPride;
     g.add(room);
-    const basic = color => new THREE.MeshBasicMaterial({ color: toLin(color), fog: false });
+    const basic = color => new THREE.MeshBasicMaterial({ color: toLin(color), fog: false, toneMapped: false });
     const lit = color => new THREE.MeshStandardMaterial({ color: toLin(color), roughness: 0.88, metalness: 0, fog: false });
-    const white = basic(0xffffff), chalk = basic(0xeeeae0), green = basic(0xb8c9a4), leaf = basic(0xa6b993);
-    const water = basic(0x82b5c7), ripple = basic(0xd1e7e5), bark = basic(0xb2a796), dark = basic(0x100f18), seam = basic(0xb59c67);
-    const bank = basic(0xd5d5c6), stone = basic(0xbabfb5), grass = basic(0x91ad81), deepWater = basic(0x6ca1b9);
+    const white = basic(0xffffff), chalk = basic(0xeeeae0), green = basic(0x8bab79), leaf = basic(0x6f985e);
+    const water = basic(0x4b9eb8), ripple = basic(0xb4dedb), bark = basic(0x887968), dark = basic(0x100f18), seam = basic(0xb59c67);
+    const bank = basic(0xb9b49a), stone = basic(0x929e91), grass = basic(0x477d48), deepWater = basic(0x34768f);
     const shape = {
       box: new THREE.BoxGeometry(1, 1, 1), sphere: new THREE.SphereGeometry(1, 12, 8),
       cylinder: new THREE.CylinderGeometry(1, 1, 1, 8), circle: new THREE.CircleGeometry(1, 16),
@@ -19469,21 +19564,23 @@ const __boot = (async () => {
     flow.instanceMatrix.setUsage(THREE.DynamicDrawUsage); flow.instanceMatrix.needsUpdate = true; room.add(flow);
     GEH.prideWater = { flow, dummy: flowDummy, center: riverCenter, y: y + 0.065 };
     architecture.finish();
+    const childSkin = lit(0xe2c3af), childBlue = lit(0x889dac), childGreen = lit(0x78956c);
     GEH.prideChildren = [];
     GEH.prideChildrenOrigin = { x: -73, z: 56 };
     for (let i = 0; i < 3; i++) {
-      const child = new THREE.Group(), detail = batch(child), cloth = i % 2 ? green : chalk;
+      const child = new THREE.Group(), detail = batch(child), cloth = i % 2 ? childGreen : childBlue;
       detail.add("box", cloth, 0, 0.64, 0, 0.4, 0.55, 0.25);
-      detail.add("sphere", chalk, 0, 1.08, 0, 0.2, 0.22, 0.19);
+      detail.add("sphere", childSkin, 0, 1.08, 0, 0.2, 0.22, 0.19);
       for (const side of [-1, 1]) {
         detail.limb(cloth, [side * 0.11, 0.4, 0], [side * 0.15, 0.06, side * 0.1], 0.08);
-        detail.limb(chalk, [side * 0.22, 0.83, 0], [side * 0.38, 0.56, 0.07], 0.06);
+        detail.limb(childSkin, [side * 0.22, 0.83, 0], [side * 0.38, 0.56, 0.07], 0.06);
       }
       detail.finish();
       child.position.set(GEH.cx - 73 + Math.cos(i * 2.1) * 2.5, y, GEH.cz + 56 + Math.sin(i * 2.1) * 2.5);
+      child.userData.home = child.position.clone();
       room.add(child); GEH.prideChildren.push(child);
     }
-    const hand = new THREE.Group(), handParts = batch(hand), handWhite = lit(0xfffdf7), handCrease = lit(0xd9d6cf);
+    const hand = new THREE.Group(), handParts = batch(hand), handWhite = lit(0xf4eee2), handCrease = lit(0xa89e8c);
     handParts.add("box", handWhite, 0, 0, 0, 8.5, 2.3, 6);
     handParts.add("sphere", handWhite, 0, 0, 0, 4.8, 1.15, 3.4);
     handParts.add("box", handWhite, 0, 11, -2.1, 5.5, 22, 4.7);
@@ -19510,7 +19607,7 @@ const __boot = (async () => {
     const grp = new THREE.Group(), torso = new THREE.Group(), person = batch(torso);
     grp.add(torso);
     const skin = lit(0xf5dfd3), hair = lit(0xe8d5ad), hairShade = lit(0xc5ae87);
-    const robeCloth = lit(0xc0c4d0), capeCloth = lit(0xa6adbf), foldCloth = lit(0x929caf), boots = lit(0x6c625b);
+    const robeCloth = lit(0xaab5c8), capeCloth = lit(0x7f8fa9), foldCloth = lit(0x677b96), boots = lit(0x6c625b);
     const claspMetal = lit(0xc6b790), eyes = basic(0x171719), smile = lit(0x8e7470);
     const rig = { torso, arms: [], legs: [], up: V3(0, 1, 0), direction: V3() };
     const movingPart = (kind, mat) => {
@@ -19571,12 +19668,14 @@ const __boot = (async () => {
     person.finish();
     grp.position.set(GEH.cx - 73, y, GEH.cz + 54); room.add(grp);
     const e = { nid: ++ENEMY_NID, kind: "lucifer", geh: true, boss: true, big: true, mesh: grp,
-      pos: grp.position.clone(), vel: V3(), hp: 90, maxHp: 90, r: 1.4, state: "children", t: 0, alive: !WORLDSTATE.luciferDefeated,
-      heading: 0, flash: 0, bar: WORLDSTATE.luciferDefeated ? null : makeHealthBar(), name: "Lucifer, Lord of Pride", armed: false, beat: 0, plea: 0, born: time,
-      luciferRig: rig, holdPalmHeight: 4.15, bodyScale: 0.62, scenePhase: "children" };
-    gehPoseLucifer(e, "children", 0.62, time);
-    if (e.alive) { EXTRA.push(e); GEH.enemies.push(e); } else grp.visible = false;
+      pos: grp.position.clone(), vel: V3(), hp: WORLDSTATE.luciferDefeated ? 0 : 90, maxHp: 90, r: 1.4, state: "children", t: 0, alive: true,
+      heading: 0, flash: 0, bar: WORLDSTATE.luciferDefeated ? null : makeHealthBar(), name: "Lucifer's hold", armed: false, beat: 0, plea: 0, phase: 0, holdPause: 0, born: time,
+      luciferRig: rig, holdPalmHeight: 4.15, bodyScale: 0.62, scenePhase: WORLDSTATE.luciferDefeated ? "released" : "children", noBar: !!WORLDSTATE.luciferDefeated };
+    gehPoseLucifer(e, WORLDSTATE.luciferDefeated ? "release" : "children", 0.62, time);
+    GEH.enemies.push(e);
+    if (!WORLDSTATE.luciferDefeated) EXTRA.push(e);
     GEH.lucifer = e;
+    if (WORLDSTATE.luciferDefeated) gehPrideChildren(18);
     GEH.luciferPrompt = makePrompt(); room.add(GEH.luciferPrompt);
     // the staircase continues well beyond its unseen exit trigger.
     for (let i = 0; i < 80; i++) {
@@ -19587,8 +19686,8 @@ const __boot = (async () => {
   }
   function gehPoseLucifer(e, mode, scale, t) {
     if (!e || !e.luciferRig) return;
-    const rig = e.luciferRig, running = mode === "run", holding = mode === "hold";
-    const phase = Math.sin(t * 11), lean = holding ? 0 : running ? 0.16 : 0.12 + Math.sin(t * 0.9) * 0.012;
+    const rig = e.luciferRig, running = mode === "run", holding = mode === "hold", releasing = mode === "release";
+    const phase = Math.sin(t * 11), lean = holding || releasing ? 0 : running ? 0.16 : 0.12 + Math.sin(t * 0.9) * 0.012;
     const lift = holding ? 0 : running ? 0.23 + Math.abs(phase) * 0.055 : 0.12;
     const sn = Math.sin(lean), cs = Math.cos(lean);
     rig.torso.position.set(0, lift, 0); rig.torso.rotation.set(lean, 0, 0);
@@ -19629,6 +19728,9 @@ const __boot = (async () => {
       } else if (running) {
         elbowX = side * 0.78; elbowY = 1.91 + swing * 0.14; elbowZ = 0.32 + swing * 0.47;
         wristX = side * 0.71; wristY = 2.4 + swing * 0.16; wristZ = 0.65 + swing * 0.56;
+      } else if (releasing) {
+        elbowX = side * 0.83; elbowY = 1.88; elbowZ = 0.23;
+        wristX = side * 1.28; wristY = 1.76; wristZ = 0.54;
       } else {
         const offer = side < 0, gentle = Math.sin(t * 1.3) * 0.025;
         elbowX = side * 0.76; elbowY = offer ? 2.07 : 1.88; elbowZ = offer ? 0.59 : 0.42;
@@ -19658,13 +19760,14 @@ const __boot = (async () => {
     const e = GEH.lucifer;
     if (!e || !e.alive || !WORLDSTATE.gehDone || !netGehennaRoom(actor.pos) || dist2D(actor.pos, e.pos) > 6 || Math.abs(actor.pos.y - e.pos.y) > 5) return false;
     if (netGuest() && actor === P) { netGehennaRequest("lucifer"); return true; }
-    if (e.armed) { luciferSay(e, "Please. Help me hold it. They're behind me.", 5000); return true; }
+    if (e.scenePhase === "release" || e.scenePhase === "released") return false;
+    if (e.armed) { if (!(e.holdPause > 0)) luciferSay(e, e.phase > 0 ? "I could keep them from being hurt again." : "Please. Help me hold it. They're behind me.", 5000); return true; }
     const lines = [
-      "I'm Lucifer; it's good to meet you. I promised I'd help them get across the river.",
-      "I looked for Ysolde, too, and I am so sorry. There is nothing left of her to come here.",
-      "God left them to suffer. This kingdom is my attempt to make a place where humans and demons never have to bury anyone.",
-      "I've seen full, happy lives for everyone you helped, and none for you. I have seen you kill me, too, and this universe end.",
-      "Every future says you will refuse, but I still believe we can change it. Stay with me; the children could use another pair of hands."
+      "I'm Lucifer. Hold that end for her, would you? There. Nothing can hurt them here.",
+      "I looked for Ysolde, too. I am so sorry. I have no one here by that name.",
+      "I have watched Wildmoor suffer, life after life. And beyond it, the same grief.",
+      "Once I turn that hand away, I can keep everyone on a gentler road.",
+      "No one would have to choose wrong again."
     ];
     if (e.beat >= lines.length) return false;
     const line = lines[Math.min(e.beat++, lines.length - 1)];
@@ -19689,8 +19792,25 @@ const __boot = (async () => {
     e.armed = false;
     e.plea = 0;
   }
+  const LUCIFER_CHILDREN = [
+    "You promised we could go when we were ready.",
+    "I'm tired, Lucifer.",
+    "Please let me see what comes next."
+  ];
+  const LUCIFER_ANSWERS = [
+    "When the hand is gone, nothing will make you suffer again.",
+    "What if you choose the same pain? What if all of you do? I cannot bear to watch.",
+    "I was going to choose for everyone. I had not asked anyone."
+  ];
+  function gehLuciferBreak(e) {
+    if (!e || e.phase >= 3 || e.holdPause > 0) return;
+    e.phase = (e.phase || 0) + 1;
+    e.holdPause = 5.5; e.pleaStep = 0;
+    const line = LUCIFER_CHILDREN[e.phase - 1];
+    if (netGehennaSpeak("A child", line, 5200, false, true)) { logTalk("A child", line); say("A child: " + line, 5200, true, "geh", true); }
+  }
   function gehUpdateLucifer(e, tgt, dx, dz, dist, dt) {
-    if (!e.alive || !netGehennaRoom(tgt.pos)) return;
+    if (!e.alive || !tgt || !netGehennaRoom(tgt.pos) || e.scenePhase === "release" || e.scenePhase === "released") return;
     e.vel.set(0, 0, 0);
     e.scenePhase = e.scenePhase || "children";
     e.sceneT = (e.sceneT || 0) + dt;
@@ -19721,7 +19841,7 @@ const __boot = (async () => {
         e.scenePhase = "hold";
         e.armed = true;
         e.sceneT = 0;
-        luciferSay(e, "I have it. I can hold it. Please, help me.", 5500);
+        luciferSay(e, "I have it. Stay behind me. No one will be taken from here.", 5500);
       }
     }
     if (e.scenePhase === "hold") {
@@ -19729,10 +19849,13 @@ const __boot = (async () => {
       scale = damp(scale, 0.62 + 1.78 * clamp(e.hp / e.maxHp, 0, 1), 4.5, dt);
       GEH.godHand.position.set(e.pos.x, e.pos.y + 1.15 + e.holdPalmHeight * scale, e.pos.z);
       GEH.godHand.userData.holdY = GEH.godHand.position.y;
-      const threshold = e.hp < e.maxHp * 0.3 ? 3 : e.hp < e.maxHp * 0.6 ? 2 : e.hp < e.maxHp ? 1 : 0;
-      if (threshold > e.plea) {
-        e.plea = threshold;
-        luciferSay(e, ["", "Please stop. I can still change this.", "I'm losing it. Not for me — for them. Help me.", "Come here. If I cannot save them, let me at least shield you."][threshold], 5200);
+      if (e.holdPause > 0) {
+        e.holdPause = Math.max(0, e.holdPause - dt);
+        if (e.holdPause === 0 && e.pleaStep === 0) {
+          e.pleaStep = 1;
+          const line = LUCIFER_ANSWERS[e.phase - 1], duration = Math.max(6200, line.length * 55);
+          luciferSay(e, line, duration); e.holdPause = duration / 1000 + 0.4;
+        } else if (e.holdPause === 0 && e.phase === 3) { gehLuciferDown(); return; }
       }
     }
     e.bodyScale = scale;
@@ -19761,42 +19884,63 @@ const __boot = (async () => {
       GEH.luciferPrompt.visible = GEH.inPride && WORLDSTATE.gehDone && e.alive && e.scenePhase === "children" && dist2D(P.pos, e.pos) < 40;
       GEH.luciferPrompt.position.copy(e.pos).y += 3.5 * e.bodyScale + 0.8;
     }
-    for (let i = 0; i < (GEH.prideChildren || []).length; i++) {
-      const t = time * 0.55 + i * Math.PI * 2 / 3;
-      const child = GEH.prideChildren[i];
-      const center = GEH.prideChildrenOrigin;
-      child.position.set(GEH.cx + center.x + Math.cos(t) * 2.5, GEH.floor + 9 + Math.abs(Math.sin(time * 5 + i)) * 0.1, GEH.cz + center.z + Math.sin(t) * 2.5);
-      child.rotation.y = -t;
-    }
+    gehPrideChildren(GEH.netFinale ? GEH.netFinale.t : e && e.scenePhase === "released" ? 18 : null);
     if (P.pos.x < GEH.cx - 36 && Math.abs(P.pos.z - GEH.cz) < 2.3 && P.pos.y > GEH.floor + 6 && GEH.exitArm > 3) gehAscend();
+  }
+  function gehPrideChildren(releaseT = null) {
+    // They have their own small lives before, during and after his decision.
+    for (let i = 0; i < (GEH.prideChildren || []).length; i++) {
+      const child = GEH.prideChildren[i], home = child.userData.home;
+      child.visible = true;
+      if (releaseT !== null) {
+        const walk = clamp((releaseT - 3 - i * 1.4) / 9, 0, 1);
+        const destinations = [[-99, 55], [-74, 60.2], [-87, 64]], [x, z] = destinations[i];
+        const end = V3(GEH.cx + x, GEH.floor + 9, GEH.cz + z);
+        child.position.lerpVectors(home, end, smooth(walk));
+        child.position.y += walk > 0 && walk < 1 ? Math.abs(Math.sin(releaseT * 6 + i)) * 0.055 : 0;
+        child.rotation.y = Math.atan2(end.x - home.x, end.z - home.z);
+        child.scale.y = i === 1 ? 0.72 : 1;
+      } else {
+        // A child plays, another rests, another explores the bank. The fight never suspends them.
+        child.position.copy(home);
+        child.scale.y = i === 1 ? 0.72 : 1;
+        if (i !== 1) {
+          child.position.x += Math.sin(time * (i === 0 ? 0.7 : 0.31) + i) * 0.7;
+          child.position.z += Math.cos(time * (i === 0 ? 0.7 : 0.31) + i) * 0.45;
+          child.position.y += Math.abs(Math.sin(time * 4 + i)) * 0.035;
+          child.rotation.y = Math.atan2(Math.cos(time * (i === 0 ? 0.7 : 0.31) + i) * 0.7, -Math.sin(time * (i === 0 ? 0.7 : 0.31) + i) * 0.45);
+        }
+      }
+    }
   }
   function gehLuciferDown(fromHost = false) {
     const e = GEH.lucifer;
+    if (!e || (netGuest() && !fromHost)) return;
+    if (GEH.netFinale && (e.scenePhase === "release" || e.scenePhase === "released") && (!fromHost || NET.gehFinaleLocal)) return;
+    // Keep the old save key: it now records the end of his hold, never a death.
     WORLDSTATE.luciferDefeated = true;
-    if (NET.role === "host" && !GEH.netFinale) {
-      NET.gehShared = true;
+    e.hp = 0; e.alive = true; e.armed = false; e.noBar = true; e.state = e.scenePhase = "release"; e.sceneT = 0;
+    e.mesh.visible = true;
+    if (e.bar) e.bar.visible = false;
+    const enemyIndex = EXTRA.indexOf(e); if (enemyIndex >= 0) { EXTRA.splice(enemyIndex, 1); enemiesTick = -1; }
+    if (!GEH.netFinale) {
+      if (NET.role === "host") NET.gehShared = true;
       GEH.netFinale = { t: 0, scale: e.bodyScale, handY: GEH.godHand.position.y, members: [
         ...(netGehennaRoom(P.pos) && !death ? [NET.myId] : []),
         ...[...NET.avatars.values()].filter(a => NET.peers.get(a.via)?.ready && !a.state.dead && netGehennaRoom(a.state.pos)).map(a => a.id)
       ] };
     }
-    if (NET.role === "host") luciferSay(e, "Let them finish their game.", 2500);
-    if (!netGehennaRoom(P.pos) || death || NET.gehFinaleLocal) { if (NET.role === "host") autoSave("Lucifer has fallen"); return; }
+    if (NET.role === "host" || !netGuest()) luciferSay(e, "No. I will not do that to you.", 5500);
+    if (!netGehennaRoom(P.pos) || death || NET.gehFinaleLocal) { if (NET.role === "host") autoSave("Lucifer lets go"); return; }
     NET.gehFinaleLocal = true; WORLDSTATE.gehFinaleWitnessed = true;
     WORLDSTATE.afterlife = null;
-    AFTERLIFE.phase = "fall"; AFTERLIFE.t = 0;
-    AFTERLIFE.handY = GEH.godHand.position.y;
-    AFTERLIFE.bodyScale = e.bodyScale;
-    AFTERLIFE.playerStart = P.pos.clone();
-    const beside = P.pos.clone().sub(e.pos).setY(0);
-    if (beside.lengthSq() < 0.01) beside.set(0, 0, -1);
-    AFTERLIFE.playerEnd = e.pos.clone().add(beside.normalize().multiplyScalar(1.2));
+    AFTERLIFE.phase = "release"; AFTERLIFE.t = GEH.netFinale.t;
     P.atk = null; P.block = false; P.vel.set(0, 0, 0);
+    guide.visible = false;
     paused = false;
     document.getElementById("pause").classList.add("hidden");
-    releaseKeys(); if (Voice.stop) Voice.stop();
-    if (NET.role !== "host" && !fromHost) luciferSay(e, "Let them finish their game.", 2500);
-    autoSave("Lucifer has fallen");
+    releaseKeys();
+    autoSave("Lucifer lets go");
   }
   function endingPanel() {
     if (AFTERLIFE.panel) return AFTERLIFE.panel;
@@ -19810,7 +19954,7 @@ const __boot = (async () => {
     if (AFTERLIFE.panel) AFTERLIFE.panel.remove(); AFTERLIFE.panel = null;
     document.getElementById("fade").style.opacity = 1;
     askChoice("What will you do?", [
-      { key: "stay", label: "Stay", text: "Return to the kingdom as a ghost. Keep your skills and help where you can." },
+      { key: "stay", label: "Stay", text: "Return to Wildmoor. Keep your skills. There is still work to do, and people to know." },
       { key: "moveOn", label: "Move on", text: "Let this life end. See what comes after." }
     ], key => {
       WORLDSTATE.afterlife = key;
@@ -19824,9 +19968,9 @@ const __boot = (async () => {
         hero.scale.setScalar(1);
         visY = P.pos.y; lastSafePos.copy(P.pos); applyAfterlifeAppearance();
         document.getElementById("fade").style.opacity = 0;
-        say("The kingdom is still here. You feel the morning pass through you. The pool will ask again whenever you are ready.", 9000, true);
+        say("Morning reaches the road. There is woodsmoke beyond the gate.", 6500, true);
         tryLock();
-      } else showModernEnding(0);
+      } else { netCloseBystanderWorlds(); showModernEnding(0); }
       autoSave(key === "stay" ? "staying a little longer" : "a new life");
     });
   }
@@ -19846,36 +19990,29 @@ const __boot = (async () => {
   }
   function updateAfterlife(dt) {
     if (!AFTERLIFE) return;
+    // The host keeps the release moving even when its own player is in a menu or back in Wildmoor.
+    netGehennaFinaleTick(dt);
     if (!AFTERLIFE.phase && WORLDSTATE.luciferDefeated && WORLDSTATE.gehFinaleWitnessed && WORLDSTATE.afterlife !== "stay") {
       if (WORLDSTATE.afterlife === "moveOn") showModernEnding(0); else showAfterlifeChoice();
     }
-    if (AFTERLIFE.phase !== "fall" && AFTERLIFE.phase !== "credits") return;
+    if (AFTERLIFE.phase !== "release" && AFTERLIFE.phase !== "credits") return;
     AFTERLIFE.t += dt;
-    if (AFTERLIFE.phase === "fall") {
-      const e = GEH.lucifer, t = AFTERLIFE.t;
-      // He gathers the player beneath his last shelter; both bodies disappear under the same palm.
-      P.pos.lerpVectors(AFTERLIFE.playerStart, AFTERLIFE.playerEnd, smooth(clamp(t / 1.1, 0, 1)));
-      hero.position.set(P.pos.x, P.pos.y + TUNE.player.footLift, P.pos.z);
-      const scale = lerp(AFTERLIFE.bodyScale, 0.62, smooth(clamp(t / 0.65, 0, 1)));
-      gehPoseLucifer(e, "hold", scale, time);
-      const fall = Math.pow(clamp((t - 0.65) / 1.25, 0, 1), 2);
-      GEH.godHand.position.y = lerp(lerp(AFTERLIFE.handY, e.pos.y + 1.15 + e.holdPalmHeight * 0.62, smooth(clamp(t / 0.65, 0, 1))), e.pos.y + 1.18, fall);
-      const clearance = Math.max(0.03, GEH.godHand.position.y - 1.15 - e.pos.y);
-      e.mesh.scale.y = Math.min(scale, clearance / e.holdPalmHeight);
-      hero.scale.y = Math.min(1, clearance / 3.4);
-      if (t < 2.05) return;
+    if (AFTERLIFE.phase === "release") {
+      const t = GEH.netFinale ? GEH.netFinale.t : AFTERLIFE.t;
+      AFTERLIFE.t = t;
+      hero.scale.setScalar(1);
+      if (t < 17) return;
       document.getElementById("fade").style.opacity = 1;
-      if (t < 3.2) return;
+      if (t < 18) return;
       AFTERLIFE.phase = "credits"; AFTERLIFE.t = 0;
       if (document.pointerLockElement) document.exitPointerLock();
-      endingPanel().innerHTML = '<div class="credits-roll"><small>A LIFE IN WILDMOOR</small><h1>The Legend of Peanits</h1><p>Created by Phone Hseng<br>Built with Three.js</p><p>For every person you stopped to help.</p><p>For everyone who carried on.</p><p>For someone who could not.</p><h2>Thank you for playing.</h2></div>';
+      endingPanel().innerHTML = '<div class="credits-roll"><small>THE ROAD IS OPEN</small><h1>The Legend of Peanits</h1><p>Created by Phone Hseng<br>Built with Three.js</p><p>For every person you stopped to help.</p><p>For the roads still ahead.</p><p>For someone who could not.</p><h2>Thank you for playing.</h2></div>';
     } else if (AFTERLIFE.t > 15) showAfterlifeChoice();
   }
 
   function updateGehenna(dt, rdt) {
     netGehennaEnsure();
     if (!GEH.root || !GEH.netBuilt) return;
-    netGehennaFinaleTick(dt);
     // GEHENNA.tick stops dead the moment GEH.root goes, and its closing beat is the sound of the valley heard from
     // OUTSIDE — crickets, on the first breath of air. so the root is what waits for it: fourteen seconds of grace
     // once the after-story is finished, two seconds otherwise, and then the world comes down either way.
@@ -20478,7 +20615,8 @@ const __boot = (async () => {
   }
   // the morning after the king sent you to bed: the pool stops being water, and the way down is open
   function wakeTheWhirlpool() {
-    WORLDSTATE.gehUnlocked = true;
+    if (NET.role === "guest" && !NET.gehEntered) NET.gehAccess = true;
+    else WORLDSTATE.gehUnlocked = true;
     say("Word comes up from the gate before you are properly awake.", 5400, true, "dark");
     setTimeout(() => say("The black pool is turning. It has been turning since the middle of the night, and it is going down.", 7000, true, "dark"), 5000);
   }
@@ -20501,7 +20639,7 @@ const __boot = (async () => {
       ysoldeIntoTheGround(); WORLDSTATE.kingMourned = true; BURIAL.token++; BURIAL.phaseAt = burialNow(); broadcastBurial();
       SFX.dread(); logTalk("", "You put her in yourself. The earth goes back easier than it came out. It is done. Nothing about it feels finished.");
       speak(hermitVoice, "What good will that do?", "The hermit", 5000);
-      setTimeout(() => { if (WORLDSTATE.ysoldeBuried && !WORLDSTATE.gehUnlocked && P.pos.y > DIVIDE) say("Rest in an open bed. The arrow will take you there.", 5000, true); }, 6500);
+      setTimeout(() => { if (WORLDSTATE.ysoldeBuried && !gehAccessOpen() && P.pos.y > DIVIDE) say("Rest in an open bed. The arrow will take you there.", 5000, true); }, 6500);
       autoSave("after Ysolde's burial");
     }
     turnChildrenAway();
@@ -20882,7 +21020,7 @@ const __boot = (async () => {
       ]);
       return;
     }
-    if (WORLDSTATE.ysoldeBuried && !WORLDSTATE.gehUnlocked) return speak(king, "Bed, Champion. That was an order, and I am enjoying giving it.", "King", 5000);
+    if (WORLDSTATE.ysoldeBuried && !gehAccessOpen()) return speak(king, "Bed, Champion. That was an order, and I am enjoying giving it.", "King", 5000);
     if (!lit)
       return speak(
         king,
@@ -21474,18 +21612,18 @@ const __boot = (async () => {
     }
     if (q.done && !q.rewarded) { speak(n, q.thanks, q.who, 7000); sideRewardOnce(q); return true; }
     if (!q.taken) {
-      if (netGuest()) { sideSendRequest(q, "take"); return true; }
+      if (netGuest() && !sidePersonalFairy(q)) { sideSendRequest(q, "take"); return true; }
       q.taken = true;
       tracked = q;
       speak(n, typeof q.ask === "function" ? q.ask() : q.ask, q.who, 7000);
-      if (NET.role === "host" && netOnline()) { sideHostBegin(q, sideRead(q), NET.myId); sideBroadcast(); }
+      if (NET.role === "host" && netOnline() && !sidePersonalFairy(q)) { sideHostBegin(q, sideRead(q), NET.myId); sideBroadcast(); }
       ensureQuestSlimes(q);
       logTalk("", `New errand: ${q.title}`);
       return true;
     }
     if (!q.done && sideReady(q)) {
       if (!sideCanDeliver(q, sideRead(q), null)) { speak(n, "The one carrying it needs to bring it back to me.", q.who, 4000); return true; }
-      if (netGuest()) { sideSendRequest(q, "turnin"); return true; }
+      if (netGuest() && !sidePersonalFairy(q)) { sideSendRequest(q, "turnin"); return true; }
       q.done = true;
       speak(n, q.thanks, q.who, 7000);
       if (NET.role === "host" && netOnline()) sideBroadcast();
@@ -22155,7 +22293,7 @@ const __boot = (async () => {
     fairyMilestones();
     if (FAIRY.found === FAIRY.total) {
       FAIRY.complete = true;
-      FAIRY.quest.done = true; if (netOnline()) { if (NET.role === "host") { sideHostEnsure(FAIRY.quest); FAIRY.quest.partyProgress = [FAIRY.total]; sideBroadcast(); } else { const p = NET.peers.get("host"); if (p) netSend(p, { t: "sqa", q: sideActivityRows() }); } }
+      FAIRY.quest.done = true;
       say("All 25 children are home. Queen Rosabel will be delighted.", 6500, true, "fairy");
     } else {
       say(`A fairy: ${fairyLineFor(child)}`, 5200, true, "fairy");
@@ -22238,7 +22376,7 @@ const __boot = (async () => {
     }
     if (!FAIRY.accepted) {
       FAIRY.accepted = true;
-      FAIRY.quest.taken = true; if (netGuest()) sideSendRequest(FAIRY.quest, "take"); else if (NET.role === "host" && netOnline()) { sideHostBegin(FAIRY.quest, [FAIRY.found], NET.myId); sideBroadcast(); }
+      FAIRY.quest.taken = true;
       if (FAIRY.complete) {
         // somebody who brought all 25 home before meeting her must never be told to go and find five more
         FAIRY.told2 = true;
@@ -22524,10 +22662,10 @@ const __boot = (async () => {
     }
     if (P.pos.y < DIVIDE && GEH.inPride) {
       hemi.color.setHex(0xffffff);
-      hemi.groundColor.setHex(0xdde3d5);
-      hemi.intensity = 0.9;
+      hemi.groundColor.copy(toLin(0x6a7567));
+      hemi.intensity = 0.78;
       ambient.color.setHex(0xffffff);
-      ambient.intensity = 0.65;
+      ambient.intensity = 0.2;
       scene.fog.color.setHex(0xffffff);
       scene.fog.near = 300;
       scene.fog.far = 4000;
@@ -22948,7 +23086,7 @@ const __boot = (async () => {
             killEnemy(g, false, 999, true);
           });
           // the night the king sends you to bed is the night the pool turns over
-          if (WORLDSTATE.ysoldeBuried && WORLDSTATE.kingMourned && !WORLDSTATE.gehUnlocked) wakeTheWhirlpool();
+          if (WORLDSTATE.ysoldeBuried && WORLDSTATE.kingMourned && !gehAccessOpen()) wakeTheWhirlpool();
         }
         // waking is the game's own checkpoint: hearts full, the goblins cleared, the day just turned and, on the one
         // night it matters, the pool already turned over. the write waits for the sleep to be completely finished,
@@ -23745,7 +23883,7 @@ const __boot = (async () => {
     // the player from the bank that this water is not the water they swam in yesterday.
     if (POOL_WHIRL) {
       // the burial is what opens the water, not the unlock flag — she has to be in the ground before the pool turns
-      POOL_WHIRL.visible = !!WORLDSTATE.ysoldeBuried && !!WORLDSTATE.gehUnlocked && !WORLDSTATE.ending;
+      POOL_WHIRL.visible = !!WORLDSTATE.ysoldeBuried && gehAccessOpen() && !WORLDSTATE.ending;
       if (POOL_WHIRL.visible) {
         POOL_WHIRL.rotation.y += rdt * 1.35;
         POOL_WHIRL.position.y = POOLW + 0.05 + Math.sin(time * 0.9) * 0.05;
@@ -23932,6 +24070,7 @@ const __boot = (async () => {
       return;
     }
     if (afterlifeLocked() || ((paused || gameplayOverlayOpen()) && !netOnline())) { // the final scene owns the local pose; ordinary menus let a multiplayer world keep turning
+      if (afterlifeLocked() && netOnline()) updateNet(rdt);
       FAIRY.idle = 0;
       FAIRY.healing = false;
       updateDayNight(0);
@@ -24137,7 +24276,7 @@ const __boot = (async () => {
       // which at the black pool is a further 0.33 m below that. measured on the shipped build: the body sat at
       // y 3.6 for eleven seconds and then drowned, every time, unless the player ALSO held the sink key. the descent
       // was not finnicky, it was unreachable, and this is the line that made it so.
-      const grip = !!(vol.geh && !swimUp && !P.gehDive && WORLDSTATE.ysoldeBuried && WORLDSTATE.gehUnlocked);
+      const grip = !!(vol.geh && !swimUp && !P.gehDive && WORLDSTATE.ysoldeBuried && gehAccessOpen());
       if (swimUp && !swimDown) P.pos.y = Math.min(vol.rest, P.pos.y + TUNE.player.swimRise * hdt);
       else if (swimDown && !swimUp) P.pos.y = Math.max(Math.max(g0, vol.floor) + 0.25, P.pos.y - TUNE.player.swimSink * hdt);
       else if (!grip) P.pos.y = lerp(P.pos.y, vol.rest, Math.min(1, hdt * 6));
@@ -24146,7 +24285,7 @@ const __boot = (async () => {
       // now: it takes hold anywhere in the water and drags you toward the middle and down, and once it has you far
       // enough under it simply takes you. you can still fight it — holding rise beats the pull — so it is a current,
       // not a trapdoor, and swimming the pool before it opens is completely unchanged.
-      if (vol.geh && WORLDSTATE.ysoldeBuried && WORLDSTATE.gehUnlocked && !P.gehDive) {
+      if (vol.geh && WORLDSTATE.ysoldeBuried && gehAccessOpen() && !P.gehDive) {
         const bed = Math.max(g0, vol.floor),
           toC = V3(POOL.x - P.pos.x, 0, POOL.z - P.pos.z),
           rC = Math.hypot(toC.x, toC.z);
@@ -24634,26 +24773,58 @@ const __boot = (async () => {
     animateHero(P, rdt, time);
     turnChildrenAway();
 
-    // a stable arm follows only the player and deliberate look input. walls do not steer either one.
-    const wantedDistance = roomNow ? (inKeep ? 7 : roomNow.camDist || 5.2) : 12;
-    camDist = damp(camDist, wantedDistance, 3, rdt);
-    if (P.pos.y < DIVIDE && GEH.inPride) {
-      // The sealed pocket is smaller than the valley. Cap the arm at its walls without changing look or heading.
-      const ax = Math.sin(camYaw) * Math.cos(camPitch), az = Math.cos(camYaw) * Math.cos(camPitch);
-      const wallX = GEH.cx + (ax > 0 ? -63.5 : -106.5), wallZ = GEH.cz + (az > 0 ? 80.5 : 39.5);
-      const alongX = Math.abs(ax) > 0.001 ? (wallX - P.pos.x) / ax : Infinity;
-      const alongZ = Math.abs(az) > 0.001 ? (wallZ - P.pos.z) / az : Infinity;
-      camDist = Math.max(0.7, Math.min(camDist, alongX, alongZ));
+    let wantDist = roomNow ? (inKeep ? 7 : roomNow.camDist || 4.6) : 12 + clamp(sp / 8, 0, 3); // 4.6 is a hut arm; a nineteen-metre nave needs more
+    wantDist = Math.min(wantDist, clearCameraArm(wantDist), rayCameraArm(wantDist));
+    if (caveK > 0.5 && insideCave()) { // shorten the camera arm until its position is still inside the chamber (or the tunnel)
+      const c = CAVE, face = Math.atan2(-c.x, -c.z), okAt = d => { const x = P.pos.x + Math.sin(camYaw) * Math.cos(camPitch) * d, z = P.pos.z + Math.cos(camYaw) * Math.cos(camPitch) * d, y = visY + 2.2 + Math.sin(camPitch) * d; const dx = x - c.x, dz = z - c.z, lx = Math.cos(face) * dx - Math.sin(face) * dz, lz = Math.sin(face) * dx + Math.cos(face) * dz, ry = (y - c.h) / TUNE.world.caveHeight; return ((lx / (TUNE.world.caveRadius - 1.5)) ** 2 + (lz / (TUNE.world.caveDepth - 1.5)) ** 2 + Math.max(0, ry) ** 2 < 1 && y > c.h + 0.6) || !!(CAVE_TUNNEL && Math.abs(lx) < CAVE_TUNNEL.r - 1 && lz > CAVE_TUNNEL.z0 && lz < CAVE_TUNNEL.z1 && y > c.h + 0.6 && y < c.h + 8); };
+      let d = wantDist; while (d > 2.2 && !okAt(d)) d -= 0.5; wantDist = Math.max(2.2, d); }
+    camDist = Math.abs(camDist - wantDist) > 5 ? wantDist : lerp(camDist, wantDist, Math.min(1, rdt * 4));
+    const dist = camDist;
+    let cx = P.pos.x + Math.sin(camYaw) * Math.cos(camPitch) * dist,
+      cz = P.pos.z + Math.cos(camYaw) * Math.cos(camPitch) * dist;
+    let cy = visY + 2.2 + Math.sin(camPitch) * dist;
+    // the camera's floor is the valley's ground and the old waterline — right everywhere above the seam and fatal
+    // below it, where the bare 0.8 would pin the arm at the surface of a lake while the body falls to -246. in a drop
+    // shaft there is nothing to clip against at all, so the only floor left is "not absurdly far under the player".
+    cy = P.gehDive ? Math.max(cy, P.pos.y - 6) : P.pos.y < DIVIDE ? Math.max(cy, gehH(cx, cz) + 1.2) : Math.max(cy, terrainH(cx, cz) + 1.2, 0.8);
+    if (inKeep) cy = Math.min(cy, PLATEAU + KEEP.h - 1);
+    if (roomNow) {
+      const it = roomNow;
+      if (it.round) {
+        const dx = cx - it.cx,
+          dz = cz - it.cz,
+          d = Math.hypot(dx, dz);
+        if (d > it.round - 0.5) {
+          cx = it.cx + (dx / d) * (it.round - 0.5);
+          cz = it.cz + (dz / d) * (it.round - 0.5);
+        }
+      } else {
+        cx = clamp(cx, it.cx - it.w + 0.6, it.cx + it.w - 0.6);
+        cz = clamp(cz, it.cz - it.d + 0.6, it.cz + it.d - 0.6);
+      }
+      cy = clamp(cy, it.y + 1.2, it.y + it.h - 0.6);
     }
-    const targetY = visY + 2.2;
-    camera.position.set(
-      P.pos.x + Math.sin(camYaw) * Math.cos(camPitch) * camDist,
-      targetY + Math.sin(camPitch) * camDist,
-      P.pos.z + Math.cos(camYaw) * Math.cos(camPitch) * camDist
-    );
-    camera.lookAt(P.pos.x, targetY, P.pos.z);
-    shake = 0;
-    camera.fov = 64;
+    if (caveK > 0.5 && insideCave()) {
+      // the camera never sits in the rock: an outside point is pulled back to the chamber wall along its line from the centre
+      const c = CAVE, face = Math.atan2(-c.x, -c.z), dx = cx - c.x, dz = cz - c.z, lx = Math.cos(face) * dx - Math.sin(face) * dz, lz = Math.sin(face) * dx + Math.cos(face) * dz;
+      const inTunnel = CAVE_TUNNEL && Math.abs(lx) < CAVE_TUNNEL.r - 0.8 && lz > CAVE_TUNNEL.z0 - 0.5 && lz < CAVE_TUNNEL.z1 + 2;
+      if (!inTunnel) {
+        const R = TUNE.world.caveRadius - 0.8, D = TUNE.world.caveDepth - 0.8, H = TUNE.world.caveHeight - 0.6, ry = Math.max(0, cy - c.h) / H, k = Math.sqrt((lx / R) ** 2 + (lz / D) ** 2 + ry * ry);
+        if (k > 1) { const nx = lx / k, nz = lz / k; cx = c.x + Math.cos(face) * nx + Math.sin(face) * nz; cz = c.z - Math.sin(face) * nx + Math.cos(face) * nz; cy = c.h + Math.max(0.8, (cy - c.h) / k); }
+      }
+      cy = Math.max(cy, c.h + 0.8);
+    }
+    // a slower arm. at 9 the camera snapped onto every corner and every ledge and the whole picture jolted; 4.5 lets it
+    // trail and settle, which reads as a camera following you rather than a camera stapled to you.
+    camera.position.lerp(V3(cx, cy, cz), Math.min(1, rdt * 4.5));
+    shake = Math.max(0, shake - rdt * 2.5);
+    const shk = shake * shake * 0.6;
+    camera.position.add(V3((Math.random() - 0.5) * shk, (Math.random() - 0.5) * shk, (Math.random() - 0.5) * shk));
+    camera.lookAt(P.pos.x, visY + 2.2 + Math.max(0, -camPitch) * 6, P.pos.z);
+    // and a much gentler zoom. the speed term used to swing eighteen degrees of field of view and chase it at rdt*6,
+    // so every sprint and every stop pumped the lens — which is most of what read as jarring. twelve degrees, eased at
+    // 1.8, and the doorway change to 78 now takes about a second instead of snapping.
+    camera.fov = lerp(camera.fov, P.flurry > 0 ? 54 : roomNow ? 74 : 60 + clamp(sp / 46, 0, 1) * 12, rdt * 1.8);
     camera.updateProjectionMatrix();
 
     if (flashTimer > 0) {

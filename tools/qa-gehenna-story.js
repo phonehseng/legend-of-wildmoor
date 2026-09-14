@@ -55,7 +55,10 @@
     for (let i = 0; i < 5; i++) check(gehInteractLucifer(), "Lucifer dialogue beat " + (i + 1));
   });
   check(luciferSpeech.length === 5 && luciferSpeech.every(v => Number.isFinite(v.pitch) && Number.isFinite(v.rate)), "Lucifer alone requests configured text-to-speech for all five lines");
+  check(luciferSpeech.some(v => /Ysolde/.test(v.line) && /no one here by that name/.test(v.line)), "Lucifer directly answers the search for Ysolde");
+  check(luciferSpeech.some(v => /life after life/.test(v.line) && /Wildmoor/.test(v.line)) && luciferSpeech.some(v => /Once I turn that hand away/.test(v.line)), "Lucifer explains a future plan to prevent repeated suffering");
   check(lucifer.beat === 5 && !lucifer.armed && !CHOICE, "Lucifer's plea ends before combat and without a player choice");
+  check(lucifer.scenePhase === "omen" && lucifer.alive && lucifer.phase === 0, "dialogue starts the omen before any hold stage is broken");
   check(!gehInteractLucifer(), "the running confrontation cannot be started twice by interacting");
   check(/^Slay Lucifer/.test(gehennaObjective().text) && gehennaObjective().target === lucifer.pos, "quest keeps the slay order while following Lucifer");
   return { checks, total: checks.length };

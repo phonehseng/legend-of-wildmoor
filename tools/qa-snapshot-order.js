@@ -1,6 +1,6 @@
 (() => {
   const checks = [], check = (ok,label) => { if(!ok) throw Error(label); checks.push(label); };
-  paused = true; NET.role = 'host'; NET.peers.clear(); NET.avatars.clear(); P.pos.set(0,PLATEAU,0); death = null;
+  paused = true; netEndGehennaSession(); NET.role = 'host'; NET.peers.clear(); NET.avatars.clear(); P.pos.set(0,PLATEAU,0); death = null;
   const sl = slimes[0]; sl.alive = true; sl.hp = sl.maxHp; sl.pos.copy(P.pos).add(V3(10,0,0));
   WORLDSTATE.gehSeed=73891; GEH_NET_FLAGS.forEach(k=>WORLDSTATE[k]=false);
   const old = netEnemySnapshot(); sl.alive=false; sl.hp=0; WORLDSTATE.luciferDefeated=true;
@@ -12,10 +12,11 @@
   netHandle(peer,{...old,seq:undefined});
   check(!NET.mirroring && peer.enemySeqSeen===undefined, 'missing sequence is rejected before mirror setup or enemy mutations');
   sl.alive=true; sl.hp=sl.maxHp; WORLDSTATE.luciferDefeated=false;
-  netHandle(peer,current); check(!sl.alive && sl.hp===0 && WORLDSTATE.luciferDefeated, 'newest authoritative death and shared finale flags apply');
-  netHandle(peer,old); check(!sl.alive && sl.hp===0 && WORLDSTATE.luciferDefeated, 'late old enemy snapshot cannot resurrect a slime or rewind Gehenna victory');
+  const cachedVictory=()=>NET.gehState&&NET.gehState.ws[GEH_NET_FLAGS.indexOf('luciferDefeated')]===true;
+  netHandle(peer,current); check(!sl.alive && sl.hp===0 && cachedVictory() && !WORLDSTATE.luciferDefeated, 'newest authoritative death and cached finale apply without granting bystander progress');
+  netHandle(peer,old); check(!sl.alive && sl.hp===0 && cachedVictory(), 'late old enemy snapshot cannot resurrect a slime or rewind cached Gehenna victory');
   const same={...old,seq:current.seq}; netHandle(peer,same);
-  check(!sl.alive && sl.hp===0 && WORLDSTATE.luciferDefeated, 'duplicate sequence cannot apply conflicting body state');
+  check(!sl.alive && sl.hp===0 && cachedVictory(), 'duplicate sequence cannot apply conflicting body state');
   dayT=.1; netHandle(peer,{t:'day',seq:7,dayT:.8}); netHandle(peer,{t:'day',seq:6,dayT:.2});
   check(dayT===.8,'late day snapshot cannot rewind the clock');
   netHandle(peer,{t:'day',seq:7,dayT:.3}); netHandle(peer,{t:'day',seq:Infinity,dayT:.4});

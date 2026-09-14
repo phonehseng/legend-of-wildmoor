@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const { instrument, serve, loadPlaywright, browserPath } = require('./qa-game.cjs');
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function main() {
-  const html = process.argv[2] || 'legend_of_peanits_v2.24.1.html';
+  const html = process.argv[2] || 'legend_of_peanits_v2.24.2.html';
   const server = await serve(instrument(fs.readFileSync(html, 'utf8').replace(/\r\n/g, '\n')));
   const browser = await loadPlaywright().chromium.launch({ executablePath: browserPath('edge'), headless: true });
   const pages = [], errors = [], checks = [];
@@ -49,6 +49,17 @@ async function main() {
     check('guest cannot inject boss kill credits into host',await run(0,`(()=>{const before=WORLDSTATE.wardenDead;netHandle(NET.peers.get('guest1'),{t:'ek',k:'warden'});return WORLDSTATE.wardenDead===before})()`));
     check('late old campaign does not overwrite host progress',await run(0,`(()=>{const p={mainBase:{solved:true,ws:{wardenDead:true}}};const d=netMainDelta(p,{solved:true,ws:{wardenDead:true}});return !d.solved&&!d.ws.wardenDead})()`));
     check('bounded extrapolation stops packet-loss drift',await run(0,`(()=>{const a={samples:[{at:100,pos:V3(0,0,0),vel:V3(10,0,0)}],state:{pos:V3()},tvel:V3(10,0,0),lastAt:100};netInterpolate(a,1000);const x=a.state.pos.x;netInterpolate(a,10000);return x===1&&a.state.pos.x===1})()`));
+    await run(0,`netSetPvp(false);WORLDSTATE.hermitWarned=true;const q=sideQuestById('violet-stone');sideHostBegin(q,[0],NET.myId);sideBroadcast();`);
+    await wait(300);
+    await run(1,`P.pos.copy(pickups.find(p=>p.id==='quest:stonefold').pos);P.vel.set(0,0,0);P.interactCd=0;P.block=false;`);
+    await wait(300);await run(1,'interact()');await wait(500);
+    check('real guest pickup records its finder on the host',await run(0,`NET.peers.get('guest1').items.has('quest:stonefold')`));
+    await run(2,`P.pos.copy(sideQuestById('violet-stone').giver.pos);P.vel.set(0,0,0);P.interactCd=0;P.block=false;`);
+    await wait(300);await run(2,`sideSendRequest(sideQuestById('violet-stone'),'turnin')`);await wait(350);
+    check('another guest cannot return the finder\'s stone',await run(0,`!sideQuestById('violet-stone').done`));
+    await run(1,`P.pos.copy(sideQuestById('violet-stone').giver.pos);P.vel.set(0,0,0);P.interactCd=0;`);
+    await wait(300);await run(1,`sideSendRequest(sideQuestById('violet-stone'),'turnin')`);await wait(500);
+    check('finder hand-in completes the shared quest on all three clients',await run(0,`sideQuestById('violet-stone').done&&sideQuestById('violet-stone').rewarded`)&&await run(1,`sideQuestById('violet-stone').done&&sideQuestById('violet-stone').rewarded`)&&await run(2,`sideQuestById('violet-stone').done&&sideQuestById('violet-stone').rewarded`));
     await run(1,`NET.peers.get('host').pc.close()`); await wait(600);
     check('disconnect removes only departing player',await run(0,`NET.avatars.size===1&&NET.avatars.has('qa2')`));
     check('no runtime or shader errors',errors.length===0);

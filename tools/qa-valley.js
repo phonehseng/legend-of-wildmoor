@@ -31,8 +31,11 @@
   delete completedData.ws.gehAlmonerDown;delete completedData.ws.gehMatronDown;delete completedData.ws.gehHeapDown;
   applySave(completedData);
   check(WORLDSTATE.gehAlmonerDown&&WORLDSTATE.gehMatronDown&&WORLDSTATE.gehHeapDown,'older completed Gehenna keeps prerequisite victories');
-  const ghostData=parseSaveKey(makeSaveKey());ghostData.ws.afterlife='stay';ghostData.ws.luciferDefeated=true;
-  applySave(ghostData);
-  check(WORLDSTATE.afterlife==='stay'&&!afterlifeLocked(),'ghost save reloads into playable valley');
+  const stayData=parseSaveKey(makeSaveKey());stayData.ws.afterlife='stay';stayData.ws.luciferDefeated=true;
+  applySave(stayData);
+  check(WORLDSTATE.afterlife==='stay'&&!afterlifeLocked()&&P.pos.y>DIVIDE,'legacy Stay save reloads into playable valley');
+  const livingMeshes=[];
+  hero.traverse(o=>{if(o.isMesh&&o.material)livingMeshes.push(o);});
+  check(livingMeshes.length>0&&livingMeshes.every(o=>o.material===o.userData.livingMaterials)&&livingMeshes.some(o=>o.material.opacity===1),'Stay reload uses living materials');
   return {checks,total:checks.length};
 })()

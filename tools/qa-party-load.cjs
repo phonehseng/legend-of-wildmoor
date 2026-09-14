@@ -8,7 +8,7 @@ const HOST_PEERS = 15;
 const ATTEMPTED_PEERS = HOST_PEERS + 1;
 
 async function main() {
-  const html = process.argv[2] || 'legend_of_peanits_v2.24.1.html';
+  const html = process.argv[2] || 'legend_of_peanits_v2.24.2.html';
   const source = fs.readFileSync(html, 'utf8').replace(/\r\n/g, '\n');
   const server = await serve(instrument(source));
   const chromium = loadPlaywright().chromium;
@@ -38,7 +38,7 @@ async function main() {
     await run("NET.myId='load-host';NET.role='host';P.pos.set(0,20,0);P.vel.set(0,0,0);P.hp=P.maxHp=20;");
     console.log('full game host ready');
 
-    await bots.evaluate(() => {
+    await bots.evaluate(protocol => {
       window.__loadBots = [];
       window.__acceptOffers = async offers => {
         const gathered = pc => new Promise(resolve => {
@@ -68,7 +68,7 @@ async function main() {
               }
             };
             if (channel.label === 'game') channel.onopen = () => channel.send(JSON.stringify({
-              t: 'hello', v: 2, id,
+              t: 'hello', v: protocol, id,
               look: { name: `Load ${index + 1}`, skin: 0xf0cdb0, hair: 0x5a2f16, style: 'short', tunic: 0xc9ccd4, cape: 0x6d7280 },
               hp: 4, maxHp: 4, progress: {}, items: []
             }));
@@ -88,7 +88,7 @@ async function main() {
           return bot.pc.localDescription.toJSON();
         }));
       };
-    });
+    }, await run('NET_PROTOCOL'));
 
     const offers = await run(`(async()=>Promise.all(Array.from({length:${ATTEMPTED_PEERS}},async(_,i)=>{const p=netPeer('load-peer-'+i);p.pc.setConfiguration({iceServers:[]});netCreateChannels(p);await p.pc.setLocalDescription(await p.pc.createOffer());await netGathered(p.pc);return p.pc.localDescription.toJSON();})))()`);
     console.log(`${ATTEMPTED_PEERS} local offers gathered`);

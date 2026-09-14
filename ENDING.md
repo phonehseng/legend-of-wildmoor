@@ -1,6 +1,6 @@
 # old ending plan: the round comes up the road
 
-historical. 2.24.0 ships a different completed gehenna ending, so this is no longer the implementation plan. it stays here because several story ideas may still be useful later.
+historical. the game ships a different ending; [2.24.2](docs/updates/2.24.2.md) has the current version. this draft stays here because several story ideas may still be useful later.
 
 ## why he goes down
 
