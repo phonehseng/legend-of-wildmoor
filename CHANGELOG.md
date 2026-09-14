@@ -2,6 +2,17 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 2.24.1 — take the road west
+
+[screenshots + download](docs/updates/2.24.1.md) · [test notes](docs/QA_2.24.1.md)
+
+- more lights along the still kingdom's road and central tower. the kingdom and lucifer's river room are in this build.
+- the abandoned church moved far west, with a new hermit errand that opens the black pool fight and more of his history with hale.
+- shared story errands, story rewards, quest highlights, and co-op gehenna bosses. the finder returns quest items; optional rewards stay personal. outfit and goblin quest givers swapped.
+- one carrier and a visible burial for the whole party. smoother movement updates, 16-player capacity, and optional host-controlled pvp.
+- fixed shared clues and missing hearts, guest hit practice, bear wake-ups, swimming targets, forbidden respawn beds, blocked-storage loads, failed joins, old network snapshots, and character cleanup.
+- the new lucifer surrender ending and unique shared fairy rescues are next. this release keeps the existing ending to get the kingdom out sooner.
+
 ## 2.24.0 — The Still Kingdom
 
 this release finishes Gehenna and the ending, then cleans up the valley, combat, quests, procession, menus, saves, and multiplayer issues found while testing it. see the [visual update](docs/updates/2.24.0.md) and [measured QA notes](docs/QA_2.24.0.md).
