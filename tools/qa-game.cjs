@@ -8,7 +8,7 @@ const CHROME = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 
 function parseArgs(argv) {
   const options = {
-    html: "legend_of_peanits_v2.24.2.html",
+    html: "legend_of_peanits_v2.24.3.html",
     browser: "edge",
     timeout: 90000,
     headed: false,
@@ -37,7 +37,7 @@ function parseArgs(argv) {
 function usage() {
   return [
     "Usage: node tools/qa-game.cjs [options]",
-    "  --html FILE          game HTML (default: legend_of_peanits_v2.24.2.html)",
+    "  --html FILE          game HTML (default: legend_of_peanits_v2.24.3.html)",
     "  --browser edge|chrome|PATH",
     "  --timeout MS         real wall-clock timeout (default: 90000)",
     "  --headed             show the browser window",

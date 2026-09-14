@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.24.2</title>
+<title>Legend of Peanits 2.24.3</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#1b1626, #0d0a14); --edge: #6c583a; --hi: #8a6a3e; }
@@ -501,14 +501,13 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   .choice-opt, #pause .btn, #panel .btn { border-radius: 0; border-left: 6px solid var(--gold); box-shadow: 4px 4px 0 #06040a; }
   .choice-opt:hover, #pause .btn:hover { background: var(--bone); color: #110d1b; }
   #minimap.big { border: 6px solid var(--bone); outline: 3px solid var(--gold); border-radius: 0; z-index: 20; }
-  #worldTools { position: absolute; top: 18px; right: 240px; display: flex; gap: 10px; pointer-events: auto; }
-  #worldTools button { width: 48px; height: 45px; position: relative; background: #110d1b; color: var(--bone); border: 2px solid var(--gold); cursor: pointer; }
+  #worldTools { display: flex; flex-direction: column; gap: 7px; pointer-events: auto; }
+  #worldTools button { display: flex; align-items: center; width: 78px; height: 32px; padding: 0; background: transparent; color: var(--bone); border: 0; cursor: pointer; }
+  #worldTools button:hover, #worldTools button:focus-visible { color: var(--gold); outline: 1px solid currentColor; outline-offset: 3px; }
   #worldTools svg { width: 30px; height: 30px; stroke: currentColor; stroke-width: 1.7; fill: none; }
-  #worldTools kbd { position: absolute; right: -5px; bottom: -6px; padding: 1px 5px; color: #110d1b; background: var(--gold); font-weight: bold; }
+  #worldTools kbd { order: -1; }
   .slot-item.special { border: 2px solid #ff9ccc; box-shadow: inset 0 0 18px #b738713f, 0 0 8px #e45b9655; }
   .item-badge { position: absolute; left: 0; top: 0; font: bold 8px Verdana,sans-serif; background: #ffacd5; color: #341128; padding: 2px 4px; z-index: 2; }
-  @media (max-width: 760px) { #worldTools { top: 184px; right: 10px; } }
-  body.touch #worldTools { top: 78px; }
   #afterlife { position:fixed; inset:0; z-index:60; display:grid; place-items:center; overflow:hidden; background:#000; color:#f3ebd7; text-align:center; font-family:Georgia,serif; }
   #afterlife article { width:min(840px,90vw); max-height:96vh; overflow:auto; }
   #afterlife svg { width:100%; max-height:50vh; margin-top:16px; border:1px solid #d7b971; }
@@ -535,7 +534,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.24.2</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.24.3</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -567,8 +566,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- hotbar: game interface element -->
   <div id="hotbar"></div>
   <!-- inv, invbody, invclose: game interface element -->
-  <div id="worldTools"><button id="hudSatchel" aria-label="Satchel (I)" title="Satchel (I)"><svg viewBox="0 0 32 32"><path d="M10 10V6h12v4M5 11h22v17H5Z M5 15l11 6 11-6M14 19h4v5h-4Z"/></svg><kbd>I</kbd></button><button id="hudMap" aria-label="Map (M)" title="Map (M)"><svg viewBox="0 0 32 32"><path d="m3 7 8-3 10 4 8-3v22l-8 3-10-4-8 3ZM11 4v22M21 8v22"/></svg><kbd>M</kbd></button></div>
-  <div id="satchelTag"><div><span class="ikey">Tab</span> Stats</div><div><span class="ikey">J</span> Quests</div><div><span class="ikey">L</span> Logs</div><div><span class="ikey">P</span> Pause</div></div>
+  <div id="satchelTag"><div id="worldTools"><button id="hudMap" aria-label="Map (M)" title="Map (M)"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="m3 7 8-3 10 4 8-3v22l-8 3-10-4-8 3ZM11 4v22M21 8v22"/></svg><kbd class="ikey">M</kbd></button><button id="hudSatchel" aria-label="Satchel (I)" title="Satchel (I)"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M10 10V6h12v4M5 11h22v17H5Z M5 15l11 6 11-6M14 19h4v5h-4Z"/></svg><kbd class="ikey">I</kbd></button></div><div><span class="ikey">Tab</span> Stats</div><div><span class="ikey">J</span> Quests</div><div><span class="ikey">L</span> Logs</div><div><span class="ikey">P</span> Pause</div></div>
   <div id="inv" class="hidden"><div class="panel satchel"><button id="invX" class="xbtn" title="Close">✕</button><h2 style="font-size:28px;margin:0 0 12px">Satchel</h2><div class="satchel-body"><div id="invGrid"></div><div id="invDetail"><p class="hint">Hover a picture to read what you found.</p></div></div><p style="font-size:12px;opacity:.6;margin-top:10px">Press I to close</p></div></div>
   <!-- intro: game interface element -->
   <div id="title" class="hidden"><div class="title-card"><svg class="cube-mark peanut" viewBox="0 0 64 72" aria-hidden="true"><path d="M32 6c9 0 14 7 14 15 0 5-2 8-3 11 3 3 5 8 5 13 0 10-7 19-16 19S16 55 16 45c0-5 2-10 5-13-1-3-3-6-3-11 0-8 5-15 14-15Z" fill="#d8a45a" stroke="#7a5122" stroke-width="2.5" stroke-linejoin="round"/><path d="M24 20c0-3 2-6 5-7M22 44c0-3 2-6 5-7" stroke="#7a5122" stroke-width="2" stroke-linecap="round" fill="none"/><circle cx="36" cy="18" r="1.6" fill="#7a5122"/><circle cx="38" cy="46" r="1.6" fill="#7a5122"/><circle cx="29" cy="50" r="1.4" fill="#7a5122"/><circle cx="27" cy="24" r="1.3" fill="#7a5122"/></svg><h1>Legend of Peanits</h1><div class="edition" style="margin:-14px 0 22px;font-size:12px">PROD. BY PHONE HSENG</div><button id="play" class="btn">Play</button><button id="continueBtn" class="btn" disabled>Continue</button><p id="continueNote" style="font-size:12px;max-width:40ch;margin:12px auto 0;opacity:.72;line-height:1.5"></p></div></div>
@@ -606,7 +604,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.24.2</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.24.3</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -14623,7 +14621,7 @@ const __boot = (async () => {
       d.story = pickObj(d.story, { logsGiven: v => num(v, 0, 99), gobKills0: v => num(v, 0, 1e6), partySlimes: v => num(v, 0, 6), clues: v => num(v, 0, 5), wick: bool, solved: bool, reported: bool, spear: bool, boots: bool, bearHeart: bool, kingTooth: bool, wolfDone: bool, campLeft: v => num(v, -1, 3), evidence: v => Array.isArray(v) && v.length <= 5 && v.every(x => ["cloth", "ring", "diary", "ritual", "note"].includes(x)), kingKills: v => num(v, 0, 1e6), weaverVisited: bool, weaver0: v => typeof v === "string" && v.length < 200, smith0: v => num(v, 0, 1e6), potter0: v => num(v, 0, 1e6), ferry0: v => num(v, 0, 99), wager0: v => Array.isArray(v) && v.length === 2 && v.every(x => num(x, 0, 1e6)) }); if (!d.story) return null;
       if (d.settings !== undefined) { d.settings = pickObj(d.settings, { fps: bool, arrow: bool, rose: bool, gfx: v => num(v, 0, 99), hq: bool, grass: bool, voice: bool, sfx: v => num(v, 0, 1), music: v => num(v, 0, 1), amb: v => num(v, 0, 1), sens: v => num(v, 0, 5) }); if (!d.settings) return null; }
       if (!d.sk || typeof d.sk !== "object") return null;
-      if (!Array.isArray(d.flags) || d.flags.length !== 5 || !d.flags.every(bool) || !strs(d.found) || !strs(d.items, 2000) || !strs(d.picked, 40)) return null;
+      if (!Array.isArray(d.flags) || d.flags.length !== 5 || !d.flags.every(bool) || !strs(d.found, 2000) || !strs(d.items, 2000) || !strs(d.picked, 40)) return null;
       if (d.side !== undefined) {
         if (!d.side || typeof d.side !== "object" || Object.keys(d.side).length > 64) return null;
         for (const [title, e] of Object.entries(d.side)) { const s = SIDE_SPECS[SIDE_WIRE_IDS[title]];
@@ -14655,7 +14653,8 @@ const __boot = (async () => {
           cape: num(c.cape, 0, 0xffffff) ? c.cape : CUSTOM.cape
         };
       }
-      d.found = d.found.map(t => clean(t, 200));
+      // Found records include whole church pages, with the same text limit as satchel entries.
+      d.found = d.found.map(t => clean(t, 2000));
       d.items = d.items.map(t => clean(t, 2000));
       if (d.fairy) {
         const f = d.fairy;
@@ -14922,6 +14921,8 @@ const __boot = (async () => {
     if (!locked && !noLock && !e.buttons && !unlockedLook) return;
     const mx = e.movementX || 0,
       my = e.movementY || 0;
+    // Pointer-lock recentering can report one huge delta. Do not turn the player with that jump.
+    if (!Number.isFinite(mx) || !Number.isFinite(my) || Math.abs(mx * 0.0028 * sens) > 0.5 || Math.abs(my * 0.0022 * sens) > 0.5) return;
     camYaw -= mx * 0.0028 * sens;
     camPitch = clamp(camPitch + my * 0.0022 * sens, -1.2, 1.5);
   });
@@ -16230,7 +16231,7 @@ const __boot = (async () => {
     if (m.t === "epractice" && NET.role === "guest") { netTakePractice(peer, m); return; }
     // a string coordinate fell back correctly here, because NaN is falsy — but Infinity is truthy and walked straight
     // past the old `|| ` fallback, and Infinity/Infinity is NaN. both are finite-checked and clamped now.
-    if (m.t === "ehit" && NET.role === "guest" && m.to === NET.myId) { const fx = +m.x, fz = +m.z, fromPos = V3(Number.isFinite(fx) ? clamp(fx, -2000, 2000) : P.pos.x + 1, P.pos.y, Number.isFinite(fz) ? clamp(fz, -2000, 2000) : P.pos.z); if (netShieldFaces(fromPos)) { recordBlock(); lowerShield(true); say("Blocked!", 900); SFX.block(); hitstop = 0.06; } else hurtPlayer(clamp(+m.dmg || 1, 0, 6), fromPos, clamp(+m.kb || 1, 1, 2.5)); return; } // kb is clamped like the damage: a peer cannot ask to launch you into orbit
+    if (m.t === "ehit" && NET.role === "guest" && m.to === NET.myId) { const fx = +m.x, fz = +m.z, fromPos = V3(Number.isFinite(fx) ? clamp(fx, -2000, 2000) : P.pos.x + 1, P.pos.y, Number.isFinite(fz) ? clamp(fz, -2000, 2000) : P.pos.z); if (m.k !== "arrow" && enemyPerfectDodge(m.pierce === true)) return; if (P.block) { recordBlock(); lowerShield(true); say("Blocked!", 900); SFX.block(); hitstop = 0.06; } else hurtPlayer(clamp(+m.dmg || 1, 0, 6), fromPos, clamp(+m.kb || 1, 1, 2.5), m.pierce === true); return; } // kb is clamped like the damage: a peer cannot ask to launch you into orbit
     if (m.t === "ek" && NET.role === "guest") { netKillCredit(m); return; }
     // a guest's progress snapshot may not carry an ending, and the host must not pass one on. the relay hands a
     // guest's message to every other guest unchanged, and it arrives there FROM the host — so without this strip a
@@ -16627,6 +16628,7 @@ const __boot = (async () => {
     if (m.kind === "setdown" && [m.x, m.y, m.z].every(Number.isFinite) && m.y < DIVIDE && dist2D(P.pos, m) < 12) { P.pos.set(m.x, m.y, m.z); P.vel.set(0, 0, 0); P.grounded = true; lastSafeGeh.copy(P.pos); }
     else if (m.kind === "mended") P.stam = stamMax();
     else if (m.kind === "strike" && [m.x, m.y, m.z, m.dmg].every(Number.isFinite) && m.y < DIVIDE) {
+      if (enemyPerfectDodge(m.pierce === true)) return true;
       if (P.block) { recordBlock(); lowerShield(true); SFX.block(); }
       else if (m.nonlethal) gehKindlyHit(clamp(m.dmg, 0, 6), V3(m.x, m.y, m.z), clamp(+m.kb || 1, 0.4, 2.5), m.pierce === true);
       else hurtPlayer(clamp(m.dmg, 0, 6), V3(m.x, m.y, m.z), clamp(+m.kb || 1, 0.4, 2.5), m.pierce === true);
@@ -16803,6 +16805,16 @@ const __boot = (async () => {
     if (GEH_SCRIPT && GEH_SCRIPT.fight) GEH_SCRIPT.threadHit();
     if (P.hp <= 0) die();
   }
+  // Local and host-routed melee blows share the same personal dodge reward.
+  function enemyPerfectDodge(pierce = false) {
+    if (death || pierce || P.inv <= 0 || P.dodge <= 0) return false;
+    P.flurry = 1.7;
+    flashText("Flurry rush!");
+    hitstop = 0.08;
+    burst(P.pos.clone().add(V3(0, 1.5, 0)), 0xfff2b0, 10, 6, 0.5, 0.1);
+    SFX.flurry();
+    return true;
+  }
   // resolve a raised shield or an incoming hit
   // pierce: a blow a dodge cannot answer. only the warden's lash sets it, and a raised shield still stops it — the
   // point is to take away the one move that trivialises a slow boss, not to take away every move.
@@ -16810,18 +16822,13 @@ const __boot = (async () => {
     if ((e.pos.y < DIVIDE) !== ((tgt ? tgt.pos : P.pos).y < DIVIDE)) return;
     dmg *= difficulty(); // the valley hits harder the further you have come
     if (netGehennaBelow(e.pos) && netGehennaEffect(tgt, "strike", { dmg: +dmg.toFixed(2), x: e.pos.x, y: e.pos.y, z: e.pos.z, kb, pierce, nonlethal: e.kind === "kindly" })) return;
-    if (tgt && tgt.id) { const a = NET.avatars.get(tgt.id); const p = a && NET.peers.get(a.via); if (p) netSend(p, { t: "ehit", to: tgt.id, dmg: +dmg.toFixed(2), k: e.kind, x: +e.pos.x.toFixed(1), z: +e.pos.z.toFixed(1), big: !!e.big, kb: +kb.toFixed(2) }); return; }
+    if (tgt && tgt.id) { const a = NET.avatars.get(tgt.id); const p = a && NET.peers.get(a.via); if (p) netSend(p, { t: "ehit", to: tgt.id, dmg: +dmg.toFixed(2), k: e.kind, x: +e.pos.x.toFixed(1), z: +e.pos.z.toFixed(1), big: !!e.big, kb: +kb.toFixed(2), pierce: pierce === true }); return; }
     const dx = P.pos.x - e.pos.x,
       dz = P.pos.z - e.pos.z,
       dist = Math.hypot(dx, dz) || 1,
       toP = V3(dx / dist, 0, dz / dist);
-    if (P.inv > 0 && P.dodge > 0 && !pierce) {
-      P.flurry = 1.7;
-      flashText("Flurry rush!");
-      hitstop = 0.08;
-      burst(P.pos.clone().add(V3(0, 1.5, 0)), 0xfff2b0, 10, 6, 0.5, 0.1);
-      SFX.flurry();
-    } else if (P.block) {
+    if (enemyPerfectDodge(pierce)) return;
+    if (P.block) {
       // a raised shield takes the blow from any side: no damage, a clang, and the shield comes down to rest
       recordBlock();
       lowerShield(true);

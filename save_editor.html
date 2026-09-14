@@ -83,7 +83,7 @@
 <body>
 <header>
   <h1>Legend of Peanits &mdash; Save Key Editor</h1>
-  <p>Builds a <code>WM1-</code> key (format <b>v5</b>) for <b>2.24.2</b>. Imports v3, v4 and v5 keys, preserving quest rewards, shared progress and your personal fairy rescues. The editor works offline.</p>
+  <p>Builds a <code>WM1-</code> key (format <b>v5</b>) for <b>2.24.3</b>. Imports v3, v4 and v5 keys, preserving quest rewards, shared progress and your personal fairy rescues. The editor works offline.</p>
   <div class="presets">
     <button class="big" data-preset="fresh">Fresh start</button>
     <button class="big" data-preset="stats">Max stats only</button>
@@ -447,7 +447,7 @@
       if (personalFairy(title) && row[3] != null) bad.push("Fairy quest progress must remain personal");
     });
     if (!d.picked.every(function (s) { return typeof s === "string" && s.length <= 40; })) bad.push("picked ids must be strings of 40 characters or fewer");
-    if (!d.found.every(function (s) { return typeof s === "string" && s.length <= 200; })) bad.push("found lines must be 200 characters or fewer");
+    if (!d.found.every(function (s) { return typeof s === "string" && s.length <= 2000; })) bad.push("found lines must be 2000 characters or fewer");
     if (!d.items.every(function (s) { return typeof s === "string" && s.length <= 2000; })) bad.push("items lines must be 2000 characters or fewer");
     if (!d.herbsTaken.every(function (v) { return num(v, 0, 999); })) bad.push("herbsTaken must be indices 0..999");
     if (!d.owed.every(function (o) { return Array.isArray(o) && ["reward:bear", "reward:king"].indexOf(o[0]) >= 0 && num(o[1], -2000, 2000) && num(o[2], -2000, 2000); })) bad.push("owed entries must be [reward:bear or reward:king, x, z]");

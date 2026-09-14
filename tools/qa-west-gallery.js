@@ -8,7 +8,7 @@
   P.vel.set(0,0,0);P.swim=false;P.swimVol=null;P.grounded=true;P.climb=null;P.gehDive=null;
   camYaw=Math.PI/2;camPitch=.03;camDist=5;P.heading=camYaw+Math.PI;visY=P.pos.y;lastSafePos.copy(P.pos);
   dayT=.20;dayElev=.8;tracked=null;
-  paused=false;update(.016);drawHUD();drawBars(.016);paused=true;
+  paused=false;for(let i=0;i<100;i++)update(.016);drawHUD();drawBars(.016);paused=true;
   await new Promise(r=>setTimeout(r,8500));showPlace('the abandoned church');
   return{church:[church.cx,church.y,church.cz],player:P.pos.toArray(),camera:camera.position.toArray()};
 })()

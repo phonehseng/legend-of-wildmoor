@@ -2,7 +2,7 @@ const fs = require("fs"), path = require("path"), crypto = require("crypto");
 const { instrument, serve, loadPlaywright, browserPath } = require("./qa-game.cjs");
 
 (async () => {
-  const html = path.resolve(process.argv[2] || "legend_of_peanits_v2.24.2.html"), editorPath = path.resolve("save_editor.html");
+  const html = path.resolve(process.argv[2] || "legend_of_peanits_v2.24.3.html"), editorPath = path.resolve("save_editor.html");
   const source = fs.readFileSync(html, "utf8"), checks = [], errors = [];
   const check = (ok, label) => { if (!ok) throw Error(label); checks.push(label); };
   const server = await serve(instrument(source.replace(/\r\n/g, "\n")));
@@ -45,7 +45,7 @@ const { instrument, serve, loadPlaywright, browserPath } = require("./qa-game.cj
             state: { blocking: [SK.blocking.lvl, SK.blocking.xp], hp: P.hp, maxHp: P.maxHp,
               phase: AFTERLIFE.phase, afterlife: WORLDSTATE.afterlife, witnessed: WORLDSTATE.gehFinaleWitnessed,
               ws: { ...WORLDSTATE }, fairy: { found: FAIRY.found, complete: FAIRY.complete, kids: FAIRY.children.filter(c => c.found).map(c => c.id) },
-              clapper: churchClapperFound(),
+              clapper: churchClapperFound(), found: FOUND.slice(),
               side: Object.fromEntries(SIDE.map(q => [q.title, [q.taken, q.done, q.rewarded, q.partyProgress || null]])) } };
         })()`);
       }, k);
@@ -53,6 +53,32 @@ const { instrument, serve, loadPlaywright, browserPath } = require("./qa-game.cj
       console.log("PASS: " + label);
       return result;
     };
+    const earnedCheckpoint = async () => {
+      const fixture = path.resolve('artifacts/full-journey/04-four-relics-eight-villages.save.txt');
+      if (!fs.existsSync(fixture)) throw Error('Earned full-journey checkpoint fixture is missing');
+      const original = fs.readFileSync(fixture), hash = crypto.createHash('sha256').update(original).digest('hex');
+      const rawImported = await loadEditor(original.toString('utf8'));
+      const longLore = rawImported.found.filter(s => s.length > 200);
+      check(longLore.length > 0 && longLore.every(s => s.length <= 2000), 'actual earned checkpoint exercises bounded long FOUND lore');
+      const earned = await applyGenerated(await key(), 'actual earned four-relics/eight-villages checkpoint');
+      const normalizedLore = longLore.map(s => s.replace(/[<>&\x22\x27\x60]/g, ''));
+      check(JSON.stringify(earned.before.found) === JSON.stringify(rawImported.found.map(s => s.replace(/[<>&\x22\x27\x60]/g, ''))) && normalizedLore.every(s => earned.state.found.includes(s)), 'game retains all long earned lore after its existing character normalization');
+      const imported = await loadEditor(earned.resaved);
+      check(JSON.stringify(imported.found) === JSON.stringify(earned.state.found), 'editor preserves exact earned FOUND text and order');
+      const restored = await applyGenerated(await key(), 'earned lore through game to editor to game');
+      check(JSON.stringify(restored.state.found) === JSON.stringify(earned.state.found), 'full long lore survives actual game/editor/game roundtrip');
+      const deduped = await game.evaluate(() => window.__gameQa.run(`(() => { const p = pickups.find(p => p.id === 'church:hale2'); if (!p || !p.taken || !PICKED_IDS.has(p.id)) return {same:false}; const clean = s => s.replace(/[<>&\x22\x27\x60]/g, ''), count = () => FOUND.filter(s => clean(s) === clean(p.label)).length, before = count(); P.pos.copy(p.pos);P.vel.set(0,0,0);P.interactCd=0;P.block=false;P.gehDive=null;paused=false;if(gameplayOverlayOpen()||afterlifeLocked()||ARREST.phase)return {same:false};interact();paused=true;return {same:before===1&&count()===1,taken:p.taken}; })()`));
+      check(deduped.same && deduped.taken, 'stable picked church id prevents duplicate lore grant after real restored interaction');
+      const oversized = structuredClone(imported); oversized.found.push('x'.repeat(2001));
+      await editor.locator('#rawjson').fill(JSON.stringify(oversized));await editor.locator('#rawApply').click();
+      check((await editor.locator('#status').getAttribute('class')) === 'bad', 'editor still rejects FOUND entries above the bounded 2000-character limit');
+      check(crypto.createHash('sha256').update(fs.readFileSync(fixture)).digest('hex') === hash, 'actual earned checkpoint is preserved byte for byte');
+    };
+    if (process.argv.includes('--earned-only')) {
+      await earnedCheckpoint();
+      check(errors.length === 0, 'earned generator roundtrip has no uncaught browser errors');
+      console.log(JSON.stringify({ok:true,html,editor:editorPath,total:checks.length,checks},null,2));return;
+    }
     const presets = {};
     for (const name of ["fresh", "stats", "done", "endgame"]) {
       await editor.locator('[data-preset="' + name + '"]').click();
@@ -121,6 +147,7 @@ const { instrument, serve, loadPlaywright, browserPath } = require("./qa-game.cj
       }
       check(crypto.createHash("sha256").update(fs.readFileSync("DEBUG_SAVE.txt", "utf8")).digest("hex") === hash, "existing DEBUG_SAVE.txt is preserved byte for byte");
     }
+    if (fs.existsSync('artifacts/full-journey/04-four-relics-eight-villages.save.txt')) await earnedCheckpoint();
     check(errors.length === 0, "generator and game produce no uncaught browser errors");
     console.log(JSON.stringify({ ok: true, html, editor: editorPath, gameSha256: crypto.createHash("sha256").update(source).digest("hex"), total: checks.length, checks }, null, 2));
   } finally { if (browser) await browser.close(); await new Promise(resolve => server.close(resolve)); }
