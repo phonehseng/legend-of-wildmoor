@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.8.2</title>
+<title>Legend of Peanits 2.9.0</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -378,7 +378,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.8.2</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.9.0</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -446,7 +446,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.8.2</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.9.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -1816,6 +1816,23 @@ const __boot = (async () => {
   // metres below it. offsetting takes all of them cold for free, with no per-system gate, and nobody can see the
   // sideways part of the journey because the screen is full of black water while it happens.
   const GEH = { root: null, seed: 0, cx: 600, cz: 600, structs: new Map(), enemies: [], ceil: 0, floor: -280, arrive: null, failed: false };
+  // gehenna's plan, in metres east and north of GEH.cx / GEH.cz. gehH reads it, the builder reads it and the tick
+  // reads it, so the geometry, the collision and the staging all move together if one number here changes.
+  // the walk is deliberately a LINE and not a loop: you surface in the water at 0, the sweeper meets you at 24, the
+  // rows run 36 to 96, the bench is at 70 among them, the yard is swept at 104, and the clerk's desk is on the one
+  // hill at 136. that is the order the after-story's own dialogue assumes — "down past the bench" — and it is why
+  // the girl on the bench is something you walk past on the way up and have to walk past again on the way back.
+  // everything is inside a radius of 156, and the world is walkable to 196 (inBounds passes at 600+190 and fails at
+  // 600+196), so there is forty metres of margin between the furthest thing built and the edge of the coordinates.
+  const GEH_L = {
+    dishR: 17, dishD: 1.35, waterY: -0.5,
+    roadX0: 14, roadX1: 128, roadW: 3.2,
+    rowX0: 36, rowStep: 6, rowN: 11, rowZ: 10.5,
+    houseW: 2.5, houseD: 2.2, houseH: 3.1,
+    sweeperX: 24, benchX: 70, stillX: 92,
+    yardX: 104, yardR: 11,
+    hillX: 136, hillR: 20, hillH: 9
+  };
   const peakNoise = (x, z) => Math.pow(Math.max(0, fbm(x / 230 + 7, z / 230 + 7, 4) - 0.58) / 0.3, 1.4);
   // compute terrain h for the surrounding game system.
   // DO NOT ROUTE THIS BY DEPTH. terrainH is the valley's 2D heightfield and four separate systems read it as a fact
@@ -2010,7 +2027,17 @@ const __boot = (async () => {
   function gehH(x, z) {
     if (!GEH.root) return GEH_VOID;
     const dx = x - GEH.cx, dz = z - GEH.cz, r = Math.hypot(dx, dz);
-    let h = GEH.floor + (fbm(x / 60 + GEH.seed, z / 60 + GEH.seed, 4) - 0.5) * 9;
+    // phase 5 shaping. every term is analytic and lives in THIS function, which is the whole reason the drawn ground
+    // and the collision heightfield can never disagree: the mesh is built by sampling these same lines.
+    // the walk runs east along dz = 0. the ash lies almost flat along it and rolls everywhere else, so the road is
+    // never in a trench and the rows never stand on a slope.
+    const walk = dx > -24 && dx < 158 ? 1 - smooth(clamp((Math.abs(dz) - 13) / 22, 0, 1)) : 0;
+    let h = GEH.floor + (fbm(x / 60 + GEH.seed, z / 60 + GEH.seed, 4) - 0.5) * 9 * (1 - walk * 0.9);
+    if (r < GEH_L.dishR) h -= GEH_L.dishD * Math.pow(1 - r / GEH_L.dishR, 1.5); // the dish of black water you surface in
+    const yd = Math.hypot(dx - GEH_L.yardX, dz);
+    if (yd < GEH_L.yardR + 4) h = lerp(h, GEH.floor + 0.1, 1 - smooth(clamp((yd - GEH_L.yardR) / 4, 0, 1))); // the yard is dead flat because it is swept
+    const hd = Math.hypot(dx - GEH_L.hillX, dz);
+    if (hd < GEH_L.hillR) h += GEH_L.hillH * Math.pow(Math.cos((hd / GEH_L.hillR) * Math.PI * 0.5), 1.5); // and the one hill, with the one desk on it
     if (r > 150) h += (r - 150) * 1.4; // the room closes in around you rather than ending at an edge you can walk off
     return h;
   }
@@ -5627,7 +5654,12 @@ const __boot = (async () => {
     }
     for (const n of npcs) {
       // far villagers think less often but cover the same ground: each turn they take gets the time that has passed
-      const distToPlayer = dist2D(P.pos, n.pos),
+      // realm before distance. the seam comment claims offsetting gehenna to (600, 600) takes the villages cold for
+      // free, and that is only true of the town at the origin: the map is 1600 across, so the south-east mountain
+      // villages are a couple of hundred 2D metres from that point and were thinking at FULL rate, with their quest
+      // marks turned toward a player under the floor. across the seam is infinitely far, by definition.
+      const sameRealm = (n.pos.y < DIVIDE) === (P.pos.y < DIVIDE),
+        distToPlayer = sameRealm ? dist2D(P.pos, n.pos) : 1e5,
         skip = distToPlayer > TUNE.people.think3 ? 6 : distToPlayer > TUNE.people.think2 ? 3 : distToPlayer > TUNE.people.thinkFull ? 2 : 1;
       if ((npcTick + n.vi) % skip) continue;
       const dt = Math.min(0.25, dtFrame * skip);
@@ -6849,7 +6881,11 @@ const __boot = (async () => {
   function disposeTree(root) {
     if (!root) return;
     root.traverse(o => {
-      if (o.geometry) o.geometry.dispose();
+      // every Sprite in three.js shares ONE module-level geometry, assigned in the constructor. disposing it through
+      // any one sprite deletes the GPU buffer behind every sprite in the game — the E bubbles, the quest marks, the
+      // player nametags, the zzz — and they all have to be re-uploaded on next sight. it has been latent here for as
+      // long as removeEnemy has existed; it becomes reachable the moment a tree with a prompt in it is torn down.
+      if (o.geometry && !o.isSprite) o.geometry.dispose();
       const m = o.material;
       if (m) (Array.isArray(m) ? m : [m]).forEach(x => x && !(x.userData && x.userData.shared) && x.dispose && x.dispose());
     });
@@ -9201,6 +9237,10 @@ const __boot = (async () => {
   }
   function anyInteractableNear() {
     if (FAIRY.queen && (FAIRY.queen.pos.distanceTo(P.pos) < 9 || FAIRY.children.some(fairyInReach))) return true;
+    // the after-story hangs its own prompt over each of its speakers, so the only thing this has to answer for under
+    // the seam is the water. everything below reads valley positions, and gehenna is inside the valley's own x/z
+    // bounds, so without the early return a hut three hundred metres overhead lights the ? over your head.
+    if (P.pos.y < DIVIDE) return gehInShallows() && GEH.exitArm > 3 && !(GEH_SCRIPT && GEH_SCRIPT.fight);
     if (near(hermitPos, 4.5) || near(king.pos, 5.5) || near(BODY.pos, 4.5)) return true;
     // the beacon has always had something to say — that the lamp is cold, that you have the flint but not the trick —
     // but it was never listed here, so no prompt ever appeared and the whole tower read as scenery.
@@ -10000,7 +10040,7 @@ const __boot = (async () => {
     const night = 1 - sstep(-0.05, 0.15, dayElev);
     for (const c of rings) {
       const d = dist2D(c, P.pos);
-      if (d < 3.4 && night > 0.5) {
+      if (d < 3.4 && night > 0.5 && Math.abs(c.y - P.pos.y) < 6) {
         P.hp = Math.min(P.maxHp, P.hp + dt * 0.35);
         if (Math.random() < dt * 8)
           PS.glow.emit(V3(c.x + (Math.random() - 0.5) * 6, c.y + 0.3, c.z + (Math.random() - 0.5) * 6), V3(0, 1.2, 0), 1.6, 0.3, 0xe0b0ff, -0.2, 0.4);
@@ -10106,6 +10146,11 @@ const __boot = (async () => {
   // a blow that lands on a deer or sheep within reach; used by every attack
   // what is under your feet: wood on decks, floors and platforms, stone on the kingdom's cobbles, earth everywhere else
   function footingAt(p) {
+    // the seam first, before anything reads terrainH. gehenna sits at (600, 600), which is INSIDE the valley's own
+    // x/z bounds, so terrainH answers about forty metres of moor directly overhead, and the insideInterior test
+    // below has only an upper y bound — a hut whose footprint happened to cover that point would give your footsteps
+    // its floorboards while you walked on ash two hundred and eighty metres underneath it.
+    if (p.y < DIVIDE) return "sand";
     if (roomNow) return roomNow.floor || (roomNow.keep ? "stone" : "wood");
     const th = terrainH(p.x, p.z);
     {
@@ -13026,7 +13071,7 @@ const __boot = (async () => {
     // credit: a boss brought down together is everyone's — every player present gets the line, the strength and the drop (once per save);
     // an ordinary goblin or slime goes to whoever struck it last
     if (NET.role === "host" && NET.peers.size) {
-      if (e.boss) { netBroadcast({ t: "ek", k: e.kind, king: !!e.king, big: !!e.big }); byPlayer = true; }
+      if (e.boss && e.pos.y > DIVIDE) { netBroadcast({ t: "ek", k: e.kind, king: !!e.king, big: !!e.big }); byPlayer = true; } // a boss under the seam is in a world built from a seed the peer does not have; netKillCredit would have no branch for her and would say nothing while granting nothing
       else if (e.lastHitBy) { const a = NET.avatars.get(e.lastHitBy); const p = a && NET.peers.get(a.via); if (p) netSend(p, { t: "ek", k: e.kind, king: false, big: !!e.big }); byPlayer = false; }
     }
     if (e.tell) e.tell.visible = false;
@@ -13056,6 +13101,21 @@ const __boot = (async () => {
       if (e.kind === "wolf") burst(e.pos.clone().add(V3(0, 0.8, 0)), 0x5a5048, 16, 5, 0.7, 0.14); else burst(e.pos.clone().add(V3(0, 1.5, 0)), 0x8ca0c8, e.warden ? 60 : 20, 6, 1.2, 0.18);
       if (!quiet) SFX.kill(!!e.warden, distToPlayer);
       if (e.warden) WORLDSTATE.wardenDead = true;
+    } else if (e.kind === "attached") {
+      // no reward, no strength, no tally, and there is not going to be one. it never hurt you, it was going to let
+      // go by itself in four seconds, and the after-story owns what it says on the way down — the third one earns
+      // the thank-you there, because a thank-you every corpse says is not a thank-you, it is a sound effect.
+      // without this branch it fell through to the goblin case below and the game printed "Goblin down." and handed
+      // out ten strength, which would have been the single worst sentence in the update.
+      burst(e.pos.clone().add(V3(0, 1, 0)), 0x6a4038, 18, 4, 0.9, 0.16);
+      if (!quiet) SFX.tone(150, 60, 1.4, 0.1, "sine", 0, 400);
+      if (byPlayer && !quiet && window.GEHENNA) { try { GEHENNA.attachedDown(); } catch (err) { console.error("Gehenna: attachedDown threw", err); } }
+    } else if (e.kind === "kindly") {
+      // she does not drop anything and she is not worth anything. the after-story writes her death, because her
+      // death is the argument the whole story is making and it is not a kill line.
+      burst(e.pos.clone().add(V3(0, 1.6, 0)), 0xd8c8a0, 40, 5, 1.4, 0.2);
+      shake = Math.max(shake, 0.7);
+      if (window.GEHENNA) { try { GEHENNA.bossDown(); } catch (err) { console.error("Gehenna: bossDown threw", err); } }
     } else {
       if (byPlayer) {
         P.gkills++;
@@ -13523,7 +13583,11 @@ const __boot = (async () => {
     const g = goblins.filter(x => near(x.pos)).map(x => [x.nid, +x.pos.x.toFixed(1), +x.pos.y.toFixed(1), +x.pos.z.toFixed(1), +x.heading.toFixed(2), +x.hp.toFixed(1), x.king ? 1 : 0, x.state, x.alive ? 1 : 0, +Math.max(0, x.rise).toFixed(2)]);
     const sl = slimes.map((x, i) => (near(x.pos) ? [i, +x.pos.x.toFixed(1), +x.pos.y.toFixed(1), +x.pos.z.toFixed(1), +x.hp.toFixed(1), x.alive ? 1 : 0, x.state] : null)).filter(Boolean);
     const b = BEAR ? [+BEAR.pos.x.toFixed(1), +BEAR.pos.y.toFixed(1), +BEAR.pos.z.toFixed(1), +BEAR.heading.toFixed(2), +BEAR.hp.toFixed(1), BEAR.alive ? 1 : 0, BEAR.awake ? 1 : 0, BEAR.state, +(BEAR.flash || 0).toFixed(2)] : null;
-    const x = EXTRA.filter(e => near(e.pos)).map(e => [e.kind, e.nid, +e.pos.x.toFixed(1), +e.pos.y.toFixed(1), +e.pos.z.toFixed(1), +e.heading.toFixed(2), +e.hp.toFixed(1), e.alive ? 1 : 0, e.state, e.warden ? 1 : 0]);
+    // gehenna's inhabitants are never broadcast at all. near() already refuses to mirror one into a valley, but two
+    // peers who are BOTH under the seam pass its same-realm test and would mirror each other's copies — into worlds
+    // built from two different seeds, because gehSeed is deliberately not shared. shared-realm co-op down there is a
+    // separate piece of work, and this is the line that stops it half-happening by accident.
+    const x = EXTRA.filter(e => e.pos.y > DIVIDE && near(e.pos)).map(e => [e.kind, e.nid, +e.pos.x.toFixed(1), +e.pos.y.toFixed(1), +e.pos.z.toFixed(1), +e.heading.toFixed(2), +e.hp.toFixed(1), e.alive ? 1 : 0, e.state, e.warden ? 1 : 0]);
     return { t: "en", g, sl, b, x };
   }
   function netApplyEnemies(m) {
@@ -13541,7 +13605,7 @@ const __boot = (async () => {
     for (const g of goblins) if (g.mirror && !seen.has(g.nid) && g.alive && !g.hidden) { g.hidden = true; g.mesh.visible = false; if (g.bar) g.bar.visible = false; } // out of every player's view: hidden, not dead
     for (const r of m.sl || []) { const [i, x, y, z, hp, alive, state] = r; const sl = slimes[i]; if (!sl) continue; sl.tx = x; sl.ty = y; sl.tz = z; sl.hp = hp; sl.state = state; if (!alive && sl.alive) killEnemy(sl, false, 0, true); if (alive && !sl.alive) { sl.alive = true; sl.mesh.visible = true; sl.mesh.scale.setScalar(1); sl.respawn = 0; } }
     const seenX = new Set();
-    for (const r of (m.x || []).slice(0, 32)) { const [kind, nid, x, y, z, h, hp, alive, state, warden] = r; if (!Number.isFinite(x) || !Number.isFinite(z) || Math.abs(x) > 3000 || Math.abs(z) > 3000) continue; seenX.add(nid); let e = EXTRA.find(o => o.mirror && o.nid === nid); if (!e) { e = kind === "wolf" ? spawnWolf(x, z, null) : warden ? spawnWarden() : spawnWraith(x, z); e.nid = nid; e.mirror = true; e.pos.set(x, y, z); } e.tx = x; e.ty = y; e.tz = z; e.th = h; e.hp = hp; e.state = state; if (!alive && e.alive) killEnemy(e, false, 0, true); }
+    for (const r of (m.x || []).slice(0, 32)) { const [kind, nid, x, y, z, h, hp, alive, state, warden] = r; if (!Number.isFinite(x) || !Number.isFinite(z) || Math.abs(x) > 3000 || Math.abs(z) > 3000) continue; if (kind !== "wolf" && kind !== "wraith" && kind !== "warden") continue; if (!Number.isFinite(y) || y < DIVIDE) continue; seenX.add(nid); let e = EXTRA.find(o => o.mirror && o.nid === nid); if (!e) { e = kind === "wolf" ? spawnWolf(x, z, null) : warden ? spawnWarden() : spawnWraith(x, z); e.nid = nid; e.mirror = true; e.pos.set(x, y, z); } e.tx = x; e.ty = y; e.tz = z; e.th = h; e.hp = hp; e.state = state; if (!alive && e.alive) killEnemy(e, false, 0, true); }
     for (const e of EXTRA) if (e.mirror && !seenX.has(e.nid) && e.alive) { e.mesh.visible = false; }
     if (m.b && BEAR) { const [x, y, z, h, hp, alive, awake, state, flash] = m.b; BEAR.tx = x; BEAR.ty = y; BEAR.tz = z; BEAR.th = h; BEAR.hp = hp; BEAR.awake = !!awake; BEAR.state = state; BEAR.flash = flash; if (!alive && BEAR.alive) killEnemy(BEAR, false, 0, true); if (alive && !BEAR.alive) { BEAR.alive = true; BEAR.t = 0; BEAR.mesh.visible = true; BEAR.mesh.scale.setScalar(1); BEAR.mesh.rotation.z = 0; if (!BEAR.mesh.parent) scene.add(BEAR.mesh); BEAR.pos.set(x, y, z); } } // the host's living bear stands a guest's dead copy back up
   }
@@ -13560,6 +13624,7 @@ const __boot = (async () => {
     else if (m.k === "slime") { P.kills++; say(m.big ? "Big slime burst." : "Slime burst.", 900); gainXP("strength", m.big ? 12 : 6); }
     else if (m.k === "wraith" || m.k === "wolf" || m.k === "warden") { say(m.k === "warden" ? "The Drowned Warden comes apart into the water it was made of." : m.k === "wolf" ? "Wolf down." : "The wraith comes apart like breath.", m.k === "warden" ? 5000 : 900, m.k === "warden", m.k === "warden" ? "dark" : ""); gainXP("strength", m.k === "warden" ? 120 : m.k === "wolf" ? 12 : 16); if (m.k === "warden") WORLDSTATE.wardenDead = true; }
     else if (m.k === "bear") { say("The Old Bear falls. The wood goes quiet.", 5000, true); gainXP("strength", 80); if (!STORY.bearHeart && BEAR) dropReward("reward:bear", BEAR.pos.x + 3, BEAR.pos.z); }
+    else console.warn("A kill was credited for a kind this build has no reward for:", m.k); // silence beats a wrong line and a wrong prize. nothing under the seam is broadcast, so reaching this means a version mismatch between peers
   }
   // the main story's milestones, as a small record that can be compared and merged.
   // BOOLEANS ONLY, and this is load-bearing rather than stylistic: mainProgress builds the shared map with
@@ -13734,6 +13799,7 @@ const __boot = (async () => {
   function insideCave() {
     const c = CAVE, dx = P.pos.x - c.x, dz = P.pos.z - c.z, cy = c.h, face = Math.atan2(-c.x, -c.z);
     const lx = Math.cos(face) * dx - Math.sin(face) * dz, lz = Math.sin(face) * dx + Math.cos(face) * dz; // into the cave's own frame
+    if (P.pos.y < DIVIDE) return false; // the only y test below is an UPPER bound, so without this the whole thing collapses to a 2D ellipse that a body under the seam passes trivially — and guardPlayerPosition reads this as a fall-through exemption
     if (P.pos.y > cy + TUNE.world.caveHeight + 1) return false;
     if ((lx / TUNE.world.caveRadius) ** 2 + (lz / TUNE.world.caveDepth) ** 2 < 1) return true;
     return !!(CAVE_TUNNEL && Math.abs(lx) < CAVE_TUNNEL.r && lz > CAVE_TUNNEL.z0 && lz < CAVE_TUNNEL.z1);
@@ -13800,6 +13866,7 @@ const __boot = (async () => {
   let discT = 0;
   function updateDiscoveries(dt) {
     discT -= dt; if (discT > 0) return; discT = 0.5;
+    if (P.pos.y < DIVIDE) return; // the height test below self-cancels for any discovery with no y of its own, so an unlocated valley place within its radius of (600, 600) would be "found" from underneath it
     for (const id in DISCOVERIES) { const d = DISCOVERIES[id]; if (DISC_FOUND.has(id) || d.x === undefined) continue; if (dist2D(d, P.pos) < d.r && Math.abs((d.y === undefined ? P.pos.y : d.y) - P.pos.y) < 40) discover(id); }
   }
   // the last place you stood that was sound, one per world; a recovery returns you to the one for the world you are in
@@ -13928,8 +13995,11 @@ const __boot = (async () => {
       lastSafeGeh.set(GEH.cx, GEH.floor + DIVE_CEIL, GEH.cz);
     }
     if (d.moved) {
-      P.pos.x = clamp(P.pos.x, GEH.cx - 28, GEH.cx + 28);
-      P.pos.z = clamp(P.pos.z, GEH.cz - 28, GEH.cz + 28);
+      // twelve rather than twenty-eight, because phase 5 put a dish of black water under the arrival and you are
+      // meant to come up out of it. the dish is seventeen metres across; twelve keeps the drift inside it however
+      // hard the player steers, and the drift was always decoration rather than a choice with consequences.
+      P.pos.x = clamp(P.pos.x, GEH.cx - 12, GEH.cx + 12);
+      P.pos.z = clamp(P.pos.z, GEH.cz - 12, GEH.cz + 12);
     }
     // the breath bar is the fall's clock, not the swimming skill's. draining it at airMax() would run a level-one
     // swimmer out at four seconds and drown them in a shaft with no way back up, and let a fairy-blessed one who never
@@ -13947,8 +14017,8 @@ const __boot = (async () => {
     const d = P.gehDive;
     if (!d) return;
     P.gehDive = null;
-    const x = clamp(P.pos.x, GEH.cx - 28, GEH.cx + 28),
-      z = clamp(P.pos.z, GEH.cz - 28, GEH.cz + 28),
+    const x = clamp(P.pos.x, GEH.cx - 12, GEH.cx + 12),
+      z = clamp(P.pos.z, GEH.cz - 12, GEH.cz + 12),
       y = gehGroundAt(x, z, GEH.floor + 60);
     // gehGroundAt answers GEH_VOID if the root went away between the check above and here, and a build that produced
     // nonsense would put the player inside its own floor. either way the rim is a better place to be than this.
@@ -14705,6 +14775,660 @@ const __boot = (async () => {
     window.GEHENNA = api;
     return api;
   })();
+  // ============================================================ 3.0 phase 5: gehenna, the world under the water
+  // the after-story above owns every word spoken down here. THIS owns the ground it is spoken on, the bodies it is
+  // spoken by, the light it is spoken in, and taking all of it away again afterwards. the two meet at exactly four
+  // seams and no others: GEHENNA.register places a speaker, window.gehSpawnKindly raises her body, GEHENNA.tick is
+  // driven from this file's frame hook, and GEHENNA.reset is called before the teardown disposes anything.
+  //
+  // gehenna is not a torture pit and must not be built like one. somebody read the doctrine — that holding on is the
+  // cause of suffering — and implemented it, out of what was unmistakably love: take from people everything they are
+  // holding on to and nobody suffers again. it works. that is the whole horror of it. it is kind, it is orderly, it
+  // is swept, and it is unbearable, and every decision below is that sentence made out of geometry.
+  //
+  // the performance contract, because this builds inside a scene that is already about 15,800 nodes and is walked
+  // twice a frame by two render passes, so every node added here is paid for twice in the valley as well:
+  //   * ONE root node. everything hangs off it, the teardown removes exactly it, and both ends print the measured
+  //     traverse count, so "the scene goes back to where it was" is a number rather than a claim.
+  //   * the houses are identical BECAUSE everyone here has been relieved of the need to be told apart, which is also
+  //     why they are three InstancedMeshes instead of sixty-six meshes. the fiction pays for the draw calls.
+  //   * InstancedMesh switches its own frustumCulled off in its constructor, which is why the valley's foliage
+  //     submits over a million triangles from everywhere. every instanced thing here is deliberately tiny — the
+  //     houses, the kerb, the lamps and the seated together are under 5,000 triangles — so unculled costs nothing.
+  //   * materials are shared, live in GEH.mats, and are disposed by hand. disposeTree skips anything flagged
+  //     userData.shared, so one body being removed cannot take the whole world's paint down with it.
+  //   * the lamps do NOT call vlight(). vlights has one push site and no removal path anywhere in this file, so a
+  //     vlight per descent would grow — permanently — the array updateLightPool filters and fully sorts on every
+  //     frame of the whole game. six slots are allocated ONCE here instead and re-pointed at the nearest lamps each
+  //     frame; with nobody under the seam their intensity is zero and the existing filter drops them for free.
+  //   * nobody down here is an npc and nobody thinks. the four who speak are four still bodies and a prompt; the
+  //     after-story holds their dialogue and their state. there is no AI in gehenna except the attached and her.
+  //   * nothing casts or receives a shadow. the sun is switched off, so a shadow pass here would be pure cost.
+  const GEH_LAMPS = [];
+  for (let i = 0; i < 6; i++) GEH_LAMPS.push(vlight(0xff7a2a, 0, 20));
+  let gehK = 0, gehTick = 1, gehSaidT = 0; // gehK is 1 while STANDING in gehenna, as against falling through water toward it
+  const GEH_FOG_WATER = toLin(0x03060a), GEH_FOG_ASH = toLin(0x1a0607), _gehFog = new THREE.Color();
+  const GEH_SKY_TOP = toLin(0x05030a), GEH_SKY_HOR = toLin(0x571205), GEH_HEMI_SKY = toLin(0x0b0509), GEH_HEMI_GND = toLin(0xc0380e);
+  // gehenna's own gradient, for the one place the valley's is read off the player's feet. four gehH samples, the same
+  // shape as gradAt, answering about the ash rather than about the moor three hundred metres overhead.
+  const gehGradAt = (x, z) => V3((gehH(x + 1, z) - gehH(x - 1, z)) / 2, 0, (gehH(x, z + 1) - gehH(x, z - 1)) / 2);
+  const gehSay = () => (window.GEHENNA ? window.GEHENNA : null);
+  // register a solid in gehenna's own structure grid. the same record shape as addStruct, the same walkers in
+  // gehGroundAt and resolveStructs, a different map — so nothing placed down here can crater the valley.
+  function gehAddStruct(s) {
+    const i0 = Math.floor((s.cx - s.b) / SCELL), i1 = Math.floor((s.cx + s.b) / SCELL),
+      j0 = Math.floor((s.cz - s.b) / SCELL), j1 = Math.floor((s.cz + s.b) / SCELL);
+    for (let i = i0; i <= i1; i++)
+      for (let j = j0; j <= j1; j++) {
+        const k = skey(i, j);
+        if (!GEH.structs.has(k)) GEH.structs.set(k, []);
+        GEH.structs.get(k).push(s);
+      }
+  }
+  // standing in the black water you surfaced in, which is also the only way back up
+  function gehInShallows() {
+    if (!GEH.root || P.pos.y >= DIVIDE) return false;
+    const dx = P.pos.x - GEH.cx, dz = P.pos.z - GEH.cz;
+    return dx * dx + dz * dz < (GEH_L.dishR - 2) * (GEH_L.dishR - 2) && P.pos.y < GEH.floor + 1.2;
+  }
+
+  // ---- the build. defining window.gehBuildWorld IS the contract: gehBeginDive looks for it and falls back to
+  // gehBuildFloor's placeholder plane only when it is missing, so this retires the placeholder without touching it.
+  // everything is sampled FROM gehH rather than built beside it, which is why the drawn ground and the collision
+  // heightfield cannot drift apart. GEH.root is assigned before the first sample for the reason the placeholder
+  // gives: gehH answers GEH_VOID while it is null, and the only body under the seam meanwhile is the falling player.
+  window.gehBuildWorld = async function gehBuildWorld() {
+    if (GEH.root) return;
+    let nodes0 = 0;
+    scene.traverse(() => nodes0++);
+    GEH.nodes0 = nodes0;
+    GEH.geo0 = renderer.info.memory.geometries;
+    const g = new THREE.Group();
+    g.name = "gehenna";
+    GEH.root = g;
+    GEH.mats = [];
+    GEH.lampPos = [];
+    GEH.enemies = [];
+    GEH.exitArm = 0;
+    GEH.away = 0;
+    GEH.hinted = false;
+    const mat = m => { m.userData.shared = true; GEH.mats.push(m); return m; };
+    const M = {
+      ground: mat(new THREE.MeshBasicMaterial({ vertexColors: true })),
+      water: mat(new THREE.MeshStandardMaterial({ color: toLin(0x03020a), roughness: 0.12, metalness: 0.55, transparent: true, opacity: 0.93 })),
+      brick: mat(new THREE.MeshStandardMaterial({ color: toLin(0x2b2622), roughness: 1, metalness: 0 })),
+      roof: mat(new THREE.MeshStandardMaterial({ color: toLin(0x1d1a18), roughness: 1, metalness: 0 })),
+      door: mat(new THREE.MeshStandardMaterial({ color: toLin(0x090708), roughness: 1, metalness: 0 })),
+      iron: mat(new THREE.MeshStandardMaterial({ color: toLin(0x141213), roughness: 0.8, metalness: 0.3 })),
+      flame: mat(new THREE.MeshBasicMaterial({ color: 0xff8a30 })),
+      cloth: mat(new THREE.MeshStandardMaterial({ color: toLin(0x3a3430), roughness: 1, metalness: 0 })),
+      grey: mat(new THREE.MeshStandardMaterial({ color: toLin(0x4c4640), roughness: 1, metalness: 0 })),
+      pale: mat(new THREE.MeshStandardMaterial({ color: toLin(0x6e6a64), roughness: 1, metalness: 0 })),
+      skin: mat(new THREE.MeshStandardMaterial({ color: toLin(0x7a6a60), roughness: 1, metalness: 0 })),
+      hair: mat(new THREE.MeshStandardMaterial({ color: toLin(0x2a1a10), roughness: 0.95, metalness: 0, side: THREE.DoubleSide })),
+      wood: mat(new THREE.MeshStandardMaterial({ color: toLin(0x33261c), roughness: 1, metalness: 0 })),
+      paper: mat(new THREE.MeshStandardMaterial({ color: toLin(0xa8a090), roughness: 1, metalness: 0 })),
+      sweep: mat(new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.5, depthWrite: false })),
+      mote: mat(new THREE.PointsMaterial({ color: 0xc4451a, size: 0.34, sizeAttenuation: true, transparent: true, opacity: 0.45, depthWrite: false }))
+    };
+    GEH.M = M;
+    await __stage(20, "Something moves under the water…");
+
+    // ---- the ground: one plane, one draw call, no texture and no shader. black ash with dark red coming up through
+    // the fissures, and the shading BAKED INTO THE VERTEX COLOURS rather than lit, because gehenna is lit from below
+    // and a ground plane whose normals all point up would receive almost nothing and read as a hole in the world.
+    {
+      const SPAN = 340, SEGS = 140;
+      const geo = new THREE.PlaneGeometry(SPAN, SPAN, SEGS, SEGS);
+      geo.rotateX(-Math.PI / 2);
+      const pa = geo.attributes.position, n = pa.count;
+      const col = new Float32Array(n * 3);
+      const ASH = toLin(0x14120f), EMBER = toLin(0x8e1605), ROAD = toLin(0x2d2823), YARD = toLin(0x3a342d), DEEPC = toLin(0x050409);
+      for (let i = 0; i < n; i++) {
+        const x = GEH.cx + pa.getX(i), z = GEH.cz + pa.getZ(i), h = gehH(x, z);
+        pa.setY(i, Number.isFinite(h) ? h : GEH.floor);
+        const dx = x - GEH.cx, dz = z - GEH.cz, r = Math.hypot(dx, dz);
+        let cr = ASH.r, cg = ASH.g, cb = ASH.b;
+        const onRoad = dx > GEH_L.roadX0 - 4 && dx < GEH_L.roadX1 + 4 ? 1 - clamp((Math.abs(dz) - GEH_L.roadW) / 2.6, 0, 1) : 0;
+        if (onRoad > 0) { cr = lerp(cr, ROAD.r, onRoad); cg = lerp(cg, ROAD.g, onRoad); cb = lerp(cb, ROAD.b, onRoad); }
+        const yk = 1 - clamp((Math.hypot(dx - GEH_L.yardX, dz) - GEH_L.yardR) / 3, 0, 1);
+        if (yk > 0) { cr = lerp(cr, YARD.r, yk); cg = lerp(cg, YARD.g, yk); cb = lerp(cb, YARD.b, yk); }
+        // the fissures, coarse on purpose: with 2.4 m between vertices a hairline crack cannot be resolved and would
+        // only crawl and alias, so these are the wide slow seams you would actually see across a plain of ash.
+        const v = Math.abs(fbm(x * 0.05 + GEH.seed, z * 0.05 + GEH.seed, 2) - 0.5);
+        const crack = Math.pow(clamp(1 - v / 0.058, 0, 1), 1.7) * (0.55 + 0.45 * fbm(x * 0.21, z * 0.21, 2));
+        if (crack > 0.002) { cr = lerp(cr, EMBER.r, crack); cg = lerp(cg, EMBER.g, crack); cb = lerp(cb, EMBER.b, crack); }
+        if (r < GEH_L.dishR) { const k = Math.pow(1 - r / GEH_L.dishR, 0.7); cr = lerp(cr, DEEPC.r, k); cg = lerp(cg, DEEPC.g, k); cb = lerp(cb, DEEPC.b, k); }
+        // the bake. a slope term so the hill has a form at all, and an ember lift so low ground glows more than high
+        // ground, which is what "lit from below" has to mean on a surface that faces upward.
+        const hx = gehH(x + 2.4, z) - gehH(x - 2.4, z), hz = gehH(x, z + 2.4) - gehH(x, z - 2.4);
+        const sh = clamp(0.9 - Math.hypot(hx, hz) * 0.09 + hx * 0.035 + clamp((GEH.floor + 1 - h) / 7, -0.25, 0.3), 0.25, 1.35);
+        col[i * 3] = cr * sh; col[i * 3 + 1] = cg * sh; col[i * 3 + 2] = cb * sh;
+      }
+      pa.needsUpdate = true;
+      geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+      geo.computeVertexNormals();
+      const floor = new THREE.Mesh(geo, M.ground);
+      floor.position.set(GEH.cx, 0, GEH.cz);
+      floor.name = "geh-ground";
+      g.add(floor);
+    }
+    await __stage(46, "Something moves under the water…");
+
+    // ---- the black water you surface in, and the swept arcs of the yard. gehH has flattened the ground under both,
+    // so neither can float over a slope or sink into one.
+    {
+      const w = new THREE.Mesh(new THREE.CircleGeometry(GEH_L.dishR - 0.4, 40), M.water);
+      w.rotation.x = -Math.PI / 2;
+      w.position.set(GEH.cx, GEH.floor + GEH_L.waterY, GEH.cz);
+      g.add(w);
+      GEH.water = w;
+      const rg = new THREE.RingGeometry(1.2, GEH_L.yardR - 0.5, 64, 9);
+      rg.rotateX(-Math.PI / 2);
+      const rp = rg.attributes.position, rc = new Float32Array(rp.count * 3);
+      for (let i = 0; i < rp.count; i++) {
+        const d = Math.hypot(rp.getX(i), rp.getZ(i)), s = 0.3 + 0.3 * (0.5 + 0.5 * Math.sin(d * 2.4));
+        rc[i * 3] = s * 0.45; rc[i * 3 + 1] = s * 0.41; rc[i * 3 + 2] = s * 0.36;
+      }
+      rg.setAttribute("color", new THREE.BufferAttribute(rc, 3));
+      const ring = new THREE.Mesh(rg, M.sweep);
+      ring.position.set(GEH.cx + GEH_L.yardX, gehH(GEH.cx + GEH_L.yardX, GEH.cz) + 0.04, GEH.cz);
+      ring.renderOrder = 1;
+      g.add(ring);
+    }
+
+    // ---- the rows. twenty-two houses, identical, flat-roofed, one door each and not one window, because a window is
+    // something to look out of and there is nothing out there anybody is meant to want.
+    {
+      const N = GEH_L.rowN * 2, mm4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = V3(1, 1, 1), pos = V3();
+      const body = new THREE.InstancedMesh(new THREE.BoxGeometry(GEH_L.houseW * 2, GEH_L.houseH, GEH_L.houseD * 2), M.brick, N);
+      const roof = new THREE.InstancedMesh(new THREE.BoxGeometry(GEH_L.houseW * 2 + 0.5, 0.22, GEH_L.houseD * 2 + 0.5), M.roof, N);
+      const door = new THREE.InstancedMesh(new THREE.BoxGeometry(0.82, 1.85, 0.1), M.door, N);
+      for (let s = 0; s < 2; s++)
+        for (let i = 0; i < GEH_L.rowN; i++) {
+          const k = s * GEH_L.rowN + i;
+          const cx = GEH.cx + GEH_L.rowX0 + i * GEH_L.rowStep, cz = GEH.cz + (s ? GEH_L.rowZ : -GEH_L.rowZ);
+          const y = gehH(cx, cz);
+          pos.set(cx, y + GEH_L.houseH / 2, cz); mm4.compose(pos, q, sc); body.setMatrixAt(k, mm4);
+          pos.set(cx, y + GEH_L.houseH + 0.11, cz); mm4.compose(pos, q, sc); roof.setMatrixAt(k, mm4);
+          pos.set(cx, y + 0.93, cz + (s ? -1 : 1) * (GEH_L.houseD + 0.06)); mm4.compose(pos, q, sc); door.setMatrixAt(k, mm4);
+          gehAddStruct({ cx, cz, w: GEH_L.houseW, d: GEH_L.houseD, top: y + GEH_L.houseH + 0.22, b: GEH_L.houseW + 0.3 });
+        }
+      body.instanceMatrix.needsUpdate = roof.instanceMatrix.needsUpdate = door.instanceMatrix.needsUpdate = true;
+      g.add(body, roof, door);
+    }
+    await __stage(60, "Something moves under the water…");
+
+    // ---- the kerb, the lamps and the desk on the hill
+    {
+      const mm4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = V3(1, 1, 1), pos = V3();
+      const KN = 68;
+      const kerb = new THREE.InstancedMesh(new THREE.BoxGeometry(1.5, 0.26, 0.34), M.roof, KN);
+      for (let i = 0; i < KN; i++) {
+        const s = i % 2 ? 1 : -1, t = Math.floor(i / 2) / (KN / 2 - 1);
+        const cx = GEH.cx + lerp(GEH_L.roadX0, GEH_L.roadX1, t), cz = GEH.cz + s * GEH_L.roadW;
+        pos.set(cx, gehH(cx, cz) + 0.1, cz); mm4.compose(pos, q, sc); kerb.setMatrixAt(i, mm4);
+      }
+      kerb.instanceMatrix.needsUpdate = true;
+      g.add(kerb);
+      const LP = [];
+      for (let i = 0; i < 8; i++) { const cx = GEH.cx + 20 + i * 14, cz = GEH.cz + (i % 2 ? 5.6 : -5.6); LP.push(V3(cx, gehH(cx, cz), cz)); }
+      LP.push(V3(GEH.cx + GEH_L.yardX, gehH(GEH.cx + GEH_L.yardX, GEH.cz + 8.5), GEH.cz + 8.5));
+      LP.push(V3(GEH.cx + GEH_L.hillX - 1.7, gehH(GEH.cx + GEH_L.hillX - 1.7, GEH.cz + 1.5), GEH.cz + 1.5));
+      const post = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.07, 0.1, 3.2, 6), M.iron, LP.length);
+      const head = new THREE.InstancedMesh(new THREE.BoxGeometry(0.3, 0.34, 0.3), M.flame, LP.length);
+      for (let i = 0; i < LP.length; i++) {
+        pos.set(LP[i].x, LP[i].y + 1.6, LP[i].z); mm4.compose(pos, q, sc); post.setMatrixAt(i, mm4);
+        pos.set(LP[i].x, LP[i].y + 3.3, LP[i].z); mm4.compose(pos, q, sc); head.setMatrixAt(i, mm4);
+        GEH.lampPos.push(V3(LP[i].x, LP[i].y + 3.3, LP[i].z));
+      }
+      post.instanceMatrix.needsUpdate = head.instanceMatrix.needsUpdate = true;
+      g.add(post, head);
+      const hx = GEH.cx + GEH_L.hillX, hz = GEH.cz, hy = gehH(hx, hz);
+      const desk = new THREE.Group();
+      desk.position.set(hx, hy, hz);
+      const top = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.12, 1.1), M.wood);
+      top.position.y = 0.94;
+      const legs = [[-0.95, -0.42], [0.95, -0.42], [-0.95, 0.42], [0.95, 0.42]].map(p => {
+        const l = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.9, 0.14), M.wood);
+        l.position.set(p[0], 0.45, p[1]);
+        return l;
+      });
+      const led = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.07, 0.58), M.paper);
+      led.position.set(0, 1.03, 0);
+      led.rotation.y = 0.14;
+      desk.add(top, led, legs[0], legs[1], legs[2], legs[3]);
+      g.add(desk);
+      GEH.ledger = led;
+      gehAddStruct({ cx: hx, cz: hz, w: 1.15, d: 0.6, top: hy + 1.0, b: 1.2 });
+    }
+
+    // ---- the unburdened. they sit. they do not move, they do not speak, they cannot be struck, and they are not
+    // enemies or npcs in any registry at all — they are two InstancedMeshes and nothing else, which is both the
+    // cheapest possible implementation and the literal point being made about them.
+    {
+      const SEATS = [];
+      for (let s = 0; s < 2; s++)
+        for (let i = 0; i < 8; i++) SEATS.push([GEH_L.rowX0 + i * GEH_L.rowStep, (s ? 1 : -1) * 7.6, 0.9 + i * 0.37 + s * 2.1]);
+      SEATS.push([GEH_L.yardX - 6, 3.4, 1.9], [GEH_L.yardX - 5, -4.2, 4.4], [GEH_L.yardX + 4, 2.2, 0.3], [GEH_L.hillX - 14, -2.6, 2.7]);
+      const N = SEATS.length, mm4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = V3(1, 1, 1), pos = V3(), eul = new THREE.Euler();
+      const bodyM = new THREE.InstancedMesh(new THREE.ConeGeometry(0.46, 1.05, 7), M.cloth, N);
+      const headM = new THREE.InstancedMesh(new THREE.SphereGeometry(0.23, 9, 7), M.skin, N);
+      for (let i = 0; i < N; i++) {
+        const cx = GEH.cx + SEATS[i][0], cz = GEH.cz + SEATS[i][1], y = gehH(cx, cz);
+        eul.set(0, SEATS[i][2], 0); q.setFromEuler(eul);
+        pos.set(cx, y + 0.52, cz); mm4.compose(pos, q, sc); bodyM.setMatrixAt(i, mm4);
+        pos.set(cx, y + 1.19, cz); mm4.compose(pos, q, sc); headM.setMatrixAt(i, mm4);
+      }
+      bodyM.instanceMatrix.needsUpdate = headM.instanceMatrix.needsUpdate = true;
+      g.add(bodyM, headM);
+    }
+
+    // ---- ash in the air. one Points object that is MOVED to the player rather than animated, so the whole effect is
+    // one matrix write a frame and never touches a vertex buffer again after it is built.
+    {
+      const NP = 300, arr = new Float32Array(NP * 3);
+      for (let i = 0; i < NP; i++) { arr[i * 3] = (Math.random() - 0.5) * 78; arr[i * 3 + 1] = Math.random() * 15; arr[i * 3 + 2] = (Math.random() - 0.5) * 78; }
+      const pg = new THREE.BufferGeometry();
+      pg.setAttribute("position", new THREE.BufferAttribute(arr, 3));
+      const pts = new THREE.Points(pg, M.mote);
+      pts.frustumCulled = false;
+      g.add(pts);
+      GEH.motes = pts;
+    }
+    await __stage(76, "Something moves under the water…");
+
+    // ---- the four who can still be spoken to. they are bodies and nothing else: no npcs entry, no AI, no think
+    // ladder, nothing per frame. GEHENNA.register hands their positions to the after-story, which owns every word
+    // they say and hangs its own E prompt over each of them. registering here also switches off that module's
+    // fallback stage, which would otherwise put four voices in the dark within twenty metres of the water.
+    //
+    // the geography is the after-story's own: the sweeper meets you as you come out of the water, the bench is
+    // among the rows so that his "down past the bench" is literally true, and the clerk is at the top of the hill
+    // so that the walk to her IS the ascent. the girl on the bench is the one thing here placed for a reason
+    // nobody says out loud: she wears the same bob, in the same colour, built the same way, as the thing that came
+    // up out of the pool, so the player recognises her before the after-story ever gives her a name.
+    {
+      const fig = (dx, dz, opts) => {
+        const x = GEH.cx + dx, z = GEH.cz + dz, y = gehH(x, z);
+        const grp = new THREE.Group();
+        grp.position.set(x, y, z);
+        grp.rotation.y = opts.face === undefined ? -Math.PI / 2 : opts.face;
+        const seat = !!opts.seated, s = opts.scale || 1;
+        const body = new THREE.Mesh(new THREE.ConeGeometry(0.44 * s, (seat ? 1.05 : 1.75) * s, 7), opts.robe || M.cloth);
+        body.position.y = (seat ? 0.52 : 0.87) * s;
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.235 * s, 10, 8), M.skin);
+        head.position.y = (seat ? 1.19 : 1.92) * s;
+        grp.add(body, head);
+        if (opts.bob) {
+          const bob = new THREE.Mesh(new THREE.CylinderGeometry(0.25 * s, 0.29 * s, 0.32 * s, 14, 1, true, Math.PI * 0.12, Math.PI * 1.76), M.hair);
+          bob.position.y = head.position.y - 0.05 * s;
+          const cap = new THREE.Mesh(new THREE.SphereGeometry(0.24 * s, 12, 9, 0, Math.PI * 2, 0, Math.PI * 0.62), M.hair);
+          cap.position.y = head.position.y + 0.02 * s;
+          grp.add(bob, cap);
+        }
+        if (opts.broom) {
+          const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.9, 5), M.wood);
+          shaft.position.set(0.34, 0.95, 0.12);
+          shaft.rotation.z = 0.22;
+          const bristle = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.16, 0.14), M.pale);
+          bristle.position.set(0.56, 0.08, 0.12);
+          grp.add(shaft, bristle);
+        }
+        grp.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
+        g.add(grp);
+        return { grp, pos: V3(x, y, z) };
+      };
+      const sweeper = fig(GEH_L.sweeperX, 4.6, { robe: M.grey, broom: true, face: -2.3 });
+      const clerk = fig(GEH_L.hillX + 1.9, 0.3, { robe: M.pale, face: -Math.PI / 2 });
+      const still = fig(GEH_L.stillX, -7.6, { seated: true, face: 1.4 });
+      // the bench, and the girl on it. she faces back down the road, toward the water you came out of.
+      const bx = GEH.cx + GEH_L.benchX, bz = GEH.cz + 6.4, by = gehH(bx, bz);
+      const bench = new THREE.Group();
+      bench.position.set(bx, by, bz);
+      bench.rotation.y = Math.PI;
+      const seatTop = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.1, 0.5), M.wood);
+      seatTop.position.y = 0.46;
+      const back = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.5, 0.08), M.wood);
+      back.position.set(0, 0.76, -0.22);
+      const lg1 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.46, 0.44), M.wood);
+      lg1.position.set(-1.02, 0.23, 0);
+      const lg2 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.46, 0.44), M.wood);
+      lg2.position.set(1.02, 0.23, 0);
+      bench.add(seatTop, back, lg1, lg2);
+      bench.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
+      g.add(bench);
+      const girl = fig(GEH_L.benchX + 0.3, 6.4, { seated: true, bob: true, scale: 0.86, face: Math.PI * 0.92 });
+      girl.grp.position.y += 0.4; // sitting on the bench rather than in the ash
+      girl.pos.y += 0.4;
+      const api = window.GEHENNA;
+      if (api && typeof api.register === "function") {
+        try {
+          // the kindly one goes in FIRST, and that ordering is load-bearing rather than tidy. when the clerk calls
+          // her sister, summonKindly does register("kindly", clerkSpeaker.pos) — the SAME position, to the metre —
+          // and the after-story's nearest-speaker scan keeps the first strictly-closer candidate it meets, so on an
+          // exact tie whichever was registered earlier wins. with the clerk registered first she wins that tie for
+          // ever, the kindly one can never be selected, talkKindly never runs, state.fight never becomes true and
+          // gehSpawnKindly is never called: the encounter is unreachable and the after-story cannot be finished.
+          // measured — the clerk reaches "I'll have to call my sister" and then nothing happens, at any number of
+          // presses. registering her here parks her at a placeholder out past the bowl wall, where the player
+          // cannot physically stand (the wall climbs 1.4 m per metre from r = 150 and okMove refuses a 1.6 m step),
+          // so she is unreachable until the summons moves her onto the desk — and from that moment she is the one
+          // the tie goes to, which is exactly the intended order of events.
+          api.register("kindly", V3(GEH.cx - 150, gehH(GEH.cx - 150, GEH.cz - 150), GEH.cz - 150));
+          api.register("sweeper", sweeper.pos);
+          api.register("bench", girl.pos);
+          api.register("clerk", clerk.pos);
+          api.register("still", still.pos);
+        } catch (err) { console.error("Gehenna: a speaker would not register", err); }
+      } else console.warn("Gehenna: the after-story is not present; the world will stand, but nobody in it will speak.");
+      GEH.clerkPos = clerk.pos.clone();
+    }
+
+    g.traverse(o => { if (o.isMesh || o.isPoints) { o.castShadow = false; o.receiveShadow = false; } });
+    scene.add(g);
+    GEH.ceil = GEH.floor + DIVE_CEIL; // reconciled with the descent rather than chosen: DIVE_CEIL is where the fall stops, so it IS the ceiling, and the tallest thing built here is the hill at floor + 9, leaving twenty-five metres of headroom over it
+
+    // ---- the attached. four of them, on the road, and not one of them will hurt you.
+    for (const d of [[50, 1.6], [78, -2.2], [96, 2.4], [118, -1.4]]) gehSpawnAttached(GEH.cx + d[0], GEH.cz + d[1]);
+
+    let nodes1 = 0;
+    scene.traverse(() => nodes1++);
+    const mats = new Set();
+    scene.traverse(o => { const m = o.material; if (m) (Array.isArray(m) ? m : [m]).forEach(x => x && mats.add(x)); });
+    console.warn("Gehenna is standing. seed", GEH.seed, "| nodes", nodes0, "->", nodes1, "(+" + (nodes1 - nodes0) + ")", "| geometries", GEH.geo0, "->", renderer.info.memory.geometries, "| unique materials in the scene", mats.size);
+    if (nodes1 - nodes0 > 500) console.error("Gehenna added", nodes1 - nodes0, "scene nodes, over its budget of 500. every one of them is walked twice a frame, in the valley too.");
+    await __stage(94, "Something moves under the water…");
+  };
+
+  // ---- the attached: the ones who would not let go. they do not damage you. they take hold of you, they say a
+  // thing about upstairs, and after a few seconds they let go by themselves — so nobody ever HAS to kill one, which
+  // is exactly why killing one is possible. the after-story owns what they say, and what they say on the way down.
+  function gehSpawnAttached(x, z) {
+    if (!GEH.root || !GEH.M) return null;
+    const grp = new THREE.Group();
+    // its OWN materials, not the shared ones. the flash pass in updateExtraEnemies writes emissive on every material
+    // in a body that is not e.mat, so four bodies sharing one material would all flash when one of them was struck.
+    const cloth = new THREE.MeshStandardMaterial({ color: toLin(0x3a3430), roughness: 1, metalness: 0 });
+    const skin = new THREE.MeshStandardMaterial({ color: toLin(0x7a6a60), roughness: 1, metalness: 0 });
+    const body = new THREE.Mesh(new THREE.ConeGeometry(0.42, 1.6, 7), cloth);
+    body.position.y = 0.8;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 9, 7), skin);
+    head.position.y = 1.78;
+    const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.06, 0.95, 6), skin);
+    const armR = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.06, 0.95, 6), skin);
+    armL.position.set(-0.36, 1.32, 0.26); armR.position.set(0.36, 1.32, 0.26);
+    armL.rotation.x = armR.rotation.x = -0.5;
+    grp.add(body, head, armL, armR);
+    grp.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
+    const y = gehGroundAt(x, z, GEH.floor + 60);
+    grp.position.set(x, y, z);
+    scene.add(grp);
+    const e = {
+      nid: ++ENEMY_NID, kind: "attached", geh: true, mesh: grp, pos: V3(x, y, z), vel: V3(),
+      hp: 3, maxHp: 3, r: 0.55, state: "wait", t: 2 + Math.random() * 3, alive: true, heading: Math.random() * 6.28,
+      flash: 0, bar: makeHealthBar(), big: false, name: "One of the Attached", born: time, arms: [armL, armR]
+    };
+    EXTRA.push(e);
+    GEH.enemies.push(e);
+    return e;
+  }
+  // its whole state machine. there is no attack state in it, because it has no attack, and hurtPlayer is never
+  // reached from anywhere in this file by way of one.
+  function gehUpdateAttached(e, tgt, dx, dz, dist, dt) {
+    const local = tgt === P || tgt.pos === P.pos;
+    switch (e.state) {
+      case "wait":
+        e.mesh.rotation.z = damp(e.mesh.rotation.z, 0.12, 4, dt);
+        if (dist < 11) { e.state = "rise"; e.t = 0.9; }
+        break;
+      case "rise":
+        e.heading = Math.atan2(dx, dz);
+        e.mesh.rotation.z = damp(e.mesh.rotation.z, 0, 6, dt);
+        if (e.t <= 0) e.state = "reach";
+        break;
+      case "reach": {
+        e.heading = Math.atan2(dx, dz);
+        const d = dist || 1;
+        if (dist > 1.1 + e.r) { e.pos.x += (dx / d) * 2.6 * dt; e.pos.z += (dz / d) * 2.6 * dt; }
+        else if (local && !death) { e.state = "hold"; e.t = 4.5 + Math.random() * 1.5; e.said = false; }
+        if (dist > 26) { e.state = "wait"; e.t = 3; }
+        break;
+      }
+      case "hold": {
+        e.heading = Math.atan2(dx, dz);
+        if (dist > 2.4 + e.r || !local || death) { e.state = "let"; e.t = 2.5; break; }
+        // holding, not hitting: the body is damped nearly to a stop and a little stamina goes, and that is the whole
+        // mechanical cost. you can still swing, still block, still jump out of it, and still simply wait.
+        P.vel.x *= Math.pow(0.06, dt);
+        P.vel.z *= Math.pow(0.06, dt);
+        P.stam = Math.max(0, P.stam - dt * 5);
+        if (!e.said) { e.said = true; const a = gehSay(); if (a) { try { a.attachedBark(); } catch (err) { console.error("Gehenna: attachedBark threw", err); } } }
+        if (e.t <= 0) { e.state = "let"; e.t = 6; }
+        break;
+      }
+      case "let":
+        e.heading = Math.atan2(-dx, -dz);
+        if (dist < 9) { const d = dist || 1; e.pos.x -= (dx / d) * 1.7 * dt; e.pos.z -= (dz / d) * 1.7 * dt; }
+        if (e.t <= 0) { e.state = "wait"; e.t = 5 + Math.random() * 4; }
+        break;
+      case "stun":
+        e.pos.x += e.vel.x * dt; e.pos.z += e.vel.z * dt; e.vel.multiplyScalar(Math.pow(0.02, dt));
+        if (e.t <= 0) { e.state = "let"; e.t = 3; }
+        break;
+    }
+    resolveStructs(e.pos, 0.5);
+    e.pos.y = gehGroundAt(e.pos.x, e.pos.z, e.pos.y + 2);
+    e.mesh.position.copy(e.pos);
+    e.visH = turnToward(e.visH === undefined ? e.heading : e.visH, e.heading, dt * 6);
+    e.mesh.rotation.y = e.visH;
+    const reach = e.state === "reach" || e.state === "hold" ? -1.25 : -0.4;
+    for (const a of e.arms) a.rotation.x = damp(a.rotation.x, reach, 7, dt);
+  }
+
+  // ---- the kindly one. the after-story raises her through this, hands over her stat block, and owns every line she
+  // speaks; this file owns only her body and her swing. the fight is deliberately not hard, and it is deliberately
+  // not lethal either: a blow of hers that would drop the player takes the name and not the life, because she is not
+  // trying to kill anybody. she never has been. that is the entire problem with her.
+  window.gehSpawnKindly = function gehSpawnKindly(BOSS) {
+    if (!GEH.root || !GEH.M || !BOSS) return false;
+    if (GEH.enemies.some(e => e.kind === "kindly" && e.alive)) return true;
+    const M = GEH.M, grp = new THREE.Group();
+    const robe = new THREE.MeshStandardMaterial({ color: toLin(0x8e867a), roughness: 1, metalness: 0 });
+    const skin = new THREE.MeshStandardMaterial({ color: toLin(0x8a7c70), roughness: 1, metalness: 0 });
+    const body = new THREE.Mesh(new THREE.ConeGeometry(0.58, 2.1, 8), robe);
+    body.position.y = 1.05;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 9), skin);
+    head.position.y = 2.28;
+    const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.07, 1.1, 6), skin);
+    const armR = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.07, 1.1, 6), skin);
+    armL.position.set(-0.44, 1.6, 0.2); armR.position.set(0.44, 1.6, 0.2);
+    // the shears. she is not carrying a weapon; she is carrying the tool of a trade she is good at.
+    const bladeA = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.62, 0.1), M.iron);
+    const bladeB = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.62, 0.1), M.iron);
+    bladeA.position.set(0.52, 1.06, 0.34); bladeA.rotation.z = 0.1;
+    bladeB.position.set(0.6, 1.06, 0.34); bladeB.rotation.z = -0.1;
+    grp.add(body, head, armL, armR, bladeA, bladeB);
+    grp.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
+    const at = GEH.clerkPos || V3(GEH.cx + GEH_L.hillX, gehH(GEH.cx + GEH_L.hillX, GEH.cz), GEH.cz);
+    const x = at.x + 1.6, z = at.z - 1.2, y = gehGroundAt(x, z, GEH.floor + 60);
+    grp.position.set(x, y, z);
+    scene.add(grp);
+    const hp = Number.isFinite(BOSS.hp) ? BOSS.hp : 60;
+    const e = {
+      nid: ++ENEMY_NID, kind: "kindly", geh: true, boss: true, big: true, mesh: grp, pos: V3(x, y, z), vel: V3(),
+      hp, maxHp: hp, r: 1.0, state: "wait", t: 1.2, alive: true, heading: -Math.PI / 2, flash: 0,
+      bar: makeHealthBar(), name: "The Kindly One", born: time, arms: [armL, armR],
+      spd: Number.isFinite(BOSS.speed) ? BOSS.speed : 3.2,
+      wind: Number.isFinite(BOSS.windup) ? BOSS.windup : 0.9,
+      reach: Number.isFinite(BOSS.reach) ? BOSS.reach : 2.6,
+      dmg: Number.isFinite(BOSS.dmg) ? BOSS.dmg : 1
+    };
+    EXTRA.push(e);
+    GEH.enemies.push(e);
+    SFX.dread();
+    return true;
+  };
+  function gehUpdateKindly(e, tgt, dx, dz, dist, dt) {
+    const api = gehSay(), fighting = !!(api && api.fight);
+    // she stands where she was raised until the player has actually spoken to her, because the after-story starts
+    // the fight from inside her own dialogue, and a boss who opens with a swing has had that conversation for you.
+    if (!fighting) {
+      e.state = "wait";
+      e.mesh.position.copy(e.pos);
+      e.mesh.rotation.y = e.heading;
+      return;
+    }
+    if (api) { try { api.bossBeat(e.hp / e.maxHp); } catch (err) { console.error("Gehenna: bossBeat threw", err); } }
+    switch (e.state) {
+      case "wait": e.state = "walk"; e.t = 0; break;
+      case "walk": {
+        e.heading = Math.atan2(dx, dz);
+        const d = dist || 1;
+        if (dist > e.reach + e.r - 0.6) { e.pos.x += (dx / d) * e.spd * dt; e.pos.z += (dz / d) * e.spd * dt; }
+        else { e.state = "windup"; e.t = e.wind; e.hitDone = false; if (dist < 40) SFX.tone(260, 700, 0.55, 0.1, "triangle"); }
+        break;
+      }
+      case "windup":
+        e.heading = Math.atan2(dx, dz);
+        if (e.t <= 0) { e.state = "strike"; e.t = 0.3; }
+        break;
+      case "strike":
+        if (!e.hitDone && e.t < 0.2 && dist < e.reach + e.r && Math.abs(tgt.pos.y - e.pos.y) < 4) {
+          e.hitDone = true;
+          SFX.tone(900, 300, 0.18, 0.12, "square");
+          // the non-lethal clause. if the blow would take the last of the player, the name is still taken and the
+          // life is not: threadHit is what her swing is FOR, and hurtPlayer only ever carried it as a passenger.
+          if (P.hp > e.dmg + 0.01) enemyStrike(e, e.dmg, tgt, 0.7);
+          else if (api) { try { api.threadHit(); } catch (err) { console.error("Gehenna: threadHit threw", err); } }
+        }
+        if (e.t <= 0) { e.state = "recover"; e.t = 1.1; }
+        break;
+      case "recover": if (e.t <= 0) e.state = "walk"; break;
+      case "stun": e.pos.x += e.vel.x * dt; e.pos.z += e.vel.z * dt; e.vel.multiplyScalar(Math.pow(0.02, dt)); if (e.t <= 0) e.state = "walk"; break;
+    }
+    resolveStructs(e.pos, 0.9);
+    e.pos.y = gehGroundAt(e.pos.x, e.pos.z, e.pos.y + 2);
+    e.mesh.position.copy(e.pos);
+    e.visH = turnToward(e.visH === undefined ? e.heading : e.visH, e.heading, dt * (e.state === "windup" ? 9 : 4));
+    e.mesh.rotation.y = e.visH;
+    const raise = e.state === "windup" ? -2.1 : e.state === "strike" ? 0.5 : -0.3;
+    for (const a of e.arms) a.rotation.x = damp(a.rotation.x, raise, 9, dt);
+  }
+
+  // ---- the frame hook. it drives the after-story's own clock, and it owns the teardown, on one rule: whenever
+  // gehenna exists and the player is provably not in it and not falling toward it, it comes down. that single rule
+  // covers leaving, dying, loading a save, being recovered from an impossible position, and any future way out,
+  // instead of one careful exit path for each case.
+  function updateGehenna(dt, rdt) {
+    if (!GEH.root) return;
+    if (P.gehDive) return;
+    // GEHENNA.tick stops dead the moment GEH.root goes, and its closing beat is the sound of the valley heard from
+    // OUTSIDE — crickets, on the first breath of air. so the root is what waits for it: fourteen seconds of grace
+    // once the after-story is finished, two seconds otherwise, and then the world comes down either way.
+    const api = gehSay();
+    if (api) { try { api.tick(dt); } catch (err) { console.error("Gehenna: the after-story tick threw", err); } }
+    if (P.pos.y >= DIVIDE) {
+      GEH.away = (GEH.away || 0) + rdt;
+      if (GEH.away > (api && api.done ? 14 : 2)) gehTeardown("the player is no longer under the seam");
+      return;
+    }
+    GEH.away = 0;
+    GEH.exitArm += rdt;
+    // the six light slots follow the six nearest lamps. ten candidates, no allocation, and no touching of the global
+    // vlights array, which updateLightPool already filters and fully sorts on every frame of the game.
+    if (GEH.lampPos && GEH.lampPos.length) {
+      const cam = camera.position;
+      for (const L of GEH.lampPos) L.d2 = (L.x - cam.x) * (L.x - cam.x) + (L.y - cam.y) * (L.y - cam.y) + (L.z - cam.z) * (L.z - cam.z);
+      gehTick++;
+      for (let s = 0; s < GEH_LAMPS.length; s++) {
+        let best = null, bd = 1e18;
+        for (const L of GEH.lampPos) { if (L.used === gehTick || L.d2 >= bd) continue; bd = L.d2; best = L; }
+        if (!best) { GEH_LAMPS[s].intensity = 0; continue; }
+        best.used = gehTick;
+        GEH_LAMPS[s].position.copy(best);
+        GEH_LAMPS[s].intensity = 2.4 + Math.sin(time * 3.1 + s) * 0.25;
+      }
+    }
+    if (GEH.motes) { GEH.motes.position.set(P.pos.x, GEH.floor - 2, P.pos.z); GEH.motes.rotation.y = time * 0.026; }
+    if (GEH.ledger) GEH.ledger.position.y = 1.03 + Math.sin(time * 1.3) * 0.008;
+    gehSaidT -= rdt;
+    if (gehSaidT > 0) return;
+    gehSaidT = 0.5;
+    // the held note. updateAmbience hands gehenna silence, so this is the only sound the place makes for itself.
+    GEH.noteT = (GEH.noteT || 4) - 0.5;
+    if (GEH.noteT <= 0) { GEH.noteT = 11 + Math.random() * 7; SFX.tone(44, 38, 3.6, 0.055, "sine", 0, 260); }
+    // the one line this file says, and it is a control rather than a mood: nothing else in the game tells the player
+    // how to leave, and without it they are standing in a world with no door. it waits out the arrival conversation.
+    if (!GEH.hinted && GEH.exitArm > 26 && gehInShallows() && !(api && api.fight)) {
+      GEH.hinted = true;
+      say("The water still knows which way is up. Press E while you are standing in it.", 6000, true, "geh");
+    }
+  }
+  // the way back. it does not tear anything down itself: it puts the body on the rim and lets the rule above do it,
+  // so there is exactly ONE teardown path in this file, and it is the same one that runs on a death or a load.
+  function gehAscend() {
+    if (!GEH.root || P.gehDive) return;
+    const rx = POOL.x + 10.5, rz = POOL.z;
+    P.pos.set(rx, groundAt(rx, rz, 1e9) + 0.05, rz);
+    P.vel.set(0, 0, 0);
+    P.grounded = true;
+    P.jumps = 0;
+    P.swim = false;
+    P.swimVol = null;
+    P.air = 100;
+    P.sliding = false;
+    P.dive = false;
+    P.airSlash = null;
+    P.climb = null;
+    visY = P.pos.y;
+    lastSafePos.copy(P.pos);
+    SFX.gasp();
+    ripple(POOL.x, POOL.z, 2.4);
+  }
+  // take it all back down again: every node, every geometry, every material, the four attached, her, their health
+  // bars and their attack-tell rings — the last two of which live on the SCENE rather than on the root, which is
+  // precisely the sort of thing that makes a "one root group" claim quietly untrue.
+  function gehTeardown(why) {
+    if (!GEH.root) return;
+    let before = 0;
+    scene.traverse(() => before++);
+    // the after-story first, and before anything is disposed: its prompt sprites are parented to GEH.root, and
+    // reset() is what takes them out again. a sprite left in that tree would be handed to disposeTree, and every
+    // Sprite in three.js shares one module-level geometry.
+    const api = gehSay();
+    if (api) { try { api.reset(); } catch (err) { console.error("Gehenna: the after-story would not reset", err); } }
+    for (const e of GEH.enemies || []) {
+      const i = EXTRA.indexOf(e);
+      if (i >= 0) EXTRA.splice(i, 1);
+      removeEnemy(e);
+      e.alive = false;
+    }
+    GEH.enemies = [];
+    // allEnemies() memoises its concatenation for the whole of one updateTick, and this runs from inside update().
+    // any later caller in the same frame — updateEnemyTells and the attack-tell pass are both after it — would get a
+    // list still holding bodies whose bar and tell have just been nulled, and updateAttackTell would build a fresh
+    // ring for each and add it straight to the scene. that is a node leak and a resurrection in one line.
+    enemiesTick = -1;
+    scene.remove(GEH.root);
+    try { disposeTree(GEH.root); } catch (err) { console.warn("Gehenna: part of the tree would not dispose", err); }
+    for (const m of GEH.mats || []) { try { m.dispose(); } catch (_) {} }
+    GEH.mats = [];
+    GEH.root = null;
+    GEH.M = null;
+    GEH.structs.clear();
+    GEH.lampPos = [];
+    GEH.motes = null;
+    GEH.water = null;
+    GEH.ledger = null;
+    GEH.clerkPos = null;
+    for (const L of GEH_LAMPS) L.intensity = 0;
+    gehK = 0;
+    let after = 0;
+    scene.traverse(() => after++);
+    console.warn("Gehenna came down —", why, "| nodes", before, "->", after, "| pre-descent was", GEH.nodes0, after === GEH.nodes0 ? "(exactly back)" : "(a difference of " + (after - GEH.nodes0) + ")", "| geometries", renderer.info.memory.geometries, "(was", GEH.geo0, "before the build)");
+  }
+
   // the goblin camp in the wood: made from the saved count, so a reload rebuilds exactly what was left of it
   function makeGoblinCamp() {
     if (goblins.some(g => g.camp)) return;
@@ -15247,6 +15971,10 @@ const __boot = (async () => {
   // resolve the nearest available conversation, pickup, bed or quest action
   function interact() {
     if ((P.interactCd || 0) > 0) return; // a moment between pickups: items and fairies are taken one by one
+    // the way back up has to be tested BEFORE the after-story, because GEH_SCRIPT.interact() returns true for every
+    // single press made under the seam whether or not anybody was standing there — deliberately, so that no valley
+    // interaction can reach down here. the water is the one thing in gehenna that is not a conversation.
+    if (gehInShallows() && GEH.exitArm > 3 && !(GEH_SCRIPT && GEH_SCRIPT.fight)) { gehAscend(); return; }
     if (GEH_SCRIPT && GEH_SCRIPT.interact()) return; // below the seam nothing in the valley is within reach
     // the stone no longer asks you to choose. there are no three endings: you killed a girl who could not let go, and
     // what is left to do is carry her out of the water and put her in the ground. the stone just says so.
@@ -16008,7 +16736,7 @@ const __boot = (async () => {
       grant("Rose Compass: a pink arrow to the nearest lost child (click it in the satchel to wake it)", () => {});
       say("Queen Rosabel: You have brought ten of them home. Take my compass; it aches toward whichever child is nearest.", 6500, true, "fairy");
     }
-    { const rest = FAIRY.compass && roseOn && !roomNow ? FAIRY.children.filter(c => !c.found).sort((a, b) => dist2D(a.pos, P.pos) - dist2D(b.pos, P.pos))[0] : null;
+    { const rest = FAIRY.compass && roseOn && !roomNow && P.pos.y > DIVIDE ? FAIRY.children.filter(c => !c.found).sort((a, b) => dist2D(a.pos, P.pos) - dist2D(b.pos, P.pos))[0] : null;
       roseGuide.visible = !!rest && !near(rest.pos, 6);
       if (roseGuide.visible) { const want = Math.atan2(rest.pos.x - P.pos.x, rest.pos.z - P.pos.z); roseA += clamp(wrapAngle(want - roseA), -dt * 5, dt * 5); roseGuide.position.set(P.pos.x, visY + 5.3, P.pos.z); roseGuide.rotation.set(0, roseA, 0); roseGuide.rotateX(-clamp(Math.atan2(rest.pos.y - (visY + 5.3), Math.max(1, dist2D(rest.pos, P.pos))), -1, 1)); } }
     const q = FAIRY.queen,
@@ -16161,7 +16889,7 @@ const __boot = (async () => {
     sun.color.copy(moon ? SD.moon : toLin(0xffb070).lerp(toLin(0xffe9c4), sstep(0, 0.45, dayElev)));
     hemi.intensity = (0.18 + 0.72 * day) * (1 - interiorK * 0.7) * (1 - caveK * 0.75);
     hemi.color.copy(top).lerp(toLin(0xd8c8ff), 0.45);
-    hemi.groundColor.copy(toLin(0x9a7a4a).lerp(toLin(0x5a4a3a), 1 - day));
+    hemi.groundColor.copy(toLin(0x9a7a4a).lerp(toLin(0x5a4a3a), 1 - day)); // the only write to it in the file; the deep grade below leans on that
     ambient.intensity = (0.04 + 0.06 * day) * (1 - interiorK) + interiorK * 0.22 + caveK * 0.1;
     ambient.color.copy(toLin(0xffffff).lerp(toLin(0xffc890), Math.max(interiorK, caveK * 0.8)));
     sun.intensity *= (1 - interiorK * 0.85) * (1 - caveK * 0.9);
@@ -16170,17 +16898,31 @@ const __boot = (async () => {
     // black water reads as fog you cannot see through rather than as an unlit room: the distance collapses, the colour
     // goes to almost nothing, and every light in the scene is cut by one factor instead of each being special-cased.
     if (deepK > 0.001) {
-      scene.fog.near = lerp(scene.fog.near, 1.2, deepK);
-      scene.fog.far = lerp(scene.fog.far, 24, deepK);
-      scene.fog.color.lerp(toLin(0x03060a), deepK * 0.96);
-      hemi.intensity *= 1 - deepK * 0.9;
-      hemi.color.lerp(toLin(0x16303e), deepK * 0.85);
-      ambient.intensity = ambient.intensity * (1 - deepK) + 0.17 * deepK;
+      // two destinations share this block now, blended by gehK: black water, where you can see a metre and a half
+      // and everything is switched off; and gehenna, where you can see a hundred and ten and everything is switched
+      // UPSIDE DOWN. the second is the whole visual idea of the place — the hemisphere light's ground half is an
+      // ember and its sky half is nearly nothing, so every figure down there is lit under the chin, which is how a
+      // face has looked wrong since somebody first held a candle under one. no shader, no second pass, four lines.
+      scene.fog.near = lerp(scene.fog.near, lerp(1.2, 7, gehK), deepK);
+      scene.fog.far = lerp(scene.fog.far, lerp(24, 110, gehK), deepK);
+      _gehFog.copy(GEH_FOG_WATER).lerp(GEH_FOG_ASH, gehK);
+      scene.fog.color.lerp(_gehFog, deepK * 0.96);
+      hemi.intensity *= 1 - deepK * (0.9 - gehK * 0.5);
+      hemi.color.lerp(toLin(0x16303e), deepK * 0.85 * (1 - gehK));
+      hemi.color.lerp(GEH_HEMI_SKY, deepK * gehK);
+      hemi.groundColor.lerp(GEH_HEMI_GND, deepK * gehK);
+      ambient.intensity = ambient.intensity * (1 - deepK) + (0.17 + gehK * 0.06) * deepK;
       ambient.color.lerp(toLin(0x3a2026), deepK * 0.9);
-      sun.intensity *= 1 - deepK * 0.95;
+      sun.intensity *= 1 - deepK * 0.95 - gehK * deepK * 0.049; // and the sun is gone: there is no sun down there
       sky.material.uniforms.top.value.multiplyScalar(1 - deepK * 0.97);
       sky.material.uniforms.horizon.value.multiplyScalar(1 - deepK * 0.97);
       sky.material.uniforms.sunCol.value.multiplyScalar(1 - deepK * 0.99);
+      if (gehK > 0.001) {
+        // near-black overhead and an ember on the horizon, painted back INTO the dome the two lines above just took
+        // to nothing. it is the same dome, the same shader and the same two uniforms the valley's sky uses.
+        sky.material.uniforms.top.value.lerp(GEH_SKY_TOP, gehK * deepK);
+        sky.material.uniforms.horizon.value.lerp(GEH_SKY_HOR, gehK * deepK);
+      }
     }
     sunMesh.position.copy(camera.position).addScaledVector(sunDir, graphics.far * 0.85);
     sunMesh.visible = dayElev > -0.15;
@@ -16260,6 +17002,11 @@ const __boot = (async () => {
       day = sstep(0.02, 0.2, dayElev),
       night = 1 - sstep(-0.05, 0.1, dayElev),
       sp = hspeed();
+    // under the seam there is no weather and nothing with leaves on it. every emitter in this function is sited from
+    // valley coordinates that are now three hundred metres overhead, and every audio bed in it is keyed to a
+    // heightfield answering for the moor; petals in particular passed their h > 1.5 test and drifted through
+    // gehenna. it gets held silence instead, and its own low note from updateGehenna.
+    if (P.pos.y < DIVIDE) { SFX.ambience(0, 0, 0, 0, dt); Music.update(0, true, false, false); return; }
     let fallsV = 0;
     for (const w of waterfalls) {
       const d = dist2D(w.bot, P.pos);
@@ -16749,10 +17496,14 @@ const __boot = (async () => {
       const e = EXTRA[i];
       // the corpse fade is guarded on e.mat now: any EXTRA kind without one threw a TypeError from inside update() on
       // every frame of its own body, which takes the whole game down rather than the one enemy.
-      if (!e.alive) { e.t += dt; if (e.kind === "wolf") { e.mesh.rotation.z = lerp(e.mesh.rotation.z, 1.5, Math.min(1, dt * 3)); e.mesh.position.y = e.pos.y - Math.max(0, e.t - 6) * 0.3; } else if (e.mat) { e.mat.opacity = Math.max(0, 0.55 - e.t * 0.5); } if (e.t > 8 || (e.wraith && e.t > 1.5)) { removeEnemy(e); if (e.den) e.den.wolves = e.den.wolves.filter(w => w !== e); EXTRA.splice(i, 1); } continue; }
+      // the gehenna branch is not decoration: neither kind carries an e.mat, so without a case of their own they
+      // fell through to the wraith fade, which does nothing without a material, and then lay on the ash for eight
+      // seconds. they deliberately have no SHARED material either — a shared one would have faded all four of the
+      // attached at once, because the flash pass below writes emissive on every material that is not e.mat.
+      if (!e.alive) { e.t += dt; if (e.kind === "wolf") { e.mesh.rotation.z = lerp(e.mesh.rotation.z, 1.5, Math.min(1, dt * 3)); e.mesh.position.y = e.pos.y - Math.max(0, e.t - 6) * 0.3; } else if (e.kind === "attached" || e.kind === "kindly") { e.mesh.rotation.z = lerp(e.mesh.rotation.z, 1.45, Math.min(1, dt * (e.kind === "kindly" ? 0.9 : 2.2))); e.mesh.position.y = e.pos.y - Math.max(0, e.t - (e.kind === "kindly" ? 6 : 1.6)) * 0.5; } else if (e.mat) { e.mat.opacity = Math.max(0, 0.55 - e.t * 0.5); } if (e.t > 8 || (e.wraith && e.t > 1.5) || (e.kind === "attached" && e.t > 4)) { removeEnemy(e); if (e.den) e.den.wolves = e.den.wolves.filter(w => w !== e); EXTRA.splice(i, 1); } continue; }
       const tgt = nearestPlayerTo(e.pos), dx = tgt.pos.x - e.pos.x, dz = tgt.pos.z - e.pos.z, dist = Math.hypot(dx, dz);
       e.t -= dt; e.flash = Math.max(0, e.flash - dt);
-      if (e.wraith) updateWraith(e, tgt, dx, dz, dist, dt); else if (e.kind === "wolf") updateWolf(e, tgt, dx, dz, dist, dt);
+      if (e.wraith) updateWraith(e, tgt, dx, dz, dist, dt); else if (e.kind === "wolf") updateWolf(e, tgt, dx, dz, dist, dt); else if (e.kind === "attached") gehUpdateAttached(e, tgt, dx, dz, dist, dt); else if (e.kind === "kindly") gehUpdateKindly(e, tgt, dx, dz, dist, dt);
       e.mesh.traverse(o => { if (o.isMesh && o.material.emissive && o.material !== e.mat) o.material.emissive.setHex(e.flash > 0 ? 0xffffff : 0); });
       updateHealthBar(e, e.kind === "wolf" ? 1.8 : e.warden ? 7 : 3);
     }
@@ -16927,6 +17678,7 @@ const __boot = (async () => {
   // wolf dens: two, in the wild; each keeps a pack of three that returns a few minutes after it is killed
   function updateWolfDens(dt) {
     if (netGuest()) return;
+    if (P.pos.y < DIVIDE) return; // the same guard updateWraithSpawns has: the respawn test is 2D, and a den 60-400 m from (600, 600) would restock the valley while you are under it
     for (const den of WOLF_DENS) {
       if (den.cleared) continue;
       if (den.wolves.length === 0) { den.respawn = (den.respawn || 0) - dt; if (den.respawn <= 0 && dist2D(den, P.pos) > 60 && dist2D(den, P.pos) < 400) { den.respawn = 240; for (let k = 0; k < 3; k++) { const a = (k / 3) * 6.28; const wx = den.x + Math.cos(a) * 3, wz = den.z + Math.sin(a) * 3; if (inBounds(wx, wz) && !isWater(wx, wz)) spawnWolf(wx, wz, den); } } }
@@ -17352,6 +18104,9 @@ const __boot = (async () => {
             ? clamp((P.swimVol.rest - 0.35 - P.pos.y) / 3, 0, 0.45)
             : 0;
       deepK = lerp(deepK, want, Math.min(1, rdt * 3));
+      // and a second scalar beside it: 1 while the player is STANDING in gehenna rather than falling through water
+      // toward it. deepK alone cannot tell those apart, and they want opposite fog and opposite lighting.
+      gehK = lerp(gehK, !P.gehDive && !!GEH.root && P.pos.y < DIVIDE ? 1 : 0, Math.min(1, rdt * 2));
     }
     for (const l of CAVE_LIGHTS) l.intensity = 0.25 + caveK * 2.2;
     updateHallGuard();
@@ -17393,6 +18148,7 @@ const __boot = (async () => {
     updateHomeShelf();
     updateWolfDens(dt);
     updateWraithSpawns(dt);
+    updateGehenna(dt, rdt);
     if (custOpen) {
       if (!custWren || dist2D(custWren.pos, P.pos) > 5) closeCustomizer();
       P.vel.x = P.vel.z = 0;
@@ -17459,7 +18215,10 @@ const __boot = (async () => {
     const wantSlide = (!!keys.x || (!!keys.control && !!document.fullscreenElement)) && slideGround && !P.atk && !P.swim; // ctrl only slides in fullscreen (where chrome locks it); a browser can close its tab on ctrl+w otherwise
     if (P.grounded) P.slideJump = P.sliding;
     P.sliding = !!(P.atk && P.atk.motion.sweep && P.atk.t < 0.38) || (wantSlide && (P.sliding ? hspeed() > 1.5 : hspeed() > 3));
-    const grad = gradAt(P.pos.x, P.pos.z),
+    // gradAt samples terrainH four times and has exactly this one call site, so it is routed here rather than being
+    // given a depth branch of its own. without it the slope of the moor three hundred metres above your head sets
+    // your cruise speed, your slide acceleration and your uphill drag while you walk on gehenna's ash.
+    const grad = P.pos.y < DIVIDE ? gehGradAt(P.pos.x, P.pos.z) : gradAt(P.pos.x, P.pos.z),
       hv = V3(P.vel.x, 0, P.vel.z);
     let sp = hv.length();
     const dir = sp > 0.1 ? hv.clone().divideScalar(sp) : fwd(),
@@ -17732,7 +18491,11 @@ const __boot = (async () => {
       // the sea's test is the old one, untouched: the valley's lakes and rivers are deep where the heightfield says
       // so. a registered volume carries its own answer instead, which is how a basin sunk into a hillside twelve
       // metres above the waterline can hold water you swim in.
-      deepHere = vol0.sea ? terrainH(P.pos.x, P.pos.z) < DEEP && g < DEEP : g < vol0.top - 0.35;
+      // the seam term is not belt and braces. the sea branch is the one that runs down here (swimVolAt skips every
+      // registered volume once y is below its floor), g is gehenna's floor at about -280 and is therefore
+      // comfortably under DEEP, and the ONLY thing between the player and a permanent forced swim on dry ash is
+      // that terrainH(600, 600) happens to answer about forty. that is a coincidence of siting, not a design.
+      deepHere = P.pos.y > DIVIDE && (vol0.sea ? terrainH(P.pos.x, P.pos.z) < DEEP && g < DEEP : g < vol0.top - 0.35);
     P.noSwim = Math.max(0, (P.noSwim || 0) - rdt);
     if (deepHere && !P.gehDive && P.pos.y <= vol0.enter && !(P.noSwim > 0 && P.vel.y > 0)) {
       // deep water: swim
@@ -17917,7 +18680,7 @@ const __boot = (async () => {
               ? tracked.target()
               : tracked.giver.pos
             : objectives[st] && objectives[st].target ? objectives[st].target() : [king.pos, hermitPos, null, null, hermitPos, flintPos, lighthousePos, king.pos][st] || null;
-      guide.visible = arrowOn && !!tgt && !near(tgt, 8) && !roomNow;
+      guide.visible = arrowOn && !!tgt && !near(tgt, 8) && !roomNow && P.pos.y > DIVIDE; // nothing it could point at is in this world, and it would tip sixty degrees into the ceiling trying
       if (guide.visible) {
         // const want = guideStep(tgt); // the route search is switched off: the arrow points straight at the goal, walls or no walls
         const want = Math.atan2(tgt.x - P.pos.x, tgt.z - P.pos.z);
@@ -17963,7 +18726,10 @@ const __boot = (async () => {
       say(route.name + ": " + route.tip, 6000, true);
     }
     updatePlaceNames(onElder, rr, inKeep, route);
-    if (!lastSettlement) {
+    // every name below is wrong under the seam: (600, 600) is inside the map's own bounds, so the rim test fires
+    // (600 > 800 * 0.74) and the settlement, tree and altitude tests all have opinions about a place overhead.
+    if (P.pos.y < DIVIDE) showPlace("Gehenna");
+    else if (!lastSettlement) {
       if (route) showPlace(route.name);
       else if (onElder) showPlace(P.pos.y > ELDER.h + 100 ? "The Crown of the Elder Tree" : "The Elder Tree");
       else if (dist2D(P.pos, ELDER) < 70) showPlace("Roots of the Elder Tree");
@@ -18274,6 +19040,9 @@ const __boot = (async () => {
   }
   function drawHUD() {
     { const hl = heroLevel(); if (hl !== shownLevel) { shownLevel = hl; showHeroName(); } }
+    // the valley's map has nothing true to say about a place underneath it. it would recentre on the south-east rim
+    // and paint your arrow onto grass you are two hundred and eighty metres below. it goes away, and comes back.
+    mm.style.opacity = P.pos.y < DIVIDE ? 0 : "";
     const n = mm.width,
       big = mm.classList.contains("big"),
       VIEW = 380; // metres shown across the small map
