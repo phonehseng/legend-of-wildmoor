@@ -1,7 +1,7 @@
-# Legend of Peanits
+# legend of peanits
 
-A single-file browser action RPG set in Wildmoor and Gehenna.
+a one-file browser action rpg set in wildmoor and gehenna.
 
-Download [legend_of_peanits_v2.24.0.html](legend_of_peanits_v2.24.0.html), then open the saved file in a browser. No build step is required.
+download [legend_of_peanits_v2.24.0.html](legend_of_peanits_v2.24.0.html) and open it in a browser. no install or build step.
 
-[Latest update and screenshots](docs/updates/2.24.0.md) · [Full changelog](CHANGELOG.md) · [Verification notes](docs/QA_2.24.0.md)
+[what changed + screenshots](docs/updates/2.24.0.md) · [changelog](CHANGELOG.md) · [test notes](docs/QA_2.24.0.md)
