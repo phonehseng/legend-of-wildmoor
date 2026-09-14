@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.9.2</title>
+<title>Legend of Peanits 2.9.3</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -378,7 +378,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.9.2</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.9.3</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -446,7 +446,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.9.2</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.9.3</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -857,7 +857,7 @@ const __boot = (async () => {
     drownedChapel: { name: "The Drowned Chapel", r: 22 },
     hollow: { name: "The Hollow", r: 16 },
     wolfDen: { name: "The Wolf Den", r: 20 },
-    emptyChurch: { name: "The Abandoned Church", r: 13 } // 26 fired the rook flush sixteen metres before the porch, through a wall
+    emptyChurch: { name: "The Abandoned Church", r: 13 } // the church overrides this r when it knows how long its own flight of steps came out
   };
   const DISC_FOUND = new Set();
   const RELIC_SPOTS = {}; // where the relics lie, filled in as the world is built
@@ -9708,51 +9708,108 @@ const __boot = (async () => {
     }
   }
   // ============================================================ the abandoned church
-  // older than the kingdom, emptied on purpose, and still standing. it sits on the apron outside the walls — far
-  // enough out that the plateau has stopped holding the ground flat, near enough that you can see the banners from
-  // its porch. nothing here was sacked. everything portable was carried out carefully by people who knew which end
-  // was heavy, and then the door was left open. that is the difference the whole building is making: a robbed place
-  // looks angry, an abandoned one looks tidy.
+  // older than the kingdom, emptied on purpose, and still standing. it sits well out on the apron — far enough that
+  // the plateau has stopped holding the ground flat, near enough that you can still make out the kingdom's banners
+  // from the top of its steps. nothing here was sacked. everything portable was carried out carefully by people who
+  // knew which end was heavy, and then the door was left open. that is the difference the whole building is making:
+  // a robbed place looks angry, an abandoned one looks tidy.
   // it is built HERE, after the last pickup with an implicit id, because addPickup's id is "type:index" — insert a
   // pickup anywhere earlier and every id after it shifts by one, and an old save restores the wrong things as taken.
+  //
+  // a cross-shaped plan was considered and rejected. the arms would be axis-aligned like everything else here, so
+  // the colliders are buildable — but `interiors` holds exactly ONE rectangle per room, and a transept sticks out of
+  // it. either the room box swells to cover ground that is plainly outdoors, which puts stone footsteps and the
+  // indoor grade on open grass, or the church becomes two rooms and every "which room am I in" test in the game has
+  // to choose between them. and a plan cross only reads from above, which is the one place the player never is. the
+  // cross on the west front does the job the plan cross cannot: seven and a half metres of it in relief over the
+  // door, and four more standing free on the gable apex at twenty-three metres, in silhouette against the sky.
   {
-    const CW = 5.2, // interior half-width  (10.4 m across the nave)
-      CD = 9.6, // interior half-depth  (19.2 m altar to door)
-      CT = 0.55, // half the wall thickness
-      WH = 6.2; // wall head above the floor
-    // the ring scan is the same shape as the pool's and the cave's. the band is 96..122 on purpose: the river tracer's
-    // own reject test refuses to lay a channel inside r = 125, so nothing in this band can be running water, and the
-    // plateau lerp inside terrainH is still damping the ground out here, so gentle sites are plentiful.
-    const site = (() => {
+    const CW = 7.4, // interior half-width: 14.8 m across, 8.6 m of it open nave and a 2.1 m aisle behind each arcade
+      CD = 14.4, // interior half-depth: 28.8 m from the altar wall to the door
+      CT = 0.6, // half the wall thickness. 1.2 m of masonry is what holds up a thirteen-metre wall
+      WH = 13.2, // wall head above the church floor
+      PX = 9.9, // plinth half-extents: 1.3 m of walkable apron beyond the 8.6 and 15.6 m wall faces
+      PZ = 16.9;
+
+    // ---- where it goes ----
+    // the river tracer refuses to lay a channel inside r = 125, and that reject test is the whole reason the old
+    // 96..122 band was dry by construction. this building stands further out, so the guarantee is gone and the
+    // dryness has to be earned instead.
+    // riverDist cannot earn it, and not for the reason you would guess. riverAt reads exactly one 24 m grid cell and
+    // riverRegister only pads a segment's bbox by 8 m, so no segment beyond 8 m is even reachable from a query. but
+    // it is worse than short-sighted: riverAt's width argument is dead code. every segment riverRegister writes
+    // carries its own w (3.4 m, or 4 m at a fall), and `d < (sg.w || w)` always takes sg.w — so riverDist's 40 is
+    // never read, and riverDist returns at most 4 or else 1e9. `riverDist(x, z) < 26` was the same predicate as
+    // isWater(x, z), on the same point, and the old site test ran both. two honest tests replace it below.
+    const chanSegs = [];
+    for (const pts of RIVERS) {
+      const ch = pts.chain || pts;
+      for (let i = 0; i + 1 < ch.length; i++) chanSegs.push([ch[i].x, ch[i].z, ch[i + 1].x, ch[i + 1].z]);
+    }
+    // exact distance to the nearest river centreline. no grid, no padding, no reach limit: every segment, every call.
+    const chanNear = (x, z) => {
+      let d2 = 1e18;
+      for (let i = 0; i < chanSegs.length; i++) {
+        const s = chanSegs[i],
+          dx = s[2] - s[0],
+          dz = s[3] - s[1],
+          l2 = dx * dx + dz * dz || 1,
+          t = clamp(((x - s[0]) * dx + (z - s[1]) * dz) / l2, 0, 1),
+          px = s[0] + dx * t - x,
+          pz = s[1] + dz * t - z,
+          q = px * px + pz * pz;
+        if (q < d2) d2 = q;
+      }
+      return Math.sqrt(d2);
+    };
+    // a 2 m sweep of isWater over the whole footprint and a margin. the narrowest channel the tracer registers is
+    // 3.4 m wide, so no point inside a channel can be further than 1.42 m from a lattice sample: a river cannot
+    // cross this rectangle without one of these landing in it. lakes fall out of the same call, via the waterline.
+    const dryFootprint = c => {
+      for (let lx = -12; lx <= 12; lx += 2)
+        for (let lz = -23; lz <= 23; lz += 2) {
+          const px = c.x + c.cc * lx + c.ss * lz,
+            pz = c.z - c.ss * lx + c.cc * lz;
+          if (isWater(px, pz)) return false;
+        }
+      return true;
+    };
+    // one ring scan, run twice. the user asked for the same direction, further out — and the only way to know which
+    // direction that is on a seed nobody has played is to go and ask the old search what it would have picked. so
+    // the first call is the old search, verbatim: the old band, the old plan, the old six probes, the old limits.
+    // its bearing then becomes a wedge the real search has to stay inside.
+    const findSite = o => {
       let best = null;
-      for (let a = 0; a < 6.283; a += 0.07)
-        for (let r = 96; r <= 122; r += 3) {
+      for (let a = 0; a < 6.283; a += 0.07) {
+        if (o.aim !== null && Math.abs(Math.atan2(Math.sin(a - o.aim), Math.cos(a - o.aim))) > 0.42) continue;
+        for (let r = o.r0; r <= o.r1; r += 3) {
           const x = Math.cos(a) * r,
             z = Math.sin(a) * r,
             h = terrainH(x, z);
           if (!inBounds(x, z) || h < 3.5 || h > 30) continue;
-          if (pathDist(x, z) < 26 || riverDist(x, z) < 26 || isWater(x, z)) continue; // off both roads, off every channel, out of the wet
-          if (slopeAt(x, z) > 1.4) continue; // about twelve centimetres of fall per metre: level enough that the plinth is a plinth and not a cliff
-          if (!treeFree(x, z, 20) || insideInterior(x, z, 4)) continue; // twenty metres clears the eleven-metre plan diagonal twice over
+          if (pathDist(x, z) < 26 || isWater(x, z)) continue; // off both roads and out of the wet
+          if (o.deep && chanNear(x, z) < 34) continue; // sixteen clear metres beyond the furthest stone, measured not guessed
+          if (slopeAt(x, z) > o.slope) continue; // the local tilt. `rough`, measured across the real footprint below, is the test that actually governs a building this long
+          if (!treeFree(x, z, o.tree) || insideInterior(x, z, 4)) continue;
           if (Math.hypot(x - POOL.x, z - POOL.z) < 45) continue;
           if (Math.hypot(x - ELDER.x, z - ELDER.z) < 90) continue;
           if (typeof CAVE !== "undefined" && CAVE && Math.hypot(x - CAVE.x, z - CAVE.z) < 60) continue;
           if (Math.hypot(x - lighthousePos.x, z - lighthousePos.z) < 45) continue;
           if (Math.hypot(x - hermitPos.x, z - hermitPos.z) < 45) continue;
           if (villages.some(v => Math.hypot(v.center.x - x, v.center.z - z) < 90)) continue;
-          // quarter turns only. resolveStructs has no rotation field at all, so any other angle would need its wall
-          // colliders approximated by axis-aligned boxes, and you would feel that walking the length of the nave.
+          // quarter turns only. resolveStructs has no rotation field at all, so any other angle would need every
+          // wall collider approximated by axis-aligned boxes, and you would feel that walking the length of the nave.
           const yaw = Math.round(Math.atan2(-x, -z) / (Math.PI / 2)) * (Math.PI / 2),
             cc = Math.round(Math.cos(yaw)),
             ss = Math.round(Math.sin(yaw));
           // measure the footprint that is actually going to be built, not a circle drawn around it
           let rough = 0,
             blocked = false;
-          for (const [lx, lz] of [[CW + CT, CD + CT], [-(CW + CT), CD + CT], [CW + CT, -(CD + CT)], [-(CW + CT), -(CD + CT)], [0, CD + CT + 4], [0, -(CD + CT)]]) {
+          for (const [lx, lz] of o.probes) {
             const px = x + cc * lx + ss * lz,
               pz = z - ss * lx + cc * lz;
             rough = Math.max(rough, Math.abs(terrainH(px, pz) - h));
-            if (isWater(px, pz) || pathDist(px, pz) < 18) blocked = true;
+            if (isWater(px, pz) || pathDist(px, pz) < 18 || (o.probeTree && !treeFree(px, pz, o.probeTree))) blocked = true;
             // anything already standing out here registered a collider — a hunter's tent, a bridge deck, the beacon
             // apron — so one sweep of the struct grid is a better clearance test than any list of names
             else
@@ -9763,16 +9820,44 @@ const __boot = (async () => {
               }
             if (blocked) break;
           }
-          if (blocked || rough > 1) continue;
-          const score = rough + Math.abs(r - 112) * 0.02; // flattest first, then nearest the middle of the band
-          if (!best || score < best.score) best = { x, z, y: h, yaw, cc, ss, r, rough, score };
+          if (blocked || rough > o.rough) continue;
+          const score = rough + Math.abs(r - o.rMid) * 0.02, // flattest first, then nearest the middle of the band
+            cand = { x, z, y: h, yaw, cc, ss, r, rough, score };
+          // the full water sweep only runs on a candidate that is about to win, which is a handful of calls a seed
+          if ((!best || score < best.score) && (!o.deep || dryFootprint(cand))) best = cand;
         }
+      }
       return best;
-    })();
+    };
+    const OLDPROBE = [[5.75, 10.15], [-5.75, 10.15], [5.75, -10.15], [-5.75, -10.15], [0, 14.15], [0, -10.15]],
+      PROBE = [[PX, PZ], [-PX, PZ], [PX, -PZ], [-PX, -PZ], [PX, 0], [-PX, 0], [0, PZ], [0, -PZ], [PX, 8.5], [-PX, 8.5], [PX, -8.5], [-PX, -8.5], [0, 25], [0, 0]];
+    const anchor = findSite({ r0: 96, r1: 122, rMid: 112, tree: 20, rough: 1, slope: 1.4, deep: false, probeTree: 0, aim: null, probes: OLDPROBE }),
+      aim = anchor ? Math.atan2(anchor.z, anchor.x) : null;
+    // the rough cap is 2.8 m and not the 1 m the small church used, because the ground out here genuinely rolls:
+    // measured on the shipped seed, the flattest legal spot inside the wedge falls 2.14 m across the plan, and no
+    // amount of loosening the tree, slope, river or road tests finds anything flatter. so the plinth absorbs it
+    // instead, and is sized below to whatever this seed actually handed us.
+    let how = "wedge",
+      site = findSite({ r0: 132, r1: 168, rMid: 148, tree: 16, rough: 2.8, slope: 1.4, deep: true, probeTree: 6, aim, probes: PROBE });
+    if (!site) {
+      how = "wide wedge";
+      site = findSite({ r0: 126, r1: 184, rMid: 152, tree: 14, rough: 3.6, slope: 2.2, deep: true, probeTree: 5, aim, probes: PROBE });
+    }
+    if (!site) {
+      how = "any bearing"; // the wedge had nothing habitable; better a church facing the wrong way than no church
+      site = findSite({ r0: 126, r1: 184, rMid: 152, tree: 14, rough: 3.6, slope: 2.2, deep: true, probeTree: 5, aim: null, probes: PROBE });
+    }
     if (!site) console.warn("church: no legal site on the apron this seed; the building is skipped");
     if (site) {
-      console.info("church at", site.x.toFixed(1), site.z.toFixed(1), "| r", site.r, "yaw", site.yaw.toFixed(2), "rough", site.rough.toFixed(2));
-      const FY = site.y + 0.55, // the plinth top, which is the church's floor level
+      // the plinth is sized to the ground it was given rather than to a number picked in advance. RISE clears the
+      // highest corner of the footprint by at least 0.79 m once the flagstones are on it, so no seed can push a hummock of
+      // grass up through the nave; PH puts 4.5 m of foundation under the lowest corner, so none of it ever floats.
+      // on a level site that is a modest 1.3 m kerb; on the rolling apron the shipped seed offers it is nearer
+      // three metres, and a great church on a stepped platform is what a hillside has always done to one.
+      const RISE = Math.max(1.3, site.rough + 0.6),
+        PH = RISE + site.rough + 4.5;
+      console.info("church at", site.x.toFixed(1), site.z.toFixed(1), "| r", site.r, "yaw", site.yaw.toFixed(2), "rough", site.rough.toFixed(2), "| by", how, "| aim", aim === null ? "free" : (aim * 57.29578).toFixed(1), "| channel", chanSegs.length ? chanNear(site.x, site.z).toFixed(1) : "none", "| plinth", RISE.toFixed(2), "on", PH.toFixed(2));
+      const FY = site.y + RISE, // the plinth top, which is the church's floor level
         g = new THREE.Group();
       g.position.set(site.x, FY, site.z);
       g.rotation.y = site.yaw;
@@ -9782,89 +9867,252 @@ const __boot = (async () => {
         wZ = (lx, lz) => site.z - site.ss * lx + site.cc * lz,
         rect = (lx, lz, hx, hz, top) => addRect(wX(lx, lz), wZ(lx, lz), site.cc ? hx : hz, site.cc ? hz : hx, top),
         deck = (lx, lz, hx, hz, top) => addDeck(wX(lx, lz), wZ(lx, lz), site.cc ? hx : hz, site.cc ? hz : hx, top),
-        circ = (lx, lz, rr, top) => addCircle(wX(lx, lz), wZ(lx, lz), rr, top);
-      const props = new THREE.Group(); // furniture rather than fabric; none of it casts a shadow
+        circ = (lx, lz, rr, top) => addCircle(wX(lx, lz), wZ(lx, lz), rr, top),
+        // a wall with a floor under it: stone that begins partway up, so a body whose head is below `bottom` walks
+        // straight through. resolveStructs already honours s.bottom; addRect simply never passes one. this is what
+        // lets the tympanum be solid from 8.4 m up without sealing the doorway underneath it.
+        wall = (lx, lz, hx, hz, top, bottom) => addStruct({ cx: wX(lx, lz), cz: wZ(lx, lz), w: site.cc ? hx : hz, d: site.cc ? hz : hx, top, bottom, b: Math.max(hx, hz) });
+      const props = new THREE.Group(), // furniture rather than fabric; none of it casts a shadow
+        nocast = []; // fabric that is thin, or above the wall head, or both
+
+      // ---- the collider rule this building is built to ----
+      // resolveStructs skips a structure while the body is below `top - 1.0`. so a wall only blocks a walker whose
+      // feet are more than a metre under its collider top, and the margin is (top - floor - 1.0) on EACH side of it.
+      // the old chancel sill had a collider top of FY + 1.2 against flagstones at FY + 0.19: an eleven-millimetre
+      // margin, so any hop walked you through 1.2 m of stone, and only from the inside. it was patched by lifting
+      // that one collider a metre above its own masonry, which just swapped the hole for an invisible wall.
+      // the structural fix is a rule, not a patch: no piece of fabric is ever built shorter than 2.0 m above the
+      // floor it stands on, and every fabric collider's top is set to the top of the stone that draws it. margins
+      // quoted below are against the highest walkable surface on either side. props are deliberately exempt — a
+      // knee-high rect is meant to read as floor, which is exactly how the pews work.
+      // the tightest fabric margin in the building is 1.13 m, at the tie beams against the wall head, and it is
+      // deliberate rather than overlooked: it is the same margin every wall in the valley carries, it takes a
+      // committed jump rather than a landing float to cross, and crossing it only puts you on the wall head you
+      // could have jumped up to anyway. a metre is the floor for this, not a target to sit on.
+      // every walkable height in this building, relative to FY. the grade sits RISE below the apron, which is why
+      // both ways in are staircases rather than kerbs:
+      //   apron 0.00 | nave 0.19 | chancel 1.09 | gallery 5.70
+      //   arcade band 8.40 | tie beams 11.07 | wall head 13.20 | lead flat 15.40 | gable steps 15.30 17.40 19.50
       g.add(props);
 
-      // ---- fabric ----
-      // the plinth is buried four metres. rough is capped at one metre above, so even the worst corner keeps two and
-      // a half metres of foundation under it and nothing ever floats, on any seed.
-      g.add(boxM((CW + CT + 0.7) * 2, 4, (CD + CT + 0.7) * 2, stoneDarkM, 0, -2, 0));
-      g.add(boxM(CW * 2, 0.14, CD * 2, stoneM, 0, 0.12, 0)); // flagstones; floorTop 0.19, the same as a house floor
+      // a flight of steps built to the ground that is actually under it rather than to a number chosen in advance.
+      // it walks outward one tread at a time and stops as soon as the hillside has come up to meet it, so the same
+      // call gives a level apron two treads and the shipped seed's 2.74 m five, and neither ever leaves a tread hanging
+      // in the air. every tread runs 1.2 m down into the earth for the same reason.
+      const flight = (lx0, lz0, dx, dz, hx, hz, top0, rise, mat) => {
+        let top = top0;
+        for (let k = 0; k < 16; k++) {
+          const lx = lx0 + k * dx,
+            lz = lz0 + k * dz,
+            gy = terrainH(wX(lx, lz), wZ(lx, lz)),
+            hgt = Math.max(0.4, top - gy + 1.2);
+          props.add(boxM(hx * 2, hgt, hz * 2, mat, lx, top - FY - hgt / 2, lz));
+          deck(lx, lz, hx, hz, top);
+          if (top - gy <= 0.95) break; // landed: one more tread down would be into the hill
+          top -= rise;
+        }
+      };
 
-      // the long walls are a sill course you cannot walk through and a row of piers you can. above 2.2 m the ruin is
-      // porous on purpose: the windows are holes, and anyone with air under them comes in through one.
-      for (const sx of [-1, 1]) {
-        const cx = sx * (CW + CT);
-        g.add(boxM(CT * 2, 2.2, (CD + CT * 2) * 2, stoneWallM, cx, 1.1, 0));
-        rect(cx, 0, CT, CD + CT * 2, FY + 2.2);
-        for (const pp of [[-9.9, 1.6], [-3.1, 1.4], [3.1, 1.4], [9.9, 1.6]]) g.add(boxM(CT * 2, 3.2, pp[1], stoneWallM, cx, 3.8, pp[0]));
-        g.add(boxM(CT * 2, 0.8, (CD + CT * 2) * 2, stoneWallM, cx, 5.8, 0));
+      // ---- fabric: the shell ----
+      g.add(boxM(PX * 2, PH, PZ * 2, stoneDarkM, 0, -PH / 2, 0));
+      deck(0, 0, PX, PZ, FY); // the apron is walkable all the way round; the flight at the west end is how you get onto it
+      g.add(boxM(CW * 2, 0.14, 19.6, stoneM, 0, 0.12, 4.6)); // nave flagstones; floorTop 0.19, the same as a house floor
+
+      // the chancel floor, three steps up. every one of them is a deck, which is the point: addDeck is floorOnly, so
+      // resolveStructs skips it outright and it can never be the wall the old sill collider accidentally was.
+      g.add(boxM(CW * 2, 1.09, 8.4, stoneM, 0, 0.545, -10.8));
+      deck(0, -10.8, CW, 4.2, FY + 1.09);
+      g.add(boxM(CW * 2, 0.79, 0.7, stoneM, 0, 0.395, -6.25), boxM(CW * 2, 0.49, 0.7, stoneM, 0, 0.245, -5.55));
+      deck(0, -6.25, CW, 0.35, FY + 0.79);
+      deck(0, -5.55, CW, 0.35, FY + 0.49);
+
+      // the long walls: full height, full-height colliders, and the only holes in them are ones you genuinely cannot
+      // walk through. the clerestory lancets are one metre wide and resolveStructs pushes the player out to 0.55 m
+      // from a face, so a 1.0 m slot refuses a body whether or not a collider is standing in it — no window in this
+      // building is ever an invisible wall, because no window is ever wide enough to try.
+      // the north wall lost a whole bay when its buttress went. that gap is real in both the stone and the collider:
+      // two metres of it walks, which makes it the second door for anybody already up on the apron.
+      {
+        const lower = (sx, cz, dz) => g.add(boxM(CT * 2, 8.6, dz, stoneWallM, sx * 8, 4.3, cz)),
+          head = (sx, cz, dz) => g.add(boxM(CT * 2, 0.8, dz, stoneWallM, sx * 8, 12.8, cz)),
+          clere = (sx, cz, dz) => g.add(boxM(CT * 2, 3.8, dz, stoneWallM, sx * 8, 10.5, cz));
+        lower(1, 0, 30);
+        head(1, 0, 30);
+        for (const [cz, dz] of [[-9.45, 11.1], [-0.2, 5.4], [6.2, 5.4], [12.45, 5.1]]) clere(1, cz, dz);
+        rect(8, 0, CT, 15, FY + WH); // margin 1.13 m over the tie beams, 12.01 m over the nave floor
+        lower(-1, -6.5, 17);
+        lower(-1, 10.1, 9.8);
+        head(-1, -6.5, 17);
+        head(-1, 10.1, 9.8);
+        for (const [cz, dz] of [[-12.25, 5.5], [-5.7, 5.6], [0.05, 3.9]]) clere(-1, cz, dz);
+        clere(-1, 10.1, 9.8);
+        rect(-8, -6.5, CT, 8.5, FY + WH);
+        rect(-8, 10.1, CT, 4.9, FY + WH);
+      }
+      // pilaster buttresses, Romanesque and plain, because this building is older than the kingdom that ignores it.
+      // the one that should stand at z +3.6 on the north side is the heap of rubble outside the collapsed bay.
+      for (const [sx, cz] of [[1, -10.8], [1, -3.6], [1, 3.6], [1, 10.8], [-1, -10.8], [-1, -3.6], [-1, 10.8]]) {
+        g.add(boxM(1.4, 9.6, 2, stoneWallM, sx * 8.9, 4.8, cz));
+        rect(sx * 8.9, cz, 0.7, 1, FY + 9.6); // margin 8.60 m over the apron and more over the grade; nothing else comes near them
       }
 
-      // the west front: a doorway with no door in it, a 2.9 m gap the same width as a house's, and a gable over
+      // ---- the west front, and the cross that is the whole point of it ----
+      // the doorway is 3.6 m wide and 6.6 m tall. the player is pushed out to 0.55 m from a face, so 2.5 m of it is
+      // walkable — wider than any house door in the valley, which clears 1.8 m.
       for (const sx of [-1, 1]) {
-        g.add(boxM(2.125 * 2, WH, CT * 2, stoneWallM, sx * 3.625, WH / 2, CD + CT));
-        rect(sx * 3.625, CD + CT, 2.125, CT, FY + WH);
+        g.add(boxM(6.2, WH, CT * 2, stoneWallM, sx * 4.9, 6.6, 15));
+        rect(sx * 4.9, 15, 3.1, CT, FY + WH);
       }
-      g.add(boxM(3.4, 1, CT * 2 + 0.1, stoneDarkM, 0, 4.3, CD + CT)); // arch head: no collider, exactly like a house lintel
-      g.add(boxM((CW + CT) * 2, 2, CT * 2, stoneWallM, 0, WH + 1, CD + CT));
+      g.add(boxM(4.8, 1.8, 1.4, stoneDarkM, 0, 7.5, 15)); // arch head: no collider, exactly like a house lintel
+      g.add(boxM(3.6, 4.8, CT * 2, stoneWallM, 0, 10.8, 15));
+      // the tympanum is solid stone from 8.4 m up and it must not seal the door beneath it. a bottom of FY + 8.4
+      // skips any body whose head is under the stone: the gallery at 5.70 has 2.70 m of headroom and walks free,
+      // the arcade band at 8.40 does not, and is correctly stopped by masonry that is really there.
+      wall(0, 15, 1.8, CT, FY + WH, FY + 8.4);
+      // a crow-stepped gable. three steps of 2.1 m, so every collider clears the ledge below it by 1.10 m, and the
+      // climb from the wall head to the foot of the cross is three ordinary jumps.
+      for (const [hw, y0] of [[7, 13.2], [4.6, 15.3], [2.2, 17.4]]) {
+        const m = boxM(hw * 2, 2.1, CT * 2, stoneWallM, 0, y0 + 1.05, 15);
+        g.add(m);
+        nocast.push(m);
+        wall(0, 15, hw, CT, FY + y0 + 2.1, FY + y0);
+      }
+      // the cross in relief: 7.4 m of it, dark stone standing 0.4 m proud of a pale front, starting at 8.6 m where
+      // nothing can reach it and nothing is expected to. no collider — the tympanum behind it already carries the
+      // wall, and anything proud of a wall in this building is deliberately kept out of arm's reach.
+      g.add(boxM(1.3, 7.4, 0.8, stoneDarkM, 0, 12.3, 15.6), boxM(5.2, 1.3, 0.8, stoneDarkM, 0, 12.8, 15.6));
+      // and the cross that carries at range: free-standing on the apex, pale against the sky, topping out at 23.4 m.
+      // this is the one that says "church" from the far side of the valley, and it costs two boxes.
+      {
+        const a = boxM(0.9, 3.9, 0.9, stoneM, 0, 21.45, 15),
+          b = boxM(3, 0.9, 0.9, stoneM, 0, 21.6, 15);
+        g.add(a, b);
+        nocast.push(a, b);
+      }
 
-      // the chancel end: one great window with nothing at all in it
-      g.add(boxM((CW + CT) * 2, 1.2, CT * 2, stoneWallM, 0, 0.6, -(CD + CT)));
-      // the collider top is raised to match the long walls even though the stone here is only 1.2 m. resolveStructs
-      // skips a structure while the body is below `top - 1.0`, and the flagstones sit at FY + 0.19 — so a top of
-      // FY + 1.2 left an eleven-millimetre window: blocked at +0.005 above the floor, straight through at +0.011.
-      // any hop or landing float opened 1.2 m of solid stone, and only from the inside, which is what marked it as
-      // an accident rather than a window somebody meant.
-      rect(0, -(CD + CT), CW + CT, CT, FY + 2.2);
+      // ---- the chancel arch ----
       for (const sx of [-1, 1]) {
-        g.add(boxM(1.975 * 2, 4.4, CT * 2, stoneWallM, sx * 3.775, 3.4, -(CD + CT)));
-        rect(sx * 3.775, -(CD + CT), 1.975, CT, FY + WH);
+        g.add(boxM(4.5, WH, CT * 2, stoneWallM, sx * 5.75, 6.6, -7.2));
+        rect(sx * 5.75, -7.2, 2.25, CT, FY + WH); // margin 11.11 m over the chancel floor, 1.13 m over the tie beams
       }
-      g.add(boxM((CW + CT) * 2, 0.6, CT * 2, stoneWallM, 0, 5.9, -(CD + CT)));
-      g.add(boxM((CW + CT) * 2, 2.4, CT * 2, stoneWallM, 0, WH + 1.2, -(CD + CT)));
+      g.add(boxM(8.2, 1, 1.4, stoneDarkM, 0, 9.6, -7.2), boxM(7, 3.1, CT * 2, stoneWallM, 0, 11.65, -7.2));
+      // one collider for the arch head and the wall over it, bottomed at the underside of the head. a body under a
+      // 9.1 m arch passes; a body on the tie beams at 11.07 m, whose head is inside that stone, does not.
+      wall(0, -7.2, 3.5, CT, FY + WH, FY + 9.1); // CT, not the head band's 0.7: where a collider and its stone disagree, the collider takes the smaller of the two
 
-      // slate, not thatch: the church reads dark against the town's red roofs from a long way off. only the chancel
-      // bay is still covered — the nave is open to the sky, which is the entire point of the building.
+      // ---- the chancel: a great east window over a sill you cannot vault ----
+      // the sill is 4.8 m of real masonry above a chancel floor at 1.09, so the collider clears it by 2.71 m and
+      // clears the altar top by 1.24 m. the old sill was 1.2 m of stone with a 1.2 m collider top and an eleven
+      // millimetre margin; this one cannot be hopped through from either side, because there is no hop that long.
       for (const sx of [-1, 1]) {
-        const sl = boxM(6.75, 0.3, 7.4, stoneDarkM, sx * 2.875, 7.97, -(CD - 3.6));
-        sl.rotation.z = -sx * 0.55;
-        g.add(sl);
+        g.add(boxM(4, WH, CT * 2, stoneWallM, sx * 6, 6.6, -15));
+        rect(sx * 6, -15, 2, CT, FY + WH);
+      }
+      g.add(boxM(8, 4.8, CT * 2, stoneWallM, 0, 2.4, -15));
+      rect(0, -15, 4, CT, FY + 4.8);
+      g.add(boxM(8, 2.2, CT * 2, stoneWallM, 0, 12.1, -15));
+      wall(0, -15, 4, CT, FY + WH, FY + 11);
+      for (const sx of [-1, 1]) {
+        const m = boxM(0.45, 6.2, 0.9, stoneWallM, sx * 1.6, 7.9, -15);
+        g.add(m);
+        nocast.push(m);
+      }
+      {
+        const m = boxM(11, 4.4, CT * 2, stoneWallM, 0, 15.4, -15); // one tall crow step: the parapet the chancel roof tucks behind
+        g.add(m);
+        nocast.push(m);
+        wall(0, -15, 5.5, CT, FY + 17.6, FY + 13.2); // margin 1.20 m over the lead flat, 3.40 m over the wall head
+      }
+      // the chancel is the one bay still covered, and it is a lead flat rather than a pitch. a pitched roof needs a
+      // stepped stack of decks to stand on and every one of them floats above or sinks below the slate it is meant
+      // to be; a flat behind a parapet is a real medieval answer to the same problem, and it is one honest collider.
+      g.add(boxM(17.2, 0.36, 8.4, stoneDarkM, 0, 15.22, -10.8));
+      for (const sx of [-1, 1]) {
+        const m = boxM(0.6, 0.7, 8.4, stoneDarkM, sx * 8.3, 15.75, -10.8);
+        g.add(m);
+        nocast.push(m); // a 0.7 m parapet gets no collider for the reason the gallery rail gets none: a rect that low is an invisible bar across the room below it
+      }
+      deck(0, -10.8, 8.6, 4.2, FY + 15.4);
+
+      // ---- the arcade ----
+      // eight free-standing piers, 2.1 m in from the wall face. the aisle behind them leaves 0.92 m of travel for
+      // the player's centre, which walks comfortably; the nave between them is 8.6 m clear.
+      // one cylinder geometry and one box geometry serve all sixteen meshes — the arcade is the only place in this
+      // building where the same shape repeats often enough for sharing them to be worth stepping around the helpers.
+      {
+        const shaftG = new THREE.CylinderGeometry(0.5, 0.58, 6.6, 10),
+          capG = new THREE.BoxGeometry(1.5, 0.4, 1.5),
+          put = (geo, x, y, z) => {
+            const m = shadowed(new THREE.Mesh(geo, stoneWallM));
+            m.position.set(x, y, z);
+            g.add(m);
+          };
+        for (const sx of [-1, 1])
+          for (const cz of [-4.8, -0.4, 4, 8.4]) {
+            put(shaftG, sx * 4.8, 3.3, cz);
+            put(capG, sx * 4.8, 6.8, cz);
+            circ(sx * 4.8, cz, 0.58, FY + 7); // margin 5.81 m over the nave floor
+          }
+        // the wall the arches used to carry, with a bay down on each side. these are decks, not walls: a rect with a
+        // top of 8.4 m would block every body on the floor below it, and a deck instead makes the arcade a route.
+        for (const [sx, cz, dz] of [[1, -0.8, 8], [1, 8.4, 5.6], [-1, -3.2, 3.2], [-1, 6.4, 9.6]]) {
+          const m = boxM(1.2, 1.4, dz, stoneWallM, sx * 4.8, 7.7, cz);
+          g.add(m);
+          nocast.push(m);
+          deck(sx * 4.8, cz, 0.6, dz / 2, FY + 8.4);
+        }
       }
 
-      // ---- what came down, and what you can climb on ----
+      // ---- what you can climb, and what came down ----
+      // the way up, and every rung of it is one ordinary jump at agility 0, which clears 2.75 m:
+      //   floor -> rafter ramp -> gallery 5.70 -> arcade band 8.40 -> tie beams 11.07 -> wall head 13.20
+      //   -> lead flat 15.40, or -> gable 15.30 -> 17.40 -> 19.50 and the foot of the cross.
       // four tie beams still span the nave. they are decks, not walls: addDeck is the one collider you can stand on
       // and walk under, which is the whole difference between a rafter and an invisible bar across the room.
-      for (const bz of [-4, 0, 4, 8]) {
-        const tb = cyl(0.15, 0.15, (CW + CT) * 2, timber, 0, 5, bz, 6);
+      for (const [cz, len, cx] of [[-3, 16, 0], [1.8, 16, 0], [6.6, 10, -3], [11.4, 16, 0]]) {
+        const tb = cyl(0.17, 0.17, len, timber, cx, 10.9, cz, 8);
         tb.rotation.z = Math.PI / 2;
         g.add(tb);
-        deck(0, bz, CW + CT, 0.3, FY + 5.15);
+        deck(cx, cz, len / 2, 0.34, FY + 11.07);
       }
-      // one principal rafter came down whole and leans from the floor to the top of the west sill. five decks inside
-      // its silhouette make it a ramp you can run up — so it is a route, not a prop.
+      // the west gallery. 4.9 m of headroom under it and 2.70 m over it, which is exactly the clearance the deck
+      // bottom test asks for: a body is 2.4 m tall, so it walks under the gallery and stands on it without either
+      // the gallery or the tympanum above it ever pushing back.
       {
-        const rb = cyl(0.19, 0.22, 4.5, timber, -3.2, 1.2, 5.2, 6);
-        rb.rotation.z = 1.107;
-        g.add(rb);
-        for (let k = 0; k < 5; k++) deck(-1.6 - k * 0.9, 5.2, 0.62, 0.55, FY + 0.45 + k * 0.44);
+        g.add(boxM(16, 0.26, 5.2, plankM, 0, 5.57, 11.8));
+        for (const cz of [9.8, 13.6]) {
+          const j = cyl(0.18, 0.18, 16, timber, 0, 5.3, cz, 8);
+          j.rotation.z = Math.PI / 2;
+          g.add(j);
+        }
+        const rail = boxM(16, 0.75, 0.22, timber, 0, 6.07, 9.3);
+        g.add(rail);
+        nocast.push(rail);
+        deck(0, 11.8, 8, 2.6, FY + 5.7);
       }
-      for (const fb0 of [[-1.6, -1.2, 0.4], [2.4, 2.8, 1.9], [0.3, 6.6, 2.7], [-3.1, 8.4, 1.2]]) {
+      // one principal rafter came down whole and leans from the floor to the gallery front. six decks inside its
+      // silhouette make it a ramp you can run up, a metre of rise at a time — so it is a route, not a prop.
+      {
+        const rb = cyl(0.22, 0.26, 8.5, timber, -1.6, 3, 5.8, 8);
+        rb.rotation.x = 0.8703;
+        g.add(rb);
+        for (let k = 0; k < 6; k++) deck(-1.6, 2.84 + k * 1.232, 0.9, 0.6, FY + 0.5 + k * 1.04);
+      }
+      for (const fb0 of [[-3.4, -2.2, 0.4], [3.6, 3.2, 1.9], [1.1, 8.6, 2.7], [-5.2, 12.4, 1.2]]) {
         const fb = cyl(0.16, 0.18, 5 + hash(fb0[0], fb0[1]) * 3, timber, fb0[0], 0.35, fb0[1], 6);
         fb.rotation.set(Math.PI / 2, 0, fb0[2]);
         props.add(fb);
       }
 
       // ---- the one window that still has glass ----
-      // everything else was carried out. this pane is four metres up in the middle bay and nobody could reach it,
+      // everything else was carried out. this pane is ten metres up in a one-metre slot and nobody could reach it,
       // which is the only reason it is still here. it is the single warm colour in the building.
       {
         const glass = new THREE.Mesh(
-          new THREE.PlaneGeometry(4.4, 3),
+          new THREE.PlaneGeometry(1, 3.8),
           new THREE.MeshStandardMaterial({ color: toLin(0x8a2f3a), emissive: toLin(0x3a0a12), emissiveIntensity: 0.4, roughness: 0.35, transparent: true, opacity: 0.74, side: THREE.DoubleSide, depthWrite: false })
         );
-        glass.position.set(-(CW + CT), 3.8, 0);
+        glass.position.set(CW, 10.5, 3);
         glass.rotation.y = Math.PI / 2;
         glass.castShadow = false; // a transparent caster only smears the shadow map
         g.add(glass);
@@ -9873,47 +10121,56 @@ const __boot = (async () => {
       // ---- what is left inside ----
       // the altar is a bare slab with two cold sockets in it. there is not a candle anywhere in the building, lit or
       // unlit: somebody took even those.
-      props.add(boxM(2.2, 0.92, 0.8, stoneDarkM, 0, 0.65, -(CD - 1.8)), boxM(3, 0.28, 1.1, stoneM, 0, 1.25, -(CD - 1.8)));
-      for (const sx of [-1, 1]) props.add(cyl(0.11, 0.11, 0.07, stoneDarkM, sx * 0.95, 1.42, -(CD - 1.8), 8));
-      rect(0, -(CD - 1.8), 1.5, 0.55, FY + 1.39);
+      props.add(boxM(3, 1.15, 1.05, stoneDarkM, 0, 1.665, -12), boxM(3.8, 0.32, 1.45, stoneM, 0, 2.4, -12));
+      for (const sx of [-1, 1]) props.add(cyl(0.13, 0.13, 0.08, stoneDarkM, sx * 1.3, 2.6, -12, 8));
+      rect(0, -12, 1.9, 0.72, FY + 2.56);
       // the font, dry. dust in the bottom and one feather, and no green ring where water stands — it was emptied,
       // not left to evaporate.
-      props.add(cyl(0.24, 0.34, 0.86, stoneM, -2.6, 0.62, CD - 2.4, 10), cyl(0.62, 0.5, 0.34, stoneM, -2.6, 1.2, CD - 2.4, 12));
-      circ(-2.6, CD - 2.4, 0.68, FY + 1.37);
-      // pews: four still standing in their rows, two on their faces. a knee-high addRect never blocks a walker —
+      props.add(cyl(0.32, 0.44, 1.05, stoneM, -4.6, 0.715, 12, 10), cyl(0.82, 0.64, 0.42, stoneM, -4.6, 1.45, 12, 12));
+      circ(-4.6, 12, 0.88, FY + 1.66);
+      // pews: four still standing in their rows, three on their faces. a knee-high addRect never blocks a walker —
       // resolveStructs skips anything whose top is within a metre of your feet — so they only ever read as floor,
-      // which makes them cover you vault and a step toward the beams.
-      for (let k = 0; k < 4; k++) {
-        const pz = 5.6 - k * 2.6;
-        props.add(boxM(6.4, 0.16, 0.5, plankM, 0, 0.62, pz), boxM(6.4, 0.5, 0.14, plankM, 0, 1.05, pz - 0.3));
-        rect(0, pz, 3.2, 0.25, FY + 0.7);
+      // which makes them cover you vault and a step toward the ramp.
+      for (const pz of [-4.4, -2.6, -0.8, 1]) {
+        props.add(boxM(8.4, 0.18, 0.55, plankM, 0, 0.68, pz), boxM(8.4, 0.55, 0.16, plankM, 0, 1.14, pz - 0.34));
+        rect(0, pz, 4.2, 0.28, FY + 0.78);
       }
-      for (const pw0 of [[1.9, -3.4, 0.5], [-2.2, -5.8, 2.3]]) {
-        const pw = boxM(6.4, 0.16, 0.5, plankM, pw0[0], 0.2, pw0[1]);
+      for (const pw0 of [[2.6, -3.4, 0.5], [-3.2, -4.7, 2.3], [2.4, 5.2, 1.4]]) {
+        const pw = boxM(8.4, 0.18, 0.55, plankM, pw0[0], 0.2, pw0[1]);
         pw.rotation.set(1.5, 0, pw0[2]);
         props.add(pw);
       }
       // the bell came through the roof and stayed where it landed. the tower it fell from is not here any more.
       {
         const bronze = lam(0x6a6046),
-          bell = cyl(0.52, 0.92, 1.15, bronze, 2.9, 0.5, 1.2, 12);
+          bell = cyl(0.56, 0.98, 1.25, bronze, 3, 0.55, 6.4, 12);
         bell.rotation.set(1.42, 0, 0.4);
         props.add(bell);
-        for (let k = 0; k < 3; k++) props.add(boxM(0.9 + hash(k, 71) * 0.6, 0.12, 0.8 + hash(k, 72) * 0.5, stoneDarkM, 2.9 + (hash(k, 73) - 0.5) * 2.6, 0.22, 1.2 + (hash(k, 74) - 0.5) * 2.4));
-        circ(2.9, 1.2, 0.85, FY + 0.95);
+        for (let k = 0; k < 3; k++) props.add(boxM(0.9 + hash(k, 71) * 0.6, 0.12, 0.8 + hash(k, 72) * 0.5, stoneDarkM, 3 + (hash(k, 73) - 0.5) * 2.6, 0.22, 6.4 + (hash(k, 74) - 0.5) * 2.4));
+        circ(3, 6.4, 0.92, FY + 1.05);
       }
-      for (let k = 0; k < 4; k++) props.add(boxM(0.5 + hash(k, 81) * 0.8, 0.3 + hash(k, 82) * 0.4, 0.5 + hash(k, 83) * 0.7, stoneDarkM, (hash(k, 84) - 0.5) * 7, 0.3, (hash(k, 85) - 0.5) * 13));
-      // three steps up to the door, walkable, so the porch is not a fifty-five-centimetre kerb you have to jump
-      for (let k = 0; k < 3; k++) {
-        props.add(boxM(4.4, 0.2, 0.9, stoneM, 0, -0.14 - k * 0.18, CD + CT + 0.6 + k * 0.9));
-        deck(0, CD + CT + 0.6 + k * 0.9, 2.2, 0.45, FY - 0.04 - k * 0.18);
-      }
+      // loose fall, kept inside the nave between the arcades: the z spread is offset forward so none of it lands on
+      // the chancel platform, where a block sitting at floor height would be buried a metre inside the stone
+      for (let k = 0; k < 5; k++) props.add(boxM(0.5 + hash(k, 81) * 0.8, 0.3 + hash(k, 82) * 0.4, 0.5 + hash(k, 83) * 0.7, stoneDarkM, (hash(k, 84) - 0.5) * 8, 0.3, 1 + (hash(k, 85) - 0.5) * 14));
+      // the great flight up to the door. it starts at 17.5 rather than at the wall, because the apron already runs
+      // out to 16.9 and a tread inside that is a tread buried under the deck you are standing on.
+      flight(0, 17.5, 0, 1.1, 3.2, 0.55, FY - 0.04, 0.55, stoneM);
+      // the fallen bay's own stone, lying where it landed: some outside on the apron, some inside on the flagstones,
+      // and none of it more than a knee-high clamber. it was a ramp down to the ground until the probe showed what
+      // that means here — this flank sits four metres below the apron, and anything reaching it would be an
+      // embankment rather than rubble. the way up to the church is the steps; this is just the second way in.
+      for (const [cx, cz, s, ly] of [[-9.3, 2.9, 1.5, 0.42], [-9.4, 4.7, 1.2, 0.34], [-8.9, 1.7, 0.9, 0.26], [-6.5, 3.3, 1.6, 0.61], [-5.5, 4.8, 1.1, 0.42], [-6.9, 1.6, 1.3, 0.5]])
+        props.add(boxM(s, s * 0.62, s * 0.85, stoneDarkM, cx, ly, cz));
+      // the two decks meet at x -8.1 on purpose. left at 1.3 they stopped half a metre short of each other and the
+      // walk through the gap dropped to the apron and climbed out again over two 0.8 m steps for no visible reason.
+      deck(-9.2, 3.3, 1.1, 1.9, FY + 0.72);
+      deck(-6.55, 3.2, 1.55, 2, FY + 0.88);
       // birds in the rafters. they are the only living things in it, they sit perfectly still, and they go up the
       // first time you walk in.
       const rooks = [];
       {
         const dk = lam(0x141210);
-        for (const bp of [[-1.9, 5.22, 0], [-1.2, 5.22, 0.3], [2.6, 5.22, 4], [3.1, 5.22, -4], [-3.4, 5.22, 8]]) {
+        for (const bp of [[-2.4, 11.24, -3], [-1.6, 11.24, 1.8], [1, 11.24, -3], [3.2, 11.24, 11.4], [-4.8, 8.57, -3.2], [4.8, 8.57, 7.2]]) {
           const rk = new THREE.Group();
           rk.add(sphere(0.15, dk, 0, 0, 0, 1.6, 0.75, 0.8), sphere(0.095, dk, 0.2, 0.08, 0));
           rk.position.set(bp[0], bp[1], bp[2]);
@@ -9922,9 +10179,11 @@ const __boot = (async () => {
           props.add(rk);
         }
       }
-      // the props are a third of the building's meshes and not one of their shadows would ever be noticed in a
-      // roofless nave; the walls and the slate keep theirs
+      // the props are two fifths of the building's meshes and not one of their shadows would ever be noticed in a
+      // roofless nave; the walls, the arcade and the buttresses keep theirs, because those are the shadows that make
+      // the inside of a nave read as the inside of a nave.
       props.traverse(o => { if (o.isMesh) o.castShadow = false; });
+      for (const m of nocast) m.castShadow = false;
       scene.add(g);
 
       // enterable, and registered exactly like a house, so footsteps, the camera, the indoor grade and every
@@ -9933,24 +10192,29 @@ const __boot = (async () => {
       //                  whole town out of a building an hour's walk outside the walls
       //   no lamp:       the entry brightening reads roomNow.lamp. there is no lamp. it stays dark, at every hour.
       //   growTo 1:      the room is already its real size, so the growth tick bails on the first compare
-      //   roofless:      no head-bump clamp; a nave with no roof has no ceiling to bump
+      //   roofless:      no head-bump clamp; a nave open to the sky has no ceiling to bump
+      //   h 14:          the room reaches FY + 13.7, which puts the tie beams and the arcade inside it and the lead
+      //                  flat at 15.40 outside. at 17 the chancel roof counted as indoors and standing on a roof in
+      //                  the open pulled the camera in and dropped the indoor grade over you. nothing walkable sits
+      //                  near the 13.7 boundary, so the room cannot flicker on and off at the edge either.
       //   interiorK .45: half indoors. a full 1 blacks out a sky you can plainly see through the rafters.
       const CHURCH = {
         cx: site.x, cz: site.z,
         w: site.cc ? CW : CD, d: site.cc ? CD : CW,
-        y: FY, h: 10, floorTop: 0.19,
+        y: FY, h: 14, floorTop: 0.19,
         group: g, structs: [],
         baseW: site.cc ? CW : CD, baseD: site.cc ? CD : CW,
         grow: 1, growTo: 1,
-        noSleep: true, roofless: true, floor: "stone", camDist: 7.5, interiorK: 0.45, church: true
+        noSleep: true, roofless: true, floor: "stone", camDist: 9.5, interiorK: 0.45, church: true
       };
       interiors.push(CHURCH);
 
       Object.assign(DISCOVERIES.emptyChurch, {
         x: site.x, z: site.z, y: FY,
+        r: 24, // centre to the foot of a typical flight: the rooks go up as you set foot on the steps, not through a wall
         onFound: () => {
           for (const rk of rooks) rk.visible = false;
-          burst(V3(site.x, FY + 5.4, site.z), 0x141210, 26, 5, 1.1, 0.16);
+          burst(V3(site.x, FY + 11.4, site.z), 0x141210, 26, 5, 1.1, 0.16);
           SFX.noise(0.5, 900, 200, 0.18, "bandpass", 1.4);
         }
       });
@@ -9966,18 +10230,23 @@ const __boot = (async () => {
       // parish priest who measured a thing rising in the water, wrote to his superiors, kept the hours for years,
       // and worked out that nobody was ever going to answer. he is not redeemed by any of it. he is explained, and
       // the explanation is worse.
-      const book = (lx, lz, id, text) => addPickup(V3(wX(lx, lz), FY + 1, wZ(lx, lz)), "clue", text, () => {}, { noCount: true, shape: "book", id });
-      book(0, -(CD - 2.9), "church:altar", "The altar is bare and the sockets are cold. Cut into the edge of the slab, small, by somebody kneeling: WE KEPT THE HOURS. NOBODY CAME.");
-      book(-2.6, CD - 3.6, "church:font", "The font is dry and has been dry a long time. Dust in the bottom of it, one feather, and no green ring where water stands. It was emptied. Nobody empties a font by accident.");
-      book(3.9, CD + CT - 0.9, "church:door", "Scratched into the doorpost at shoulder height, hard enough to skip: IT IS NOT THAT HE CANNOT HEAR. GO HOME.");
-      book(-4.1, -2, "church:ledger", "A visitation ledger, swollen shut and prised open. The last dozen pages are one name in one hand, years of it: Hale. Hale. Hale. He kept the hours here long after everybody else had stopped.");
-      book(4.3, CD - 1.7, "church:hale1", "A page in the Inquisitor's hand, folded into a psalter by the door: 'The water in the black pool stands higher than the rain accounts for. I have measured it four nights running. I have written to the See, and I will keep the hours until they answer.'");
-      book(-4.3, 5, "church:hale2", "The same hand, later, the letters grown large: 'No answer from the See. None from the Archdeacon. None from anyone at all. I am a patient man. I have been patient in this building for most of my life.'");
-      book(4.3, 2.2, "church:hale3", "A page pressed flat under a fallen pew: 'I have been asking the wrong question. I asked why He is silent. The answer is that the house is empty, and has been empty a very long while, and we have all been keeping the hours for nobody.'");
-      book(-4.3, -0.6, "church:hale4", "Torn from the ledger, burnt at one corner: 'There is nothing above the thing under that water. There is only us. If no one is holding the door, then somebody must pay the rent. I will begin with the sheep, and I will do it alone.'");
-      book(4.3, -3.6, "church:hale5", "A page weighted under a stone: 'I carried out the plate myself, and the candlesticks, and the good cloth, so nobody could say the place was robbed. I emptied the font last. I could not make myself pour it on the ground, so I drank it.'");
-      book(-4.3, -6.6, "church:hale6", "The last loose page, pinned under the altar slab: 'I still say the hours. I say them walking, in the dark, on the road. Nobody hears them and I cannot stop. This is what faith turns into if you leave it out in the weather.'");
-      book(0, -(CD - 0.8), "church:hale7", "Scratched into the back of the altar, low down, by somebody lying flat on the flags to reach: A SHEEP IS NOT A PRICE. IT WAS NEVER GOING TO BE A SHEEP.");
+      //
+      // every one of these moved when the building did. the nave is 28.8 m now rather than 19.2, so the seven pages
+      // are spread across the longer walk at the same alternating rhythm, and they are pulled in to x +-3.4 to clear
+      // an arcade that did not exist before: the piers stand at +-4.8, and +-4.3 put four of his pages inside one.
+      // the order door to altar is the whole point of them and is unchanged.
+      const book = (lx, lz, id, text, ly) => addPickup(V3(wX(lx, lz), FY + (ly === undefined ? 1 : ly), wZ(lx, lz)), "clue", text, () => {}, { noCount: true, shape: "book", id });
+      book(2.4, -11, "church:altar", "The altar is bare and the sockets are cold. Cut into the edge of the slab, small, by somebody kneeling: WE KEPT THE HOURS. NOBODY CAME.", 2.09); // on the platform at the corner of the slab, not inside it: the mensa runs to x 1.9 and z -11.28, and at (1.9, -12) the page sat half a metre inside the stone
+      book(-4.6, 10.8, "church:font", "The font is dry and has been dry a long time. Dust in the bottom of it, one feather, and no green ring where water stands. It was emptied. Nobody empties a font by accident.");
+      book(2.1, 14.9, "church:door", "Scratched into the doorpost at shoulder height, hard enough to skip: IT IS NOT THAT HE CANNOT HEAR. GO HOME.", 1.6);
+      book(-5.8, -2, "church:ledger", "A visitation ledger, swollen shut and prised open. The last dozen pages are one name in one hand, years of it: Hale. Hale. Hale. He kept the hours here long after everybody else had stopped.");
+      book(3.4, 12.8, "church:hale1", "A page in the Inquisitor's hand, folded into a psalter by the door: 'The water in the black pool stands higher than the rain accounts for. I have measured it four nights running. I have written to the See, and I will keep the hours until they answer.'");
+      book(-3.4, 9.6, "church:hale2", "The same hand, later, the letters grown large: 'No answer from the See. None from the Archdeacon. None from anyone at all. I am a patient man. I have been patient in this building for most of my life.'");
+      book(2.4, 4.8, "church:hale3", "A page pressed flat under a fallen pew: 'I have been asking the wrong question. I asked why He is silent. The answer is that the house is empty, and has been empty a very long while, and we have all been keeping the hours for nobody.'");
+      book(-3.4, 1.4, "church:hale4", "Torn from the ledger, burnt at one corner: 'There is nothing above the thing under that water. There is only us. If no one is holding the door, then somebody must pay the rent. I will begin with the sheep, and I will do it alone.'");
+      book(3.4, -1.6, "church:hale5", "A page weighted under a stone: 'I carried out the plate myself, and the candlesticks, and the good cloth, so nobody could say the place was robbed. I emptied the font last. I could not make myself pour it on the ground, so I drank it.'");
+      book(-2.6, -10.6, "church:hale6", "The last loose page, pinned under the altar slab: 'I still say the hours. I say them walking, in the dark, on the road. Nobody hears them and I cannot stop. This is what faith turns into if you leave it out in the weather.'", 2.09);
+      book(0, -12.85, "church:hale7", "Scratched into the back of the altar, low down, by somebody lying flat on the flags to reach: A SHEEP IS NOT A PRICE. IT WAS NEVER GOING TO BE A SHEEP.", 1.6); // tucked against the back face of the altar block under the mensa overhang, which is where the text says he had to lie down to reach
     }
   }
   // the ysolde mystery: logs delivered to the woodcutter, goblin kills when the errand began, clues found at the pool, the lamp wick, whether the case is solved and reported, and the two rewards
@@ -12359,6 +12628,36 @@ const __boot = (async () => {
         spec.wolfChoice = v => v === null || ["wolves", "goblins", "leave"].includes(v);
         spec.relics = v => !!v && typeof v === "object" && ["seal", "root", "warden", "tear"].every(k => v[k] === undefined || typeof v[k] === "boolean");
         d.ws = pickObj(d.ws, spec); if (!d.ws) return null;
+      }
+      // STORY was the one structure that went in unchecked: applySave does a bare Object.assign, so a key could put a
+      // string where a counter goes, an object where a boolean goes, or twenty thousand fabricated keys onto the
+      // object, and the first thing to read one threw in the middle of a frame. it is walked like ws now. the five
+      // runtime fields are in the list too: they hold baselines captured when a village errand is taken, and weaver0
+      // is a JSON string rather than a number, which is exactly the kind of thing a blanket numeric guard gets wrong.
+      if (d.story !== undefined) {
+        const evidenceIds = ["cloth", "ring", "diary", "ritual", "note"];
+        d.story = pickObj(d.story, {
+          logsGiven: v => num(v, 0, 999),
+          gobKills0: v => num(v, 0, 1e6),
+          clues: v => num(v, 0, 99),
+          evidence: v => Array.isArray(v) && v.length <= 16 && v.every(e => evidenceIds.includes(e)),
+          campLeft: v => num(v, -1, 1e6),
+          kingKills: v => num(v, 0, 1e6),
+          wick: bool,
+          solved: bool,
+          reported: bool,
+          spear: bool,
+          boots: bool,
+          bearHeart: bool,
+          kingTooth: bool,
+          wolfDone: bool,
+          ferry0: v => num(v, 0, 1e6),
+          potter0: v => num(v, 0, 1e6),
+          smith0: v => num(v, 0, 1e6),
+          wager0: v => Array.isArray(v) && v.length === 2 && v.every(n => num(n, 0, 1e6)),
+          weaver0: v => typeof v === "string" && v.length <= 120
+        });
+        if (!d.story) return null;
       }
       // an unknown discovery id DROPS rather than rejecting the whole key. it used to return null, so a save made
       // after any new discovery was added failed to load in an older build with "bad save key" — the player losing

@@ -4,6 +4,99 @@ Every change, with the bug it fixes and how. Newest first.
 
 ---
 
+## 2.9.3 — A church you can see from the road, and a save structure nobody was checking
+
+### The abandoned church is rebuilt
+
+**Reported twice**, the second time as "it is clear the church changes have not
+been implemented yet either" — because they had not been.
+
+- **Bigger.** Interior 10.4 × 19.2 m becomes **14.8 × 28.8 m**; the wall head
+  goes 6.2 → **13.2 m**; the volume is 4.5 times what it was. An arcade of eight
+  free-standing piers with walkable bands, seven pilaster buttresses, a chancel
+  raised on three steps behind a 7 m arch, a west gallery, crow-stepped gables.
+- **Every rung of the climb is one base jump.** Ramp → gallery at 5.70 → band at
+  8.40 → beams at 11.07 → wall head at 13.20 → lead flat at 15.40 → gable at
+  19.50: the largest single step is **2.70 m against a 2.75 m standing jump at
+  agility zero**, probe-confirmed rather than eyeballed.
+- **A cross, twice.** A 7.4 m relief cross in dark stone on the west front, and a
+  free-standing finial cross on the gable apex topping out **26.1 m above grade**.
+  A cross-shaped *plan* was considered and rejected in the code: `interiors`
+  holds exactly one rectangle per room, so a transept either swells the room box
+  out over open grass or splits the church into two rooms — and a plan cross only
+  reads from above, which is the one place the player never is.
+- **Further out**, r 102 → **132**, on the same bearing, which is found by
+  re-running the old search verbatim and then confining the real search to a 24°
+  wedge around its answer — so it stays seed-general instead of being pinned to
+  this world's numbers.
+- **The chancel sill that blocked by eleven millimetres in 2.5.0 is gone for
+  structural reasons rather than by adjustment.** The rule now is that no fabric
+  is shorter than 2.0 m above its floor and every collider top matches its own
+  stone's top. That sill is 4.8 m of real masonry with a 2.71 m margin.
+- Hale's seven pages, which landed from another agent while this was being
+  built, are preserved with their ids and re-placed along the longer nave —
+  `±4.3` put four of them inside arcade piers. All eleven readable pages in the
+  building are reachable, checked by probe.
+- **Save-safe, proven rather than asserted:** the pickup id list is byte-identical
+  before and after, 74 ids diffed.
+
+### Bug 100 — `riverDist` has never been a distance function · DOCUMENTED, NOT YET FIXED
+
+Found independently twice today, from two directions, with the same conclusion.
+
+`riverAt(x, z, w)` gates on `d < (sg.w || w)`, and **every segment
+`riverRegister` writes carries its own `w`** — 3.4 or 4. So the caller's width is
+dead. `riverDist` asks for 40 and gets 4. It returns either a number under 4 or
+`1e9`, which means **`riverDist(x, z) < 26` has always been an exact synonym for
+`isWater(x, z)`**, and so has `< 45`, and so has `< 8`. The single-cell grid
+lookup caps the true reach at about 24 m in any case.
+
+Four worldgen call sites read it — the terrain paint at 2654 and 2673, the
+scatter at 3606, and the footstep material at 10131 — and every one of them has
+been running with a keep-clear radius of four metres where it asked for
+twenty-six or forty-five.
+
+**It is deliberately not fixed in this build.** Those four sites decide *where
+things are placed*, and `addPickup` numbers implicit ids by array position, so
+correcting the radius moves the scatter, renumbers the ids and **invalidates
+every save key in existence**. It is a major-version change with a migration,
+not a one-line fix at one in the morning. The church's own siting test does not
+use it: it scans every chain segment exactly and sweeps its footprint, and
+measured its site at **587 m from the nearest centreline**.
+
+### Bug 101 — `STORY` went into the game unchecked · FIXED
+
+`parseSaveKey` walks `ws`, `owned`, `fairy`, `custom`, `found`, `items`, the
+discovery ids and the pickup ids. It did not walk `story`, and `applySave` does a
+bare `Object.assign(STORY, d.story)` — so a key could put a string where a
+counter goes, an object where a boolean goes, or any number of fabricated keys
+onto the object, and the first code to read one would throw mid-frame.
+
+It is validated like `ws` now, including the five runtime fields that hold
+baselines captured when a village errand is taken. Those needed reading rather
+than guessing: `wager0` is a two-element array and `weaver0` is a **JSON string**,
+either of which a blanket numeric guard would have rejected — turning a hostile
+key into a rejected legitimate one.
+
+### The debug key is consistent now
+
+The bundled `DEBUG_SAVE.txt` was internally contradictory: `gehUnlocked` true but
+`ysoldeBuried` absent, so the whirlpool it promised stayed shut, and
+`bearDefeated` true with `bearDead` false, so the Old Bear was marked killed and
+still standing in his cave.
+
+It is replaced by a key generated from the save editor's own endgame preset and
+verified by loading it: **14 hearts, every skill at 30, all four relics, 25
+fairies, 14/14 errands, 13 discoveries, `ysoldeBuried` and `gehUnlocked` both
+true**, arriving at the foot of the elder tree with no console warning. It is
+tracked in the repository now rather than ignored.
+
+### The changelog had a six-version hole
+
+2.7.0, 2.7.1, 2.8.0, 2.8.1, 2.8.2 and 2.9.0 were written as commit messages and
+never reached `CHANGELOG.md`, which ended at 2.6.0 while the build called itself
+2.9.2. Backfilled from the commits themselves.
+
 ---
 
 ## 2.9.2 — The story, written to the theme
@@ -2026,3 +2119,228 @@ leaning on the tent; a roll is a cylinder.
 get the flicker base — and 2.5.0 passed `true`. Assigning to `true.intensity` is
 a silent no-op outside strict mode, so the new camps had a fire that lit nothing.
 They use `vlight` now, the pooled kind every other fire in the valley uses.
+
+---
+
+## 2.7.0 — The after-story, and a save that could strand you on the opening moor
+
+THE BAD ONE. The pause menu and its Save key button are reachable during the
+six-second descent, and for the first 4.3 of those seconds the body sits at a
+VALLEY y with Gehenna's horizontal offset - measured at (600, -57, 600), which
+is a hundred metres inside a real hillside. That key restored, tripped the
+fall-through detector, and put the player on lastSafePos, which on a fresh page
+is the opening moor. 72% of the descent window, silent but for one console
+warning. The seam correction was on the reader, where it can only see the last
+1.7s; it is on the writer now, naming the rim that gehBeginDive already worked
+out. That also makes the key correct in every build with no Gehenna in it.
+
+gehSeed's validator accepted 1.5 and ten-digit values while the generator only
+ever rolls an integer 1..999999 - and a fractional seed ends up inside fbm.
+WS_SHARED now carries a comment explaining why it must stay booleans-only:
+mainProgress coerces every shared key with !!, so a seed put in that list would
+arrive as `true`, the re-roll would not fire because true is truthy, and
+parseSaveKey would then reject every save key that player wrote afterwards.
+
+netApplyState bounded a peer's x and z but not y - and the realm test added for
+Gehenna reads y. A mesh parked at 1e300 is a matrix of infinities.
+
+THE AFTER-STORY. Gehenna's writing, as a verified nine-edit patch. The Clerk
+reads the threads people still hold you by, and every one states the
+consequence the player never saw rather than the errand they remember. The boss
+does not deal damage - she cuts threads, and says each name out loud as it
+goes. The reveal is that Gehenna only ever severed one end: it worked on
+everyone else because nobody up there remembered them, and it fails on you
+because hundreds do. You surface to crickets carrying a written list of
+everyone still holding on.
+
+Every conversation is one press of E per line, with four unattended sequences
+on one tracked chain that cannot fire on the frame that summoned it. It has
+fallbacks, so it completes even before the world build and the enemy layer land.
+
+---
+
+## 2.7.1 — Ysolde cannot move on, and the children come to watch
+
+Her hair was transparent with depthWrite off, so it sank into the body behind
+it and read as smoke. It is opaque now - deliberately the one solid thing on a
+figure that is otherwise a shape in the water at 0.55 alpha, which is what makes
+her read as a girl rather than a shroud. It was also seated wrong: the old
+cylinder was centred at 2.28 with its top at 2.51, above the crown of a head
+whose centre is 2.35, so the hair floated clear of the skull and the cap sat on
+nothing. Crown, fall and fringe are now built around the real head sphere.
+
+Her lines are rewritten around attachment. Everything she says is a thing she is
+still holding, and holding is the whole of what is wrong: there is somewhere
+past this and she is too heavy to reach it. The attachments are to people and to
+the world - the children she gave apples to, her father's face, the smell of the
+mill at six, the elder tree she liked being up in. The doctrine is never named;
+she only ever describes the door and the weight.
+
+And she says plainly what winning does. "You think you are freeing me. You are
+not." / "There is no onward for me. If you win, I simply stop." Nothing in the
+game calls that a sin. It just is one, and the death line says so by refusing to
+comfort: she goes under, not onward, and the children will not look at you.
+
+The children are new. Up to four real village kids come down and stand well
+back, facing the pool, and shout at you not to kill her - they knew her, she
+walked them home, she gave them apples. They are never in the fight and they go
+home when it is over, however it ended. They are the moral witness.
+
+Also in: the save/multiplayer agent's verified fixes, and a stray agent probe
+file that got committed by mistake is gone.
+
+---
+
+## 2.8.0 — The warden fight is meant to be miserable now
+
+She does not wind up any more. A wraith telegraphs at 0.8s and she used to take
+1.1, which with a 2.6s recovery made a four-second cycle you could read and
+stroll away from. Her windup is 0.1-0.28s - the bear's cadence with the charge
+taken out - and her recovery is 0.7s, 0.45s in phase three. Every third blow is
+a lash with almost no tell that a dodge cannot answer; a raised shield still
+stops it, because the point is to remove the move that trivialises a slow boss,
+not to remove every move.
+
+THE PULL. Periodically something past this world reaches for her and she fights
+it: she floats up out of reach, nothing can touch her, the drowned arrive every
+1.1 seconds the whole time, and she claws back down a little stronger for it.
+Nine seconds, about a tenth of her health back. It is not a rest phase - it is
+the one stretch where you are not fighting her - and it is the fight's whole
+argument made mechanical: holding on is what has always kept her here, and she
+would rather be in this than let go.
+
+She flickers out constantly now (0.7-1.8s instead of 2-5) and she never leaves
+the water: past 34m from the pool she breaks off and returns. You can run, and
+dying sends you to a bed, but she is still standing there when you come back
+and the fight picks up where it stopped.
+
+The clock locks to midnight while she is up - no dawn to outlast, nothing to do
+but fight - and when she goes under the night lets go and runs forty times
+normal until the sun is properly up.
+
+WRAITHS no longer keep office hours. They come by day too, and the rate ramps
+with how close you are to being able to call her up: readiness is the finale's
+own gate, four relics and eight villages, read as a fraction, so the pressure
+and the thing it warns about are literally the same number. Daylight still
+hurts them, at a third of the old rate, so a noon walk to the pool is a running
+fight rather than a stroll.
+
+CAMERA: the arm eases at 4.5 instead of 9 and the field of view swings twelve
+degrees at 1.8 instead of eighteen at 6. The speed-driven zoom pumping on every
+sprint and stop was most of what read as jarring.
+
+TENTS: flat ground only. findSpot's slope test is a single sample and let a tent
+stand across a hillside with a corner in the air; the four corners of the real
+footprint are measured now, and 35cm of fall across the pitch is the limit.
+
+---
+
+## 2.8.1 — The pool is a whirlpool, and the stone stops asking
+
+The three-option ending is gone. The stone by the pool no longer asks what
+becomes of the valley - there was never a choice to make. You killed a girl who
+could not let go, and what is left is to carry her out of the water and put her
+in the ground. The stone says so and nothing else. WORLDSTATE.ending and its
+validator stay in the save so old keys still load.
+
+The way down was hold-sink-within-45cm-of-the-bed, which is why it read as
+finnicky and why the player found it by accident. The open pool is a whirlpool
+now: four nested cones turning point-down over a black throat, visible from the
+bank, and it takes hold anywhere in the water - dragging you toward the eye,
+harder the nearer you get, and downward the whole time. Holding rise still beats
+it, so it is a current rather than a trapdoor, and the pool before it opens is
+completely unchanged.
+
+---
+
+## 2.8.2 — Every arrow in the game flew sideways
+
+Both projectile systems - the goblin archers' and the hunters' - build their
+arrow as a cylinder and lay it along its flight path with a quarter turn at
+construction. Then every frame they call lookAt, which REPLACES the quaternion
+outright and throws that turn away on the very first frame. A CylinderGeometry
+runs along its own Y and lookAt points the object's +Z at the target, so the
+shaft ended up perpendicular to its own flight: a stick crossing the sky
+broadside instead of a shaft going point first. One rotateX after each lookAt.
+
+The whirlpool now waits for the burial rather than the unlock flag, which is
+what was asked for: she has to be in the ground before the water turns. New
+WORLDSTATE.ysoldeBuried carries it, wired through all four places a persistent
+flag needs - the payload, the rb whitelist, applySave and WS_SHARED - so it
+survives a save and reaches a friend. Nothing sets it yet; the burial quest is
+the missing link and is being built.
+
+---
+
+## 2.9.0 — Gehenna is a place now
+
+It was a black plane. It is a world: black water where you surface, a swept
+road east, twenty-two identical flat-roofed houses in two rows, twenty seated
+Unburdened who do not look up, a bench, a swept yard, and one hill with one
+desk on it. The houses are identical because everyone here has been relieved of
+the need to be told apart - which is also why they are three InstancedMeshes.
+The girl on the bench wears the same bob, the same colour and the same
+construction as the Drowned Warden, so you recognise Ysolde before anything
+names her.
+
+Lit from below: the hemisphere light's ground colour is ember, its sky half is
+near-black, the sun is off. Four lines, no second pass. The ground's lighting
+is baked into its vertex colours, because a plane whose normals all point up
+receives nothing from a world lit from underneath and would read as a hole.
+
+The Attached hold you rather than damage you and let go by themselves. Killing
+one is possible precisely because it is never necessary.
+
+THREE BUGS IN THE SHIPPED AFTER-STORY, all measured:
+- GEHENNA.tick and GEHENNA.reset were never called from anywhere, so the whole
+  after-story was inert: no chains advanced, no prompts appeared, the surfacing
+  beat never fired.
+- The Kindly One could never be reached. She registers at exactly the Clerk's
+  position and the nearest-speaker scan keeps the first strictly-closer
+  candidate, so on an exact tie the earlier registration wins forever. The Clerk
+  said "I'll have to call my sister" and then nothing happened, at any number of
+  presses.
+- Its prompt sprites leaked about four SpriteMaterials per descent.
+
+AND ONE THAT WAS WAITING TO TAKE THE WHOLE GAME DOWN: disposeTree disposed
+Sprite geometry. Every Sprite in three.js shares one module-level geometry, so
+tearing down a single prompt would have deleted the GPU buffer behind every E
+bubble, quest mark and nametag in the game. Latent since removeEnemy existed.
+
+Eleven seam bugs, all from Gehenna sitting at (600,600) which is INSIDE the
+valley's own bounds: a mountainside's slope was being applied to your movement
+on ash; insideCave had only an upper y bound, which also disabled the
+fall-through net; wolf dens restocked the valley from below; discoveries
+self-triggered; petals drifted through; fairy rings healed; the quest arrow
+tipped at valley targets; the minimap painted your arrow onto grass; and
+south-east villagers thought at full rate with their quest marks turned toward
+a player under the floor.
+
+Measured: +70 nodes on ~15,700. Two full descents leak nothing - nodes 0,
+materials 0, vlights 0, EXTRA 0, npcs 0 - and the second teardown returns
+exactly to the pre-descent count.
+
+---
+
+## Between 2.7.1 and 2.8.0 — The save regression that hid for three versions
+
+My own trap, the one I have been warning every agent about all session. In
+2.6.0 I tightened the gehSeed validator and wrote the explanation as a comment
+in the MIDDLE of the line. That line carried four more assignments after it:
+
+  spec.gehSeed = ...; // ...comment... spec.awokeAt = ...; spec.deep = ...;
+  spec.ending = ...; spec.wolfChoice = ...;
+
+The comment swallowed all four. pickObj walks `for (const k in spec)` and
+silently drops every key the spec does not name, so for three versions a save
+key carried no ending and no wolf choice. Finish the game, reload, and the pool
+reverts, every closing line reverts, storyAct() falls from COMPLETE back to
+FINALE, and dread() starts climbing again. Silent, with no error.
+
+Found by the phase 3 agent while it was building something else. The four
+assignments are on their own lines now, with the comment above them saying why
+it must stay there. I scanned the whole file for the same shape: no others.
+
+Also scoped routeGuide explicitly to the one objective that will use it —
+carrying Ysolde to her grave. Everywhere else the arrow keeps pointing dead at
+the goal, because an arrow that suddenly starts steering is a worse arrow.
