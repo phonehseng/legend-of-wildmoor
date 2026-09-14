@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.10.0</title>
+<title>Legend of Peanits 2.11.0</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -378,7 +378,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.10.0</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.11.0</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -446,7 +446,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.10.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.11.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -1989,6 +1989,16 @@ const __boot = (async () => {
   // and river in the valley is one volume, SEA, and SEA.rest is the literal expression the old float lerped toward,
   // carried over rather than recomputed — so a swimmer touching no key floats at exactly the height they always did.
   const SEA = { id: "sea", x: 0, z: 0, r: Infinity, top: WATER_Y, enter: 0.1, exit: 0.4, rest: 0.1 - 0.9, floor: -40, sea: true, place: "The Deep Lake" };
+  // there is no sea under the seam. swimVolAt falls through to SEA for anything it does not recognise, and SEA is a
+  // fact about the VALLEY: its deep test reads terrainH, which describes the ground 280 m overhead, and its rest
+  // height is -0.8. measured over gehenna's walkable footprint, 0.4% of it sits under one of the valley's lake beds —
+  // so walking onto that patch made terrainH answer "deep water", P.swim latched on while standing on dry ash, and
+  // the float target dragged the body from -279 up through the divider at about 9 m/s. guardPlayerPosition then
+  // "recovered" the player to the valley spawn. reproduced at (576, 510): -279 to -197 in half a second, then the
+  // moor. that is the reported "i glitched from gehenna back to the overworld somehow", and it is one missing realm
+  // test. DRY is the answer below the seam instead: its top is so far down that nothing is ever inside it, and its
+  // exit is too, so a body that somehow arrived swimming leaves the water on the very next frame.
+  const DRY = { id: "dry", x: 0, z: 0, r: Infinity, top: -1e9, enter: -1e9, exit: -1e9, rest: -1e9, floor: -1e9, dry: true, place: "" };
   const SWIM_VOLS = [];
   // the body of water a point is inside, or the valley's sea for its lakes and rivers. a registered volume wins over
   // the sea because a basin sunk into a hillside is not the lake whose waterline happens to run through the hill.
@@ -2001,7 +2011,7 @@ const __boot = (async () => {
       if (y > v.top + 1.5 || y < v.floor - 4) continue;
       return v;
     }
-    return SEA;
+    return y < DIVIDE ? DRY : SEA;
   }
   const slopeAt = (x, z) => Math.abs(terrainH(x + 3, z) - terrainH(x - 3, z)) + Math.abs(terrainH(x, z + 3) - terrainH(x, z - 3));
   const gradAt = (x, z) => V3((terrainH(x + 1, z) - terrainH(x - 1, z)) / 2, 0, (terrainH(x, z + 1) - terrainH(x, z - 1)) / 2);
@@ -11535,8 +11545,13 @@ const __boot = (async () => {
   // advance goblins state, animation and related scene objects for this frame
   // the nearest player to a point: you, or a friend's avatar when you are hosting; enemies choose their prey this way
   function nearestPlayerTo(p) {
-    let best = { pos: P.pos, id: null }, bd = death ? 1e9 : dist2D(P.pos, p); // a dead host is no prey
-    for (const a of NET.avatars.values()) { if (a.state.dead) continue; const d = dist2D(a.state.pos, p); if (d < bd) { bd = d; best = { pos: a.state.pos, id: a.id }; } }
+    // realm matters and dist2D does not know about it. gehenna sits at (600, 600) INSIDE the valley's own bounds, so a
+    // friend standing in the valley can be closer in x and z to a gehenna enemy than the person actually down there is,
+    // and that enemy would walk off after somebody 280 metres above its own ceiling. this is the same two-realm test
+    // the enemy snapshot already uses, applied where the chasing is decided.
+    const realm = q => (q.y < DIVIDE) === (p.y < DIVIDE);
+    let best = { pos: P.pos, id: null }, bd = death || !realm(P.pos) ? 1e9 : dist2D(P.pos, p); // a dead host is no prey
+    for (const a of NET.avatars.values()) { if (a.state.dead || !realm(a.state.pos)) continue; const d = dist2D(a.state.pos, p); if (d < bd) { bd = d; best = { pos: a.state.pos, id: a.id }; } }
     return best;
   }
   function updateGoblins(dt) {
@@ -13755,12 +13770,12 @@ const __boot = (async () => {
       const st = pc.connectionState;
       if (st === "failed" || st === "closed") { clearTimeout(peer.graceT); netDrop(peer); }
       else if (st === "disconnected") { clearTimeout(peer.graceT); peer.graceT = setTimeout(() => { if (pc.connectionState === "disconnected") netDrop(peer); }, 12000); netStatus("The connection wavered — waiting for it to come back…"); } // a hiccup: twelve seconds of grace before it counts as gone
-      else if (st === "connected") { clearTimeout(peer.graceT); if (peer.ready) netStatus(`Connected — ${NET.peers.size + 1} players.`); }
+      else if (st === "connected") { clearTimeout(peer.graceT); if (peer.ready) netStatus(`Connected — ${netPlayerCount()} players.`); }
     };
     NET.peers.set(id, peer); return peer;
   }
   function netWire(peer, ch) {
-    peer.ch = ch; ch.onopen = () => { peer.ready = true; netSend(peer, { t: "hello", id: NET.myId, look: netLook(), hp: P.hp, maxHp: P.maxHp }); netStatus(`Connected — ${NET.peers.size + 1} players. Press P to get back to the moor.`); };
+    peer.ch = ch; ch.onopen = () => { peer.ready = true; netSend(peer, { t: "hello", id: NET.myId, look: netLook(), hp: P.hp, maxHp: P.maxHp }); netStatus(`Connected — ${netPlayerCount()} players. Press P to get back to the moor.`); };
     ch.onmessage = e => { let m = null; try { m = JSON.parse(e.data); } catch (_) { return; } netHandle(peer, m); };
     ch.onclose = () => netDrop(peer);
   }
@@ -13771,7 +13786,7 @@ const __boot = (async () => {
     const gone = [...NET.avatars.values()].filter(a => a.via === peer.id); for (const a of gone) netRemoveAvatar(a.id);
     if (NET.role === "host") for (const a of gone) netBroadcast({ t: "bye", id: a.id }, peer.id);
     try { peer.pc.close(); } catch (_) {}
-    netStatus(NET.peers.size ? `${NET.peers.size + 1} players.` : "The connection ended.");
+    netStatus(NET.peers.size ? `${netPlayerCount()} players.` : "The connection ended.");
     if (!NET.peers.size && NET.role === "guest") {
       NET.role = null;
       NET.mirroring = false;
@@ -13804,6 +13819,12 @@ const __boot = (async () => {
   const netLook = () => ({ name: CUSTOM.name, skin: CUSTOM.skin, hair: CUSTOM.hair, style: CUSTOM.style, tunic: CUSTOM.tunic, cape: CUSTOM.cape });
   function netSend(peer, m) { if (peer.ready && peer.ch.readyState === "open") { try { peer.ch.send(JSON.stringify(m)); } catch (_) {} } }
   function netBroadcast(m, except) { for (const p of NET.peers.values()) if (p.id !== except) netSend(p, m); }
+  // how many people are actually in this session, from the point of view of whoever is asking. a GUEST's NET.peers
+  // only ever holds one entry — the host, keyed "host" — so counting peers and adding one told every guest there were
+  // two players in the room no matter how many there were, which is almost certainly why this game reads as
+  // two-player from the outside. avatars is the right set for a guest, and peers is the right set for a host in the
+  // moment before the first hello lands, so take whichever is larger and add yourself.
+  const netPlayerCount = () => Math.max(NET.peers.size, NET.avatars.size) + 1;
   // ---- the meeting place: a public message board (mqtt over websockets) where a four-digit code names a room; only the two descriptions pass through it
   const NET_BROKERS = ["wss://broker.emqx.io:8084/mqtt", "wss://broker.hivemq.com:8884/mqtt", "wss://test.mosquitto.org:8081/mqtt"];
   const mqStr = t => { const b = new TextEncoder().encode(t); return [b.length >> 8, b.length & 255, ...b]; };
@@ -15312,10 +15333,25 @@ const __boot = (async () => {
   //     after-story holds their dialogue and their state. there is no AI in gehenna except the attached and her.
   //   * nothing casts or receives a shadow. the sun is switched off, so a shadow pass here would be pure cost.
   const GEH_LAMPS = [];
-  for (let i = 0; i < 6; i++) GEH_LAMPS.push(vlight(0xff7a2a, 0, 20));
+  // eight rather than six, and 32 m of reach rather than 20. the pool of sixteen real lights is not contended down
+  // here — every valley light is nine hundred metres away and loses the nearest-first sort by a mile — and the extra
+  // reach is what carries any light at all to the dish, where the player arrives and where the road's lamps begin
+  // fourteen metres away.
+  for (let i = 0; i < 8; i++) GEH_LAMPS.push(vlight(0xff7a2a, 0, 32));
   let gehK = 0, gehTick = 1, gehSaidT = 0; // gehK is 1 while STANDING in gehenna, as against falling through water toward it
-  const GEH_FOG_WATER = toLin(0x03060a), GEH_FOG_ASH = toLin(0x1a0607), _gehFog = new THREE.Color();
-  const GEH_SKY_TOP = toLin(0x05030a), GEH_SKY_HOR = toLin(0x571205), GEH_HEMI_SKY = toLin(0x0b0509), GEH_HEMI_GND = toLin(0xc0380e);
+  // GEH_FOG_ASH is the colour of everything past about seventy metres, which in a room three hundred metres across is
+  // most of the screen most of the time. at 0x1a0607 that was a void rather than a distance, and it is why turning
+  // away from the lamplit road still read as the lights being off: the near floor is dark ash and the far field was
+  // darker. this is the difference between a dark room and no room. the water on the way down is untouched — that is
+  // GEH_FOG_WATER, and gehK is 0 for the whole descent.
+  const GEH_FOG_WATER = toLin(0x03060a), GEH_FOG_ASH = toLin(0x38130d), _gehFog = new THREE.Color();
+  // GEH_HEMI_SKY was 0x0b0509, which is black with a rumour of blue in it, and that one constant is most of why the
+  // people and houses down here had no light on them at all. a hemisphere light's SKY half is what reaches a surface
+  // whose normal points UP, so it is the term that decides whether anything standing on the ash is visible from more
+  // than a lamp's reach away. it is a glowing red lid over a black street now, which is the right number and also the
+  // right image. GEH_AMB is its partner: ambient.color is otherwise still carrying the black water's dark mauve,
+  // 0x3a2026, which is about 4% red in linear — so raising ambient INTENSITY alone did essentially nothing.
+  const GEH_SKY_TOP = toLin(0x05030a), GEH_SKY_HOR = toLin(0x571205), GEH_HEMI_SKY = toLin(0x7a1c12), GEH_HEMI_GND = toLin(0xc0380e), GEH_AMB = toLin(0xa8412a);
   // gehenna's own gradient, for the one place the valley's is read off the player's feet. four gehH samples, the same
   // shape as gradAt, answering about the ash rather than about the moor three hundred metres overhead.
   const gehGradAt = (x, z) => V3((gehH(x + 1, z) - gehH(x - 1, z)) / 2, 0, (gehH(x, z + 1) - gehH(x, z - 1)) / 2);
@@ -15851,7 +15887,7 @@ const __boot = (async () => {
         if (!best) { GEH_LAMPS[s].intensity = 0; continue; }
         best.used = gehTick;
         GEH_LAMPS[s].position.copy(best);
-        GEH_LAMPS[s].intensity = 2.4 + Math.sin(time * 3.1 + s) * 0.25;
+        GEH_LAMPS[s].intensity = 3.1 + Math.sin(time * 3.1 + s) * 0.3;
       }
     }
     if (GEH.motes) { GEH.motes.position.set(P.pos.x, GEH.floor - 2, P.pos.z); GEH.motes.rotation.y = time * 0.026; }
@@ -17699,8 +17735,13 @@ const __boot = (async () => {
       hemi.color.lerp(toLin(0x16303e), deepK * 0.85 * (1 - gehK));
       hemi.color.lerp(GEH_HEMI_SKY, deepK * gehK);
       hemi.groundColor.lerp(GEH_HEMI_GND, deepK * gehK);
-      ambient.intensity = ambient.intensity * (1 - deepK) + (0.17 + gehK * 0.06) * deepK;
+      // the gehK term is what separates the room from the water, so the black water on the way down keeps its 0.17 to
+      // the bit and only the place you stand in gets the floor raised.
+      ambient.intensity = ambient.intensity * (1 - deepK) + (0.17 + gehK * 0.24) * deepK;
       ambient.color.lerp(toLin(0x3a2026), deepK * 0.9);
+      // the water keeps its mauve and the room gets a warm brick that the standing geometry can actually reflect.
+      // gehK is 0 for the whole descent, so the black water on the way down is untouched to the bit.
+      ambient.color.lerp(GEH_AMB, deepK * gehK);
       sun.intensity *= 1 - deepK * 0.95 - gehK * deepK * 0.049; // and the sun is gone: there is no sun down there
       sky.material.uniforms.top.value.multiplyScalar(1 - deepK * 0.97);
       sky.material.uniforms.horizon.value.multiplyScalar(1 - deepK * 0.97);
@@ -18281,9 +18322,19 @@ const __boot = (async () => {
   }
   const WOLF_HOME_R = 26;
   function updateExtraEnemies(dt) {
-    if (netGuest()) { for (const e of EXTRA) if (e.tx !== undefined) { const k = Math.min(1, dt * 10); e.pos.x = lerp(e.pos.x, e.tx, k); e.pos.y = lerp(e.pos.y, e.ty, k); e.pos.z = lerp(e.pos.z, e.tz, k); e.heading = e.th; e.mesh.position.copy(e.pos); e.mesh.rotation.y = e.heading; e.mesh.visible = e.alive; if (e.mat) e.mat.opacity = e.state === "recover" ? 1 : 0.55; updateHealthBar(e, e.kind === "wolf" ? 1.8 : 3); } return; }
+    if (netGuest()) { for (const e of EXTRA) if (e.tx !== undefined) { const k = Math.min(1, dt * 10); e.pos.x = lerp(e.pos.x, e.tx, k); e.pos.y = lerp(e.pos.y, e.ty, k); e.pos.z = lerp(e.pos.z, e.tz, k); e.heading = e.th; e.mesh.position.copy(e.pos); e.mesh.rotation.y = e.heading; e.mesh.visible = e.alive; if (e.mat) e.mat.opacity = e.state === "recover" ? 1 : 0.55; updateHealthBar(e, e.kind === "wolf" ? 1.8 : 3); }
+      // and then, if the guest is below the seam, it falls through and runs its OWN gehenna. this used to return
+      // unconditionally. gehSeed is deliberately not shared, so a guest who dives is standing in a different gehenna
+      // that the host has never built and could not broadcast if it wanted to, and nothing below the seam goes into
+      // the snapshot anyway. so a guest got no AI down there at all: the attached frozen where they spawned, and the
+      // kindly one's body standing still while her whole after-story ran on around her.
+      if (P.pos.y >= DIVIDE) return;
+    }
     for (let i = EXTRA.length - 1; i >= 0; i--) {
       const e = EXTRA[i];
+      // a guest only ever simulates what is in its own gehenna. everything in the valley belongs to the host and has
+      // already been mirrored above, and simulating it here would fight the host's positions every frame.
+      if (netGuest() && e.pos.y >= DIVIDE) continue;
       // the corpse fade is guarded on e.mat now: any EXTRA kind without one threw a TypeError from inside update() on
       // every frame of its own body, which takes the whole game down rather than the one enemy.
       // the gehenna branch is not decoration: neither kind carries an e.mat, so without a case of their own they
@@ -19054,9 +19105,16 @@ const __boot = (async () => {
       const vol = P.swimVol || (P.swimVol = swimVolAt(P.pos.x, P.pos.z, P.pos.y));
       const swimUp = !!keys[" "] || !!TOUCH.up,
         swimDown = !!keys.x || (!!keys.control && !!document.fullscreenElement);
+      // while a current has hold of you there is no float target this frame, and without that the whirlpool below
+      // could not physically close. the rest lerp pulls UP at six times the remaining gap while the whirlpool pulls
+      // down at a flat 1.9 m/s, so the two balance at rest minus 1.9/6 = 0.317 m — and the trigger needs bed + 0.9,
+      // which at the black pool is a further 0.33 m below that. measured on the shipped build: the body sat at
+      // y 3.6 for eleven seconds and then drowned, every time, unless the player ALSO held the sink key. the descent
+      // was not finnicky, it was unreachable, and this is the line that made it so.
+      const grip = !!(vol.geh && !swimUp && !P.gehDive && WORLDSTATE.ysoldeBuried && WORLDSTATE.gehUnlocked);
       if (swimUp && !swimDown) P.pos.y = Math.min(vol.rest, P.pos.y + TUNE.player.swimRise * hdt);
       else if (swimDown && !swimUp) P.pos.y = Math.max(Math.max(g0, vol.floor) + 0.25, P.pos.y - TUNE.player.swimSink * hdt);
-      else P.pos.y = lerp(P.pos.y, vol.rest, Math.min(1, hdt * 6));
+      else if (!grip) P.pos.y = lerp(P.pos.y, vol.rest, Math.min(1, hdt * 6));
       // the way down. it used to need you to hold the sink key while within 45 cm of the bed, which is why it read as
       // finnicky — most players never found it and the one who did found it by accident. the open pool is a whirlpool
       // now: it takes hold anywhere in the water and drags you toward the middle and down, and once it has you far
@@ -19830,27 +19888,193 @@ const __boot = (async () => {
     // the rose court: a rose, once you have met the queen
     if (FAIRY.seen && FAIRY.queen && inView(FAIRY.queen.pos)) { const rx = mx(FAIRY.queen.pos), rz = mz(FAIRY.queen.pos); mctx.fillStyle = "#3f8a3a"; mctx.fillRect(rx - 1 * s, rz, 2 * s, 7 * s); mctx.fillStyle = "#ff77b0"; for (let k = 0; k < 5; k++) { const a = (k / 5) * 6.28; mctx.beginPath(); mctx.arc(rx + Math.cos(a) * 3.2 * s, rz - 1 * s + Math.sin(a) * 3.2 * s, 2.6 * s, 0, 7); mctx.fill(); } mctx.fillStyle = "#ffd0e4"; mctx.beginPath(); mctx.arc(rx, rz - 1 * s, 2 * s, 0, 7); mctx.fill(); label("Rose Court", rx, rz + 15 * s); }
   }
+  // ============================================================ gehenna's own map sheet
+  // the valley's sheet has nothing true to say about a place underneath it, so hiding it down there was right as far
+  // as it went — but the player is then navigating a strange town with no map at all. this is the other half: a second
+  // sheet, painted from gehH the way the valley's is painted from terrainH, swapped in on depth alone.
+  // gehenna is a STREET, not a disc: a dish of water at the origin, a road running out to +x, two rows of houses, the
+  // swept yard and then the hill. so the sheet is centred on the middle of the street rather than on GEH.cx, and it is
+  // wider than it is interesting — which is why 220 m across is enough to hold all of it with room at both ends.
+  const GMM_N = 200,
+    GMM_SPAN = 220,
+    gmmCX = () => GEH.cx + 66,
+    gmmCZ = () => GEH.cz;
+  let gmmCache = null,
+    gmmFor = null;
+  // 200 px across 220 m, written through one ImageData rather than 40,000 fillRects, so it can be built inside the
+  // descent without a hitch. it is keyed on GEH.root: a rebuilt gehenna repaints, and a torn-down one drops it.
+  function gehBuildMinimap() {
+    if (!GEH.root) return;
+    if (!gmmCache) {
+      gmmCache = document.createElement("canvas");
+      gmmCache.width = gmmCache.height = GMM_N;
+    }
+    const c = gmmCache.getContext("2d");
+    if (!c) return;
+    const img = c.createImageData(GMM_N, GMM_N),
+      d = img.data,
+      cx = gmmCX(),
+      cz = gmmCZ();
+    for (let j = 0; j < GMM_N; j++)
+      for (let i = 0; i < GMM_N; i++) {
+        const x = cx + (i / GMM_N - 0.5) * GMM_SPAN,
+          z = cz + (j / GMM_N - 0.5) * GMM_SPAN,
+          k = (i + j * GMM_N) * 4,
+          dx = x - GEH.cx,
+          dz = z - GEH.cz,
+          r = Math.hypot(dx, dz);
+        // the walls close in past 150 m, and beyond that there is nothing to draw a map of
+        if (r > 150) { d[k] = 7; d[k + 1] = 3; d[k + 2] = 4; d[k + 3] = 255; continue; }
+        const h = gehH(x, z) - GEH.floor;
+        let R = 34 + clamp((h + 4) / 9, 0, 1) * 40,
+          G = 10 + clamp((h + 4) / 9, 0, 1) * 12,
+          B = 10 + clamp((h + 4) / 9, 0, 1) * 10;
+        // the dish of black water reads cold, because it is the one thing on this map the player has to be able to find
+        if (r < GEH_L.dishR) { const t = Math.pow(1 - r / GEH_L.dishR, 0.7); R = lerp(R, 16, t); G = lerp(G, 40, t); B = lerp(B, 58, t); }
+        // the swept road, and the swept yard at the end of it
+        if (dx > GEH_L.roadX0 - 3 && dx < GEH_L.roadX1 + 3 && Math.abs(dz) < GEH_L.roadW + 1.4) { R += 26; G += 12; B += 8; }
+        if (Math.hypot(dx - GEH_L.yardX, dz) < GEH_L.yardR) { R += 20; G += 11; B += 8; }
+        d[k] = Math.min(255, R);
+        d[k + 1] = Math.min(255, G);
+        d[k + 2] = Math.min(255, B);
+        d[k + 3] = 255;
+      }
+    c.putImageData(img, 0, 0);
+    gmmFor = GEH.root;
+  }
+  // the landmarks. deliberately few, and every one of them read out of GEH_L rather than hard-coded, so the map
+  // follows the world if the world moves. GEH.marks is the extension point: push {x, z, name, col} and it is drawn.
+  function gehMapIcons(mx, mz, n, big) {
+    const pxs = n / (big ? 520 : 260),
+      s = pxs * (big ? 1.1 : 1);
+    const label = (t, x, y, col) => {
+      mctx.fillStyle = col || "#d8a898";
+      mctx.font = Math.round((big ? 11 : 12) * pxs) + "px Georgia";
+      mctx.textAlign = "center";
+      mctx.fillText(t, x, y);
+    };
+    // the two rows of houses, as they actually stand
+    mctx.fillStyle = "#7a4a3a";
+    for (let side = 0; side < 2; side++)
+      for (let i = 0; i < GEH_L.rowN; i++) {
+        const hx = mx({ x: GEH.cx + GEH_L.rowX0 + i * GEH_L.rowStep }),
+          hz = mz({ z: GEH.cz + (side ? GEH_L.rowZ : -GEH_L.rowZ) });
+        mctx.fillRect(hx - 1.6 * s, hz - 1.4 * s, 3.2 * s, 2.8 * s);
+      }
+    // the hill with the desk on it
+    {
+      const hx = mx({ x: GEH.cx + GEH_L.hillX }),
+        hz = mz({ z: GEH.cz });
+      mctx.strokeStyle = "#8a4028";
+      mctx.lineWidth = 1.4 * s;
+      mctx.beginPath();
+      mctx.arc(hx, hz, 6 * s, 0, 7);
+      mctx.stroke();
+    }
+    for (const m of GEH.marks || []) {
+      if (!m || !Number.isFinite(m.x) || !Number.isFinite(m.z)) continue;
+      const px = mx(m),
+        pz = mz(m);
+      mctx.fillStyle = m.col || "#c07050";
+      mctx.fillRect(px - 2.2 * s, pz - 2.2 * s, 4.4 * s, 4.4 * s);
+      if (m.name) label(m.name, px, pz + 11 * s);
+    }
+    // the water you surfaced in, which is the only way back up. the coldest mark on a red sheet, and the one thing
+    // down here a player who wants to leave has to be able to find from anywhere.
+    {
+      const ux = mx({ x: GEH.cx }),
+        uz = mz({ z: GEH.cz });
+      mctx.strokeStyle = "#6fd0ff";
+      mctx.lineWidth = 2 * s;
+      mctx.beginPath();
+      mctx.arc(ux, uz, 7 * s, 0, 7);
+      mctx.stroke();
+      mctx.fillStyle = "#9fe8ff";
+      mctx.beginPath();
+      mctx.moveTo(ux, uz - 6 * s);
+      mctx.lineTo(ux + 3.6 * s, uz + 1.4 * s);
+      mctx.lineTo(ux, uz - 1 * s);
+      mctx.lineTo(ux - 3.6 * s, uz + 1.4 * s);
+      mctx.closePath();
+      mctx.fill();
+      label("The Way Up", ux, uz + 17 * s, "#bfeaff");
+    }
+  }
   function drawHUD() {
     { const hl = heroLevel(); if (hl !== shownLevel) { shownLevel = hl; showHeroName(); } }
-    // the valley's map has nothing true to say about a place underneath it. it would recentre on the south-east rim
-    // and paint your arrow onto grass you are two hundred and eighty metres below. it goes away, and comes back.
-    mm.style.opacity = P.pos.y < DIVIDE ? 0 : "";
+    // the valley's map has nothing true to say about a place underneath it: it would recentre on the south-east rim
+    // and paint your arrow onto grass you are two hundred and eighty metres below — dead centre of a picture of the
+    // rim on the small map, and the bottom-right corner on the big one, which is exactly what was reported. so the
+    // sheet swaps instead of going away. the test is the player's own depth, so it swaps back on its own the moment
+    // they surface and there is no state to get out of step.
+    mm.style.opacity = "";
     const n = mm.width,
-      big = mm.classList.contains("big"),
-      VIEW = 380; // metres shown across the small map
-    const wx0 = big ? -HALF : clamp(P.pos.x - VIEW / 2, -HALF, HALF - VIEW),
-      wz0 = big ? -HALF : clamp(P.pos.z - VIEW / 2, -HALF, HALF - VIEW),
-      ww = big ? SIZE : VIEW;
+      big = mm.classList.contains("big");
+    const mmGeh = P.pos.y < DIVIDE && !P.gehDive,
+      mmShaft = !!P.gehDive;
+    // which world a body is in, from its height alone, with a third answer for neither. the plain two-way test is
+    // right for a body standing still and wrong for a body in the shaft, which spends about three seconds between
+    // -200 and -60 at the FAR world's x and z — and a two-way test calls that a valley player standing at (600, 600).
+    // -60 is not a new number: it is guardPlayerPosition's valley floor, the height below which this game already
+    // refuses to believe a body is in the valley at all.
+    const realmOf = y => (y < DIVIDE ? -1 : y < -60 ? 0 : 1),
+      myRealm = realmOf(P.pos.y);
+    const VIEW = mmGeh ? (big ? GMM_SPAN : 110) : big ? SIZE : 380; // metres shown across the map
+    const gx0 = () => gmmCX() - GMM_SPAN / 2,
+      gz0 = () => gmmCZ() - GMM_SPAN / 2;
+    const wx0 = mmGeh ? (big ? gx0() : clamp(P.pos.x - VIEW / 2, gx0(), gx0() + GMM_SPAN - VIEW)) : big ? -HALF : clamp(P.pos.x - VIEW / 2, -HALF, HALF - VIEW),
+      wz0 = mmGeh ? (big ? gz0() : clamp(P.pos.z - VIEW / 2, gz0(), gz0() + GMM_SPAN - VIEW)) : big ? -HALF : clamp(P.pos.z - VIEW / 2, -HALF, HALF - VIEW),
+      ww = VIEW;
     const mx = v => ((v.x - wx0) / ww) * n,
       mz = v => ((v.z - wz0) / ww) * n;
-    {
+    // one arrow, drawn twice: yours in gold and everyone else's in cold blue
+    const arrow = (px, pz, head, fill, line) => {
+      if (!Number.isFinite(px) || !Number.isFinite(pz)) return;
+      mctx.save();
+      mctx.translate(px, pz);
+      mctx.rotate(Math.atan2(Math.sin(head), -Math.cos(head)));
+      mctx.fillStyle = fill;
+      mctx.strokeStyle = line;
+      mctx.lineWidth = 1.5;
+      mctx.beginPath();
+      mctx.moveTo(0, -10);
+      mctx.lineTo(7, 7);
+      mctx.lineTo(0, 3);
+      mctx.lineTo(-7, 7);
+      mctx.closePath();
+      mctx.fill();
+      mctx.stroke();
+      mctx.restore();
+    };
+    if (mmShaft) {
+      // between the two worlds there is no map of anywhere, and six seconds of black is the honest answer
+      mctx.fillStyle = "#05060a";
+      mctx.fillRect(0, 0, n, n);
+      mctx.fillStyle = "#3a4a60";
+      mctx.font = Math.round(n / 26) + "px Georgia";
+      mctx.textAlign = "center";
+      mctx.fillText("· · ·", n / 2, n / 2);
+    } else if (mmGeh) {
+      if (gmmFor !== GEH.root) gehBuildMinimap(); // a gehenna built since the last paint gets a fresh sheet, once
+      mctx.imageSmoothingEnabled = true;
+      if (gmmCache && gmmFor === GEH.root) {
+        const sx = ((wx0 - gx0()) / GMM_SPAN) * gmmCache.width,
+          sz = ((wz0 - gz0()) / GMM_SPAN) * gmmCache.width,
+          sw = (ww / GMM_SPAN) * gmmCache.width;
+        mctx.drawImage(gmmCache, sx, sz, sw, sw, 0, 0, n, n);
+      } else {
+        mctx.fillStyle = "#180507";
+        mctx.fillRect(0, 0, n, n);
+      }
+      gehMapIcons(mx, mz, n, big);
+    } else {
       const sx = ((wx0 + HALF) / SIZE) * n,
         sz = ((wz0 + HALF) / SIZE) * n,
         sw = (ww / SIZE) * n;
       mctx.imageSmoothingEnabled = big;
       mctx.drawImage(mmCache, sx, sz, sw, sw, 0, 0, n, n);
+      drawMapIcons(mx, mz, wx0, wz0, ww, big);
     }
-    drawMapIcons(mx, mz, wx0, wz0, ww, big);
     {
       let boss = null,
         bd = 60;
@@ -19876,48 +20100,46 @@ const __boot = (async () => {
       statsT = 1;
       sp0.innerHTML = `<h3>${esc(CUSTOM.name)} — hero level ${heroLevel()}</h3><small style="opacity:.75">Your level is the average of your five land skills. Swimming counts as a sixth only while it helps, so it can lift your level but never hold it back. Each level takes 4.5% off the damage you take.</small><br>Hearts ${P.hp % 1 ? P.hp.toFixed(1) : P.hp} / ${P.maxHp} · Stamina ${Math.round(P.stam)} / ${Math.round(stamMax())} · Air ${Math.round(airMax())}s<br>Weapon: ${WEAPONS[P.weapon].name} · Damage ×${(dmgMul() * WEAPONS[P.weapon].dmg).toFixed(2)} · Reach +${((attackReachMul() - 1) * 100).toFixed(1)}% · Swing ×${(1 / swingMul()).toFixed(2)} · Reach ×${attackReachMul().toFixed(2)}<br>Run ${runSpd().toFixed(1)} · Jump ${jumpV().toFixed(1)} · Air control ${airCtl().toFixed(1)}<h3>Skills</h3>${skillsHTML()}<h3>Tally</h3>${P.kills} slimes · ${P.gkills} goblins · ${P.herbs} herbs · ${Math.round(P.steps / 2)} paces`; // the "found" strip lived here and was the satchel's job; the satchel shows the things themselves
     }
+    // st is read again further down by the objectives list, so it stays at the function's scope. only the DRAWING is
+    // gated: the quest mark, the slimes, the goblins and the herbs are all valley things at valley coordinates, and
+    // mx/mz would happily scatter them over gehenna's sheet, because both maps are only ever x and z.
     const st = stage(),
       target = [king.pos, hermitPos, null, null, hermitPos, flintPos, lighthousePos, king.pos, ELDERSTAIR][st];
-    if (target) {
-      mctx.fillStyle = "#c0a2ff";
-      mctx.beginPath();
-      mctx.arc(mx(target), mz(target), 4, 0, 7);
-      mctx.fill();
-    }
-    mctx.fillStyle = "#c8422f";
-    slimes.forEach(s => {
-      if (s.alive) mctx.fillRect(mx(s.pos) - 1.5, mz(s.pos) - 1.5, 3, 3);
-    });
-    mctx.fillStyle = "#6a3aa0";
-    goblins.forEach(g => {
-      if (g.alive) mctx.fillRect(mx(g.pos) - 1.5, mz(g.pos) - 1.5, 3, 3);
-    });
-    if (P.bonus.herbSight) {
-      mctx.fillStyle = "#75e5c8";
-      herbs.forEach(h => {
-        if (!h.taken) mctx.fillRect(mx(h.pos) - 2, mz(h.pos) - 2, 4, 4);
+    if (!mmGeh && !mmShaft) {
+      if (target) {
+        mctx.fillStyle = "#c0a2ff";
+        mctx.beginPath();
+        mctx.arc(mx(target), mz(target), 4, 0, 7);
+        mctx.fill();
+      }
+      mctx.fillStyle = "#c8422f";
+      slimes.forEach(s => {
+        if (s.alive) mctx.fillRect(mx(s.pos) - 1.5, mz(s.pos) - 1.5, 3, 3);
       });
+      mctx.fillStyle = "#6a3aa0";
+      goblins.forEach(g => {
+        if (g.alive) mctx.fillRect(mx(g.pos) - 1.5, mz(g.pos) - 1.5, 3, 3);
+      });
+      if (P.bonus.herbSight) {
+        mctx.fillStyle = "#75e5c8";
+        herbs.forEach(h => {
+          if (!h.taken) mctx.fillRect(mx(h.pos) - 2, mz(h.pos) - 2, 4, 4);
+        });
+      }
     }
-    {
-      const px = mx(P.pos),
-        pz = mz(P.pos),
-        hx = Math.sin(P.heading),
-        hz = Math.cos(P.heading);
-      mctx.save();
-      mctx.translate(px, pz);
-      mctx.rotate(Math.atan2(hx, -hz));
-      mctx.fillStyle = "#ffd23c";
-      mctx.strokeStyle = "#5a3a08";
-      mctx.lineWidth = 1.5;
-      mctx.beginPath();
-      mctx.moveTo(0, -10);
-      mctx.lineTo(7, 7);
-      mctx.lineTo(0, 3);
-      mctx.lineTo(-7, 7);
-      mctx.closePath();
-      mctx.fill();
-      mctx.stroke();
-      mctx.restore();
+    if (!mmShaft) {
+      // peers were never drawn on this map at all, so seeing each other's arrows is new. the realm gate is the point:
+      // a peer standing in gehenna has valley coordinates of (600, 600), and without it they would be painted into the
+      // corner of your valley map as though they were standing out on the rim. friends first, so yours is never hidden
+      // underneath somebody else's.
+      if (NET.avatars.size)
+        for (const a of NET.avatars.values()) {
+          const sp = a && a.state && a.state.pos;
+          if (!validPos(sp) || a.state.dead) continue;
+          if (myRealm === 0 || realmOf(sp.y) !== myRealm) continue;
+          arrow(mx(sp), mz(sp), a.heading || 0, "#7fd8ff", "#0b2a3a");
+        }
+      arrow(mx(P.pos), mz(P.pos), P.heading, "#ffd23c", "#5a3a08");
     }
     {
       const full = Math.floor(P.hp + 1e-6);

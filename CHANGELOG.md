@@ -4,6 +4,130 @@ Every change, with the bug it fixes and how. Newest first.
 
 ---
 
+## 2.11.0 — The descent was impossible, the glitch is found, and Gehenna has a map
+
+### Bug 108 — The whirlpool could never pull you down · FIXED
+
+**The blocker, and it was arithmetic rather than tuning.**
+
+The swim volume lerps you back to its rest height at **six times the remaining
+gap** every frame. The whirlpool pulls down at a flat **1.9 m/s**. Those two
+balance at `rest − 1.9/6 = rest − 0.317`, which at the black pool is **y 3.53** —
+and the dive trigger needs `bed + 0.9`, a further 0.33 m below that.
+
+Measured on the shipped build: **the body sat at y 3.6 for eleven seconds and
+then drowned, every time,** unless the player also held the sink key. The
+descent was not finnicky. It was unreachable, and it had been since 2.8.1.
+
+A current now suppresses the float target for the frame it has hold of you.
+
+### Bug 109 — "I glitched from Gehenna back to the overworld" · FOUND AND FIXED
+
+Reported from play with no idea of the cause, and none of the suspects was it.
+
+`swimVolAt` falls through to `SEA` for anything it does not recognise, and `SEA`
+is **a fact about the valley**: its deep test reads `terrainH` — the ground two
+hundred and eighty metres overhead — and its rest height is −0.8. About **0.4% of
+Gehenna's walkable footprint lies under a valley lake bed**, and standing on one
+of those patches put the player in the valley's water.
+
+Reproduced at (576, 510): standing on Gehenna's floor, the body went **−279 to
+−197 in half a second**, at which point `guardPlayerPosition` did exactly its job
+and "recovered" the player to the valley spawn. The guard was the symptom, not
+the fault. A dry sentinel below the seam closes it.
+
+### Gehenna has a minimap, and it is a different world
+
+2.9.2's stopgap was `mm.style.opacity = 0` — it hid the map, so you navigated a
+strange town with nothing. There is a real second sheet now, painted from `gehH`,
+centred on the middle of the street (Gehenna is a **street**, not a disc), with
+the houses, the road, the yard and the hill read out of `GEH_L`, and the way up
+marked. It swaps on depth, swaps back cleanly, blacks out during the shaft, and
+builds in **3.7 ms**.
+
+**Peer arrows are drawn for the first time** — they were never on the minimap in
+either world. The realm test is deliberately **three-way**: `-1` below, `0` in
+the shaft, `1` above. A two-way test calls a player mid-descent a valley player
+standing at (600, 600), which puts their arrow in the bottom-right corner of the
+valley map — **the exact thing that was reported**, for the three seconds the
+shaft spends between −200 and −60.
+
+### Gehenna is lit, properly
+
+The shipped lighting measured **5.5 out of 255** in the worst direction, darker
+than the placeholder it replaced. `GEH_HEMI_SKY` was near-black, and a
+hemisphere's **sky** half is what lights upward-facing surfaces; `ambient.color`
+was still the water's dark mauve, so raising ambient intensity alone did nothing
+at all. Four constants. The street now reads **36–48 whole-frame with a 43–56
+ground band**, strongly red — valley daylight is about 216 for scale.
+
+Worth writing down for whoever tunes it next: the ground is
+`MeshBasicMaterial({ vertexColors: true })` with its shading baked in, so
+**ambient and hemisphere light cannot touch the floor at all.** The arrival dish
+stays dark because `DEEPC` is baked into it. The lever is the bake, not the light.
+
+### Bug 110 — A guest got no Gehenna at all · FIXED
+
+`updateExtraEnemies` returned unconditionally for a guest after mirroring the
+host's enemies. Nothing below the seam is ever broadcast — deliberately, because
+`gehSeed` is not shared and a guest who dives is standing in **a different
+Gehenna that the host has never built**. So a guest got no AI down there
+whatsoever: the Attached frozen where they spawned, and the Kindly One's body
+standing still while her entire after-story ran on around her.
+
+A guest now falls through and simulates its own Gehenna, and skips anything above
+the seam so it can never fight the host's positions.
+
+### Bug 111 — Enemies chased players in the other world · FIXED
+
+`nearestPlayerTo` compares with `dist2D`, which knows nothing about depth. Gehenna
+sits at (600, 600) **inside the valley's own bounds**, so a friend standing in the
+valley can be closer in x and z to a Gehenna enemy than the person actually down
+there — and that enemy walks off after somebody 280 metres above its ceiling. The
+same two-realm test the enemy snapshot already used, applied where the chasing is
+decided.
+
+### Bug 112 — Every guest was told there were two players · FIXED
+
+A guest's `NET.peers` only ever holds **one** entry — the host, keyed `"host"` —
+so counting peers and adding one reported **"2 players"** to every guest in every
+session, regardless of how many were actually in it. Three status lines said it.
+
+**This is almost certainly why the game reads as two-player from the outside.**
+It is a display bug and it never was a limit: the only numeric cap on players
+anywhere in the file is `NET.avatars.size >= 8`, and the local player is excluded
+one line above it — so the real ceiling is **eight guests plus a host, nine
+people.** That 8 is not a design decision either; the comment above it says what
+it is, which is a flood defence against one peer spamming `hello` and building a
+character mesh and a canvas nametag every time.
+
+### What is still true about multiplayer, and is not fixed here
+
+- **Gehenna is not co-op at any player count.** Nothing below `DIVIDE` is
+  broadcast, by design. Two people under the seam see each other's avatars over
+  **different worlds built from different seeds**. Nine in the valley, one below.
+- **STUN only, no TURN.** A guest behind symmetric NAT cannot connect at all and
+  gets no fallback, and that is an independent chance of failure per guest.
+- **The join race.** One retained offer and one `NET.pending` slot: a second
+  answer to the same offer is discarded silently, and `NET.joining` is only ever
+  cleared by pressing Join again — so the loser of the race sees nothing at all,
+  not even the eight-second failure notice, which is itself gated on that flag.
+  Left alone deliberately: it cannot be tested here without two browsers and a
+  live signalling board, and a wrong fix breaks joining for everybody.
+
+### A process note
+
+One verifier in this investigation **refuted the existence of PvP** on the
+grounds that `grep` found no `t: "hit"` message. It is there, at one site, and it
+is reachable from the ordinary weapon swing, the dive and the air slash. The line
+is over four hundred characters long, and the `awk -F: 'length($0)<400'` filter
+this project mandates — to keep the bundled three.js line out of a grep — **had
+deleted the evidence.** Two other verifiers caught it and one did not.
+
+The filter is still right, and it now needs a caveat: a negative grep result
+under it is not proof of absence. Re-run without the filter, on a named line
+range, before concluding that something does not exist.
+
 ## 2.10.0 — She goes in the ground, and 3.0 is reachable
 
 **This is the build where the update stops being unreachable.** `ysoldeBuried`
