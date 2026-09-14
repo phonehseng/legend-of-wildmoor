@@ -1761,3 +1761,103 @@ The wraith knockback and spawn-pressure nerfs made in the first half of this
 version are **reverted**. They were a response to the camera report, and once the
 player corrected the diagnosis there was no reason to keep an unrequested combat
 change — the escalating pressure is what was asked for in the first place.
+
+---
+
+## 2.6.0 — Water you can be inside, and a way down (3.0 phases 2 and 4)
+
+### Phase 2 — swimming becomes a volume, not a line
+
+Swimming was a **surface float pinned to `y = -0.8` with `P.vel.y` zeroed**. There
+was no vertical swim in this game at all — which is why "swim up and down in the
+pool" was never a tuning problem and never could have been.
+
+Water is a **body** now, with a top, a floor, and an entry and exit height.
+`SEA` is the valley's lakes and rivers; the Black Pool is registered as its own
+volume. Space rises, the slide key sinks, and letting go floats you back to the
+surface. Every lake in the valley is divable as a side effect.
+
+**The lake is unchanged, and that was proved rather than argued.** The old line
+was `lerp(P.pos.y, 0.1 - 0.9, min(1, hdt * 6))`, and `SEA.rest` carries the
+expression `0.1 - 0.9` **verbatim** rather than being recomputed — so with no key
+held it is the same function, on the same operand, at the same rate. Measured
+floating with no input: `y = -0.7999999918`, identical to before, with the
+underwater blend at exactly 0. Entry, exit and the deep test are carried across
+as literals too.
+
+The sink key is `x` — already the game's "get low" verb, already wired to the
+mobile SLIDE button, and **provably inert in water today** because `wantSlide`
+requires ground the swimmer does not have.
+
+### Phase 4 — the descent
+
+A **drop shaft**, and the code says so plainly. Not a swim: a swim is something
+you can turn around in, and drowning on purpose is not. Six seconds of falling
+through black water with the camera still rendering, the input still steering
+and the breath bar emptying.
+
+Measured: 47.1 m/s, y from +2.7 to −281.5 over six seconds, arriving **standing
+on real ground**, breath 83 → 0, fog closing from 43.8 m to 24.0 m, the sun gone.
+The camera trails a constant 11.5 m and its height at arrival is identical to the
+frame before — **no swoop**.
+
+The world builds **while you fall**, yielding through the same `__stage` pipeline
+the valley is built with, so there is no loading screen: the floor was standing
+before the first second of a six-second fall. A failed build spits you back out
+at the rim, computed *before* the fall while the body is still beside the pool.
+
+`WORLDSTATE.gehUnlocked` and `WORLDSTATE.gehSeed` persist, with all four edits —
+payload, whitelist, `applySave`, and `WS_SHARED` for the boolean only, because
+the shared-state merge coerces with `!!` and a numeric seed cannot travel that
+pipe. A save taken below the seam wakes you on the pool rim with the pool still
+open; the position is deliberately not persisted, because the validator would
+happily accept −280 into a world where Gehenna does not exist.
+
+### Four bugs the descent found, all by running rather than reading
+
+1. **Double vertical integration.** `if (!P.swim) P.pos.y += P.vel.y * hdt` was
+   applying the fall velocity *on top of* the shaft's own write — measured at
+   **83 m/s down a 41.5 m/s shaft**, arriving in three seconds instead of six.
+2. **`gehGroundAt` asked about valley coordinates fired the player to y = 971.**
+   `gehH` climbs 1.4 m per metre past r = 150, so asked about the pool it answers
+   about +1000, and `Math.max` launched the body a kilometre into the air.
+   `guardPlayerPosition` caught it on the ceiling clause — the right outcome by
+   the wrong route.
+3. **Three dead lighting lines.** The star opacity and the sun and moon
+   visibility are assigned outright *after* the cave block, so the new underwater
+   versions were silently overwritten.
+4. **`releaseKeys` did not clear the new mobile rise input**, so a swimmer who
+   paused mid-hold would keep rising.
+
+**A hard constraint for the world build, measured:** `inBounds` passes at
+600 + 190 and fails at 600 + 196, so Gehenna's radius must stay under 196 m.
+
+### Bug 96 — The hunter tents came apart · FIXED
+
+**Reported with a screenshot**, and the screenshot was unmistakable: the two
+canvas slopes splayed outward into a V, like a book stood on its spine, with the
+ridge pole hanging in the gap.
+
+**Cause.** A rotation about z tilts local +y toward **−x**, so the panel on the
++x side needs a **positive** angle to lean its top in toward the ridge. The sign
+was negated, so both panels leaned outward. With it corrected the top end lands
+at (0, TH) and the bottom at (±TW, 0) exactly — the ridge and the two eaves, by
+construction rather than by eye.
+
+**And the back gable was invisible**, for a subtler reason: three.js applies
+scale **before** rotation, so rotating the flattened cone 45° turned its
+flattening axis with it and squashed the triangle along a diagonal instead of
+along z. The rotation is gone and the gable is a triangle exactly as wide as the
+tent.
+
+Also from the same screenshot: the guy lines were 1.5 m long and nearly upright,
+which put four spears against every camp — they are 0.95 m, properly angled, and
+tied to visible pegs. The rolled door flap was a dark box that read as a slab
+leaning on the tent; a roll is a cylinder.
+
+### Bug 97 — The hunter camps had no light · FIXED
+
+`addFire`'s fifth argument is a **light object** — it reads `light.intensity` to
+get the flicker base — and 2.5.0 passed `true`. Assigning to `true.intensity` is
+a silent no-op outside strict mode, so the new camps had a fire that lit nothing.
+They use `vlight` now, the pooled kind every other fire in the valley uses.

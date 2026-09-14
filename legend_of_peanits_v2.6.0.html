@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.5.1</title>
+<title>Legend of Peanits 2.6.0</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -376,7 +376,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.5.1</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.6.0</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -431,6 +431,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
       <b>Left click</b> draw and swing; in the air, a spinning slash, then drop onto an enemy · <b>Right click</b> or <b>K</b> hold up the shield; a blow that lands on it costs no health and rests the shield a moment · <b>1 2 3</b> weapons you've found<br>
       <b>E</b> talk / pick up / sleep in any bed · <b>M</b> big map · <b>Tab</b> stats · <b>I</b> satchel · <b>N</b> guide arrow · errands are marked <b>!</b> · <b>Esc</b> or <b>P</b> pause</p>
       <p>Slide is <b>X</b>. Ctrl slides too, but only in fullscreen (<b>F</b>), because outside fullscreen a browser may close the tab on Ctrl+W and Firefox never lets a page stop that.</p>
+      <p>In deep water <b>Space</b> swims up and <b>X</b> swims down. Let go of both and you float back to the surface; at the surface <b>Space</b> still pulls you out.</p>
       <p><b>Movement rewards combat:</b> fast attacks knock enemies back, slide-attacks sweep wide, tree-kicks empower your next strike, and airborne hits restore a little stamina. Violet rings warn of incoming attacks; red means the attack is active.</p>
       <p>A great pink tree hides a fairy queen. Find her scattered children in homes, on rooftops and along climbing routes. <b>E</b> rescues a nearby fairy; <b>I</b> keeps your hints.</p>
       <p>You start slow and clumsy. Everything you do, you get better at. Something is wrong in the kingdom: a girl is dead, a herbalist is in the stocks, and the Inquisitor wants a burning.</p>
@@ -443,7 +444,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.5.1</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.6.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -573,7 +574,7 @@ const __boot = (async () => {
   //   berries: bushes gatherers work at; keep_it: the great hall's interior record; keepDark: the black box that hides its inside from outside; keepPush: props that slide away when the hall grows
   //   loop_bases: where the ring road meets each village spur; frameNo: frames since load; graded/road_samples: the road profile used to shape the ground; bridge_log/bridges/ladders: crossings and climbs
   //   bear_hoard: where the bear's treasure sits; canopy: the elder tree's crown; houseLamps: every window light; houses/interiors: the town's houses and every enterable room; nohelix: debug switch for the tree stair
-  var HERMIT_FIRE = null, ENEMY_NID = 0, EXTRA = [], GOB_ARROWS = [], POOL_WATER_MESH = null, POOL_HOLLOW = null, BEACON_THREAD = null, PYRE_GROUP = null, POOL_DARK = null, POOL_RUNE = null, POOL_STONE = null, WARDEN = null, WOLF_DENS = [], HALL_GUARD = null, CAVE_GROUP = null, caveK = 0, CAVE_LIGHTS = [], CAVE_TUNNEL = null, BERRIES = [],
+  var HERMIT_FIRE = null, ENEMY_NID = 0, EXTRA = [], GOB_ARROWS = [], POOL_WATER_MESH = null, POOL_HOLLOW = null, BEACON_THREAD = null, PYRE_GROUP = null, POOL_DARK = null, POOL_RUNE = null, POOL_STONE = null, WARDEN = null, WOLF_DENS = [], HALL_GUARD = null, CAVE_GROUP = null, caveK = 0, deepK = 0, CAVE_LIGHTS = [], CAVE_TUNNEL = null, BERRIES = [],
     WREN_POS = null,
     KEEP_ROOM = null,
     keepDark = null,
@@ -612,6 +613,8 @@ const __boot = (async () => {
       swimBase: 6.6, // swimming speed
       swimPerLevel: 0.16, // faster swimming per level
       swimRunMul: 1.7, // shift while swimming multiplies the speed by this
+      swimRise: 3.2, // metres a second climbing through water with the rise key held
+      swimSink: 3.6, // metres a second sinking with the sink key held; a body sinks a little faster than it swims up
       slideAirGrace: 0.45, // a slide survives this many seconds off the ground
       wadeMul: 0.55, // speed in ankle-deep water
       dodgeDuration: 0.42, // seconds a dodge lasts
@@ -782,6 +785,7 @@ const __boot = (async () => {
   const WORLDSTATE = {
     marenFreed: false, haleExposed: false, pyreDismantled: false, blackPoolAwake: false, awokeAt: 0, hermitTold: false, hermitWarned: false, kingTrusts: false,
     goblinKingDefeated: false, bearDefeated: false, finaleStarted: false, wardenDead: false, ending: null,
+    gehUnlocked: false, gehSeed: 0, // the way down is open, and which gehenna it is. everything else about it regenerates
     relics: { seal: false, root: false, warden: false, tear: false }, wolfChoice: null, home: false, guardsOut: false
   };
   const rootReadable = () => { const q = SIDE.find(q => q.who === "Nim's mother"); return !!(q && q.done); };
@@ -1937,6 +1941,26 @@ const __boot = (async () => {
   const isWater = (x, z) => terrainH(x, z) < WATER_Y || riverAt(x, z) !== null,
     isDeep = (x, z) => terrainH(x, z) < DEEP,
     inBounds = (x, z) => Math.abs(x) < HALF - 4 && Math.abs(z) < HALF - 4;
+  // ---- 3.0 phase 2: water you can be inside ----
+  // swimming used to be a surface float pinned to one global waterline, so there was no such thing as a body of water
+  // with its own top and its own bed. a swim volume is that: a disc with a top, a rest depth and a floor. every lake
+  // and river in the valley is one volume, SEA, and SEA.rest is the literal expression the old float lerped toward,
+  // carried over rather than recomputed — so a swimmer touching no key floats at exactly the height they always did.
+  const SEA = { id: "sea", x: 0, z: 0, r: Infinity, top: WATER_Y, enter: 0.1, exit: 0.4, rest: 0.1 - 0.9, floor: -40, sea: true, place: "The Deep Lake" };
+  const SWIM_VOLS = [];
+  // the body of water a point is inside, or the valley's sea for its lakes and rivers. a registered volume wins over
+  // the sea because a basin sunk into a hillside is not the lake whose waterline happens to run through the hill.
+  function swimVolAt(x, z, y) {
+    for (let i = 0; i < SWIM_VOLS.length; i++) {
+      const v = SWIM_VOLS[i],
+        dx = x - v.x,
+        dz = z - v.z;
+      if (dx * dx + dz * dz > v.r * v.r) continue;
+      if (y > v.top + 1.5 || y < v.floor - 4) continue;
+      return v;
+    }
+    return SEA;
+  }
   const slopeAt = (x, z) => Math.abs(terrainH(x + 3, z) - terrainH(x - 3, z)) + Math.abs(terrainH(x, z + 3) - terrainH(x, z - 3));
   const gradAt = (x, z) => V3((terrainH(x + 1, z) - terrainH(x - 1, z)) / 2, 0, (terrainH(x, z + 1) - terrainH(x, z - 1)) / 2);
 
@@ -8184,7 +8208,11 @@ const __boot = (async () => {
         lean = Math.atan2(TW, TH);
       for (const sx of [-1, 1]) {
         const panel = boxM(0.09, slope, TL * 2, canvas, (sx * TW) / 2, TH / 2, 0);
-        panel.rotation.z = -sx * lean;
+        // the sign matters and it was wrong: a rotation about z tilts local +y toward -x, so the panel on the +x side
+        // needs a POSITIVE angle to lean its top in toward the ridge. negated, both panels leaned outward and the
+        // tent opened up into a V like a book stood on its spine. with this, the top end lands at (0, TH) and the
+        // bottom at (±TW, 0) exactly — the ridge and the two eaves, by construction.
+        panel.rotation.z = sx * lean;
         tent.add(panel);
       }
       // the ridge pole runs out past both gables, the way a real one does, and the ends are what the guys pull against
@@ -8193,25 +8221,30 @@ const __boot = (async () => {
       tent.add(pole);
       // the back gable, closed. a four-sided cone flattened to nothing in z is a triangle, and a triangle is the
       // cheapest thing in this engine that reads as the end of a tent.
-      const back = cone(TW * 1.42, TH, canvas, 0, TH / 2, -TL, 4);
-      back.rotation.y = Math.PI / 4;
-      back.scale.z = 0.05;
+      // a four-sided cone has base corners at 0, 90, 180 and 270 degrees, so flattening z collapses two of them onto
+      // the axis and leaves a triangle exactly TW wide and TH tall — the gable, matching the slopes above. the old
+      // rotation.y of 45 degrees broke it: three.js applies scale BEFORE rotation, so the flattening axis turned with
+      // the mesh and squashed it along a diagonal instead of along z, which is why there was no visible back at all.
+      const back = cone(TW, TH, canvas, 0, TH / 2, -TL, 4);
+      back.scale.z = 0.06;
       tent.add(back);
       // the doorway: two upright poles and a lintel of rope, so the opening has an edge you can see from outside
       for (const sx of [-1, 1]) tent.add(cyl(0.05, 0.05, TH * 0.92, timber, sx * TW * 0.86, TH * 0.46, TL, 5));
-      // and the flap itself, rolled and tied back against the left pole. this is the bit that says "door"
-      const flap = boxM(0.34, TH * 0.82, 0.34, canvasDark, -TW * 0.86, TH * 0.44, TL + 0.12);
-      flap.rotation.z = 0.12;
-      tent.add(flap);
-      for (let k = 0; k < 3; k++) tent.add(cyl(0.19, 0.19, 0.06, canvasDark, -TW * 0.86, TH * (0.2 + k * 0.28), TL + 0.12, 7)); // the ties
-      // groundsheet, so the inside is a floor and not grass
-      tent.add(boxM(TW * 1.7, 0.05, TL * 1.85, canvasDark, 0, 0.03, 0));
-      // pegs and guys at the four corners
+      // the flap, rolled up and tied off against the left post. a roll is a cylinder — as a dark box it just read as
+      // a slab leaning on the tent, which is what it looked like in play.
+      tent.add(cyl(0.15, 0.15, TH * 0.78, canvas, -TW * 0.82, TH * 0.41, TL + 0.16, 7));
+      for (let k = 0; k < 3; k++) tent.add(cyl(0.17, 0.17, 0.05, canvasDark, -TW * 0.82, TH * (0.16 + k * 0.26), TL + 0.16, 7)); // the ties round it
+      // groundsheet, so the inside is a floor and not grass. it sits a little proud of the ground to stay out of the
+      // terrain's z-fight.
+      tent.add(boxM(TW * 1.6, 0.05, TL * 1.8, canvasDark, 0, 0.07, 0));
+      // short guys from the eaves down to pegs, angled out along the tent's diagonal. they were a metre and a half
+      // long and stood almost upright, which made four spears leaning on every camp.
       for (const sx of [-1, 1])
         for (const sz of [-1, 1]) {
-          const guy = cyl(0.02, 0.02, 1.5, timber, sx * (TW + 0.5), 0.55, sz * (TL + 0.18), 4);
-          guy.rotation.set(sz * 0.34, 0, -sx * 0.62);
+          const guy = cyl(0.015, 0.015, 0.95, timber, sx * (TW + 0.34), 0.34, sz * (TL - 0.1), 4);
+          guy.rotation.set(sz * 0.22, 0, sx * 0.85);
           tent.add(guy);
+          tent.add(cyl(0.03, 0.03, 0.26, timber, sx * (TW + 0.62), 0.1, sz * (TL - 0.05), 4)); // the peg it is tied to
         }
     }
     tent.position.copy(t);
@@ -8276,6 +8309,11 @@ const __boot = (async () => {
   TOBIAS.radius = 2;
   // old wick, the woodcutter who found the body, sits by the black pool
   const POOLW = POOL.y - 0.55; // the water sits just below the rim of the hollow
+  // the black pool is water you can be inside rather than a black disc you walk under. its bed is the addFlat above
+  // (POOL.y - 3.2), its top is the surface mesh, and geh marks it as the one body in the valley with a way out of the
+  // bottom. the radius stays inside the 7.4 m surface and inside the 6.6 m bottom of the rim wall, so the volume never
+  // reaches past the stone into ground that is above its own waterline.
+  SWIM_VOLS.push({ id: "blackpool", x: POOL.x, z: POOL.z, r: 6.4, top: POOLW, enter: POOLW - 0.05, exit: POOLW + 0.25, rest: POOLW - 1.1, floor: POOL.y - 3.2, geh: true, place: "The Black Pool" });
   {
     // black, still and deep: dark water you can see the shine on, over a bowl in the ground
     const surf = new THREE.Mesh(
@@ -11276,6 +11314,8 @@ const __boot = (async () => {
     braking: false,
     run: false,
     swim: false,
+    swimVol: null, // the body of water being swum in, from swimVolAt; null on dry land
+    gehDive: null, // the drop shaft, when one is running. every depth predicate in the file is exempted while it is set
     air: 100,
     hp: 4,
     maxHp: 4,
@@ -11928,6 +11968,21 @@ const __boot = (async () => {
   function applySave(d) {
     try {
       P.pos.set(d.pos[0], d.pos[1], d.pos[2]);
+      // a load normally reloads the page, so P is fresh; the in-process fallback path does not, and these two are the
+      // only fields that would carry a body's old water and old descent into a position that has just been replaced.
+      P.swimVol = null;
+      P.gehDive = null;
+      // gehenna is never built at load time — it is built during the fall — so a save taken down there names a place
+      // that does not exist yet. the position validator accepts -280 happily, because it bounds at ±2000 and nothing
+      // in it knows about the seam; guardPlayerPosition would then quietly "recover" the player to the default spawn
+      // on the first frame with a console warning. this is the deliberate version of that: you wake on the rim of the
+      // pool, with the pool still open, because gehUnlocked round-trips and the way down does not need rebuilding.
+      if (d.pos[1] < DIVIDE && !GEH.root) {
+        const rimX = POOL.x + 10.5,
+          rimZ = POOL.z;
+        P.pos.set(rimX, groundAt(rimX, rimZ, 1e9) + 0.05, rimZ);
+        console.warn("Save was taken below the seam; the player wakes on the rim of the pool.");
+      }
       dayT = d.day;
       P.hp = d.hp;
       P.maxHp = d.maxHp;
@@ -12136,9 +12191,9 @@ const __boot = (async () => {
         if (!num(f.found, 0, 25) || !num(f.hearts, 0, 10) || (f.kids !== undefined && !(Array.isArray(f.kids) && f.kids.every(k => num(k, 0, 99)))) || (f.seen !== undefined && typeof f.seen !== "boolean") || (f.compass !== undefined && typeof f.compass !== "boolean") || ["rest", "petal", "grove", "crown", "accepted", "complete"].some(k => f[k] !== undefined && typeof f[k] !== "boolean")) return null;
       }
       if (d.ws !== undefined) {
-        const rb = ["marenFreed", "haleExposed", "pyreDismantled", "blackPoolAwake", "hermitTold", "hermitWarned", "kingTrusts", "goblinKingDefeated", "bearDefeated", "fairyCourtOpen", "finaleStarted", "wardenDead", "home", "guardsOut"]; // fairyCourtOpen is accepted from 2.0 keys and ignored
+        const rb = ["marenFreed", "haleExposed", "pyreDismantled", "blackPoolAwake", "hermitTold", "hermitWarned", "kingTrusts", "goblinKingDefeated", "bearDefeated", "fairyCourtOpen", "finaleStarted", "wardenDead", "home", "guardsOut", "gehUnlocked"]; // fairyCourtOpen is accepted from 2.0 keys and ignored
         const spec = {}; for (const k of rb) spec[k] = bool;
-        spec.awokeAt = v => num(v, 0, 1e9); spec.deep = v => num(v, 0, 99); spec.ending = v => v === null || ["bind", "break", "fairy"].includes(v); spec.wolfChoice = v => v === null || ["wolves", "goblins", "leave"].includes(v);
+        spec.gehSeed = v => num(v, 0, 1e9); spec.awokeAt = v => num(v, 0, 1e9); spec.deep = v => num(v, 0, 99); spec.ending = v => v === null || ["bind", "break", "fairy"].includes(v); spec.wolfChoice = v => v === null || ["wolves", "goblins", "leave"].includes(v);
         spec.relics = v => !!v && typeof v === "object" && ["seal", "root", "warden", "tear"].every(k => v[k] === undefined || typeof v[k] === "boolean");
         d.ws = pickObj(d.ws, spec); if (!d.ws) return null;
       }
@@ -12444,9 +12499,16 @@ const __boot = (async () => {
     hold("mb-atk", () => {
       if (started && !paused) attackPressed();
     });
-    hold("mb-jump", () => {
-      if (started && !paused) jump();
-    });
+    hold(
+      "mb-jump",
+      () => {
+        TOUCH.up = true; // held, it is the rise key underwater; tapped at the surface it is still a jump
+        if (started && !paused) jump();
+      },
+      () => {
+        TOUCH.up = false;
+      }
+    );
     hold(
       "mb-slide",
       () => {
@@ -12569,6 +12631,7 @@ const __boot = (async () => {
     for (const k in keys) keys[k] = false;
     TOUCH.x = TOUCH.z = 0;
     TOUCH.run = false;
+    TOUCH.up = false; // held, it is the rise key; without this a pause taken mid-hold leaves a mobile swimmer rising
   } // every held key is dropped whenever focus or an overlay changes hands
   function openInv() {
     if (!started || paused) return;
@@ -12974,8 +13037,14 @@ const __boot = (async () => {
     const inp = moveInput(),
       dir = inp.lengthSq() ? inp : hspeed() > 0.5 ? V3(P.vel.x, 0, P.vel.z).normalize() : fwd();
     if (P.swim) {
+      // at the surface space still vaults you out of the water, exactly as it always has. submerged it is the rise
+      // key instead, handled per frame in the swim branch — a keydown cannot be what lifts you, because rising has to
+      // be a held state and jump() fires once.
+      const vol = P.swimVol || swimVolAt(P.pos.x, P.pos.z, P.pos.y);
+      if (P.pos.y < vol.rest - 0.3) return;
       P.vel.y = 9;
       P.swim = false;
+      P.swimVol = null;
       P.noSwim = 0.4;
       P.grounded = false;
       P.jumps = 1;
@@ -13071,7 +13140,7 @@ const __boot = (async () => {
   function hasStam(v) {
     return P.stam >= v;
   }
-  const TOUCH = { x: 0, z: 0, run: false };
+  const TOUCH = { x: 0, z: 0, run: false, up: false };
   function moveInput() {
     let ix = (keys.d ? 1 : 0) - (keys.a ? 1 : 0) + TOUCH.x,
       iz = (keys.s ? 1 : 0) - (keys.w ? 1 : 0) + TOUCH.z;
@@ -13403,7 +13472,7 @@ const __boot = (async () => {
     else if (m.k === "bear") { say("The Old Bear falls. The wood goes quiet.", 5000, true); gainXP("strength", 80); if (!STORY.bearHeart && BEAR) dropReward("reward:bear", BEAR.pos.x + 3, BEAR.pos.z); }
   }
   // the main story's milestones, as a small record that can be compared and merged
-  const WS_SHARED = ["marenFreed", "haleExposed", "pyreDismantled", "blackPoolAwake", "hermitTold", "hermitWarned", "kingTrusts", "goblinKingDefeated", "bearDefeated", "finaleStarted", "wardenDead", "guardsOut"];
+  const WS_SHARED = ["marenFreed", "haleExposed", "pyreDismantled", "blackPoolAwake", "hermitTold", "hermitWarned", "kingTrusts", "goblinKingDefeated", "bearDefeated", "finaleStarted", "wardenDead", "guardsOut", "gehUnlocked"];
   const mainProgress = () => ({ t: "mq", metKing, talkedKing, talkedOnce, gaveHerbs, lit, flint: !!P.flint, clues: STORY.clues, evidence: STORY.evidence.slice(), wick: !!STORY.wick, solved: !!STORY.solved, reported: !!STORY.reported, ws: Object.fromEntries(WS_SHARED.map(k => [k, !!WORLDSTATE[k]])), relics: { ...WORLDSTATE.relics }, ending: WORLDSTATE.ending });
   function applyMainProgress(m, peer) {
     const before = mainProgress();
@@ -13658,6 +13727,206 @@ const __boot = (async () => {
     safeT -= 1; if (safeT > 0) return; safeT = 30;
     if (P.grounded && !P.swim && !death && P.pos.y > stepH(P.pos.x, P.pos.z, P.pos.y) - 1 && (geh || inBounds(P.pos.x, P.pos.z))) safe.copy(P.pos);
   }
+
+  // ============================================================ 3.0 phase 4: the descent
+  // it is not a swim and it is not built like one. it is a DROP SHAFT: six seconds of falling through black water with
+  // the camera still rendering, the input still steering and the breath bar emptying. between the bed of the black
+  // pool and gehenna's ceiling there is nothing whatsoever to collide with, which is exactly why the phase 1 depth
+  // gates had to land first — every predicate that would otherwise have caught a body down there is already exempted
+  // while P.gehDive is set, including both clauses of guardPlayerPosition directly above.
+  const DIVE_T = 6, // seconds of fall
+    DIVE_HOLD = 9, // and the longest the water will hold you at the ceiling waiting for a build that has not finished
+    DIVE_CEIL = 34; // gehenna's ceiling over its floor. the fall ends here and the arrival puts you on the ground
+  function gehBeginDive() {
+    if (P.gehDive || death || !WORLDSTATE.gehUnlocked || GEH.failed) return false;
+    if (!Number.isFinite(P.pos.y)) return false;
+    // the rim is worked out now, while the player is still standing in the valley, because the abort needs somewhere
+    // real to put them and by then the body is eight hundred metres away and the pool is not under it any more.
+    const a = Math.atan2(P.pos.x - POOL.x, P.pos.z - POOL.z) || 0,
+      rx = POOL.x + Math.sin(a) * 10.5,
+      rz = POOL.z + Math.cos(a) * 10.5;
+    // the fall is aimed at gehenna's nominal floor rather than at its ceiling, because the real ground is not known
+    // until the build finishes and a fall that stopped at the ceiling would have to teleport the last thirty metres —
+    // which the camera would then chase down in a visible swoop. this way the last few metres are just more falling.
+    P.gehDive = { t: 0, y0: P.pos.y, v: Math.max(8, (P.pos.y - GEH.floor) / DIVE_T), moved: false, fail: null, rim: V3(rx, groundAt(rx, rz, 1e9) + 0.05, rz) };
+    P.swim = false;
+    P.swimVol = null;
+    P.grounded = false;
+    P.sliding = false;
+    P.climb = null;
+    P.block = false;
+    P.atk = null;
+    P.queued = false;
+    P.airSlash = null;
+    P.dive = false;
+    P.dodge = 0;
+    P.jumps = 0;
+    P.vel.set(0, 0, 0);
+    SFX.splash(true);
+    burst(P.pos.clone(), 0x2a1030, 22, 4, 0.9, 0.2);
+    say("The bed of the pool is not a bed. You go through it.", 4200, true, "dark");
+    // the world is built WHILE you fall, through the same __stage pipeline the boot uses, so there is no loading
+    // screen. __stage is safe to call after boot: both element lookups are null-guarded, window.__drawLoading is set
+    // to null the moment the title appears so the title camera cannot fight the game camera, and what is left is two
+    // writes onto a hidden bar and a 20 ms yield.
+    if (!GEH.root) {
+      if (!WORLDSTATE.gehSeed) WORLDSTATE.gehSeed = 1 + Math.floor(Math.random() * 999999);
+      GEH.seed = WORLDSTATE.gehSeed;
+      const build = typeof window.gehBuildWorld === "function" ? window.gehBuildWorld : gehBuildFloor;
+      Promise.resolve()
+        .then(build)
+        .catch(err => {
+          console.error("Gehenna: the build threw", err);
+          GEH.failed = true;
+          // a half-built root is worse than none: gehH would answer real heights for a world with nothing in it, and
+          // the next dive would arrive standing on a surface that is not drawn.
+          if (GEH.root) {
+            if (GEH.root.parent) scene.remove(GEH.root);
+            try { disposeTree(GEH.root); } catch (_) {}
+            GEH.root = null;
+            GEH.structs.clear();
+          }
+          if (P.gehDive) P.gehDive.fail = "the build threw";
+        });
+    }
+    return true;
+  }
+  // one frame of the fall. it runs in place of the whole movement chain, so nothing else touches the body this frame
+  // except the horizontal step below it, which okMove lets through unopposed.
+  function gehDiveStep(hdt, rdt, inp, hasInput, hv) {
+    const d = P.gehDive;
+    if (!d) return;
+    d.t += rdt;
+    if (d.fail) { gehAbortDive(d.fail); return; }
+    // a drift rather than a stroke: slow, it does not stop dead when you let go, and it decides where you land.
+    hv.lerp(hasInput ? inp.clone().multiplyScalar(3.4) : V3(), Math.min(1, hdt * 1.6));
+    // where the fall stops. the default is gehenna's ceiling: until the build finishes there is no ground to aim at,
+    // so the water holds you there rather than dropping you through a world that is not there yet.
+    let stop = GEH.floor + DIVE_CEIL;
+    if (GEH.root && d.moved) {
+      // and the real ground only once the horizontal step has been taken. gehH climbs 1.4 m for every metre past a
+      // 150 m radius, so asked about valley coordinates it answers a number near +1000 -- that is not a floor, it is
+      // the wall of a room the body is not standing in yet, and Math.max()ing a falling body against it fires it a
+      // kilometre into the sky. measured at y = 971 before d.moved was a precondition; guardPlayerPosition caught it
+      // on the "above 900" clause and put the player back on the grass, which is the right outcome and the wrong
+      // journey. the second test is belt and braces: a stop can never be above the ceiling, whatever gehH says.
+      const gh = gehGroundAt(P.pos.x, P.pos.z, GEH.floor + 60);
+      if (Number.isFinite(gh) && gh < GEH.floor + DIVE_CEIL) stop = gh + 0.05;
+    }
+    // P.vel.y stays honest for anything that reads it, but the integrator must not apply it: the shaft writes P.pos.y
+    // itself, and line "if (!P.swim && !P.gehDive) P.pos.y += P.vel.y * hdt" is where the two used to add together.
+    // measured on the first run, that was a 83 m/s fall down a 41.5 m/s shaft.
+    P.vel.y = -d.v;
+    P.pos.y = Math.max(stop, P.pos.y - d.v * hdt);
+    // the sideways part of the journey, taken in one step at one second, when the fog has been solid black for most of
+    // one. gehenna sits at (600, 600) rather than under the valley because every proximity gate in this game is 2D:
+    // stacked under the town, forty villagers would think at full rate and the wraith spawner would seed the valley.
+    if (!d.moved && d.t >= 1) {
+      d.moved = true;
+      P.pos.x = GEH.cx;
+      P.pos.z = GEH.cz;
+      lastSafeGeh.set(GEH.cx, GEH.floor + DIVE_CEIL, GEH.cz);
+    }
+    if (d.moved) {
+      P.pos.x = clamp(P.pos.x, GEH.cx - 28, GEH.cx + 28);
+      P.pos.z = clamp(P.pos.z, GEH.cz - 28, GEH.cz + 28);
+    }
+    // the breath bar is the fall's clock, not the swimming skill's. draining it at airMax() would run a level-one
+    // swimmer out at four seconds and drown them in a shaft with no way back up, and let a fairy-blessed one who never
+    // reaches empty feel nothing at all. this way it is the same six seconds for everybody and it cannot kill.
+    P.air = Math.max(0, 100 * (1 - d.t / DIVE_T));
+    if (Math.random() < rdt * 6) burst(P.pos.clone().add(V3((Math.random() - 0.5) * 2, 2 + Math.random() * 2, (Math.random() - 0.5) * 2)), 0x6a8fa8, 2, 1.5, 1.4, 0.06);
+    // the ground, the time, and the world all have to be there. a build that lands late simply lowers the stop and the
+    // fall carries on into it, which is why the abort is conditioned on the world still being missing rather than on
+    // the clock alone -- and why there is a second, unconditional clock behind it for an arrival that never settles.
+    if (d.t >= DIVE_T && GEH.root && P.pos.y <= stop + 0.05) { gehArrive(); return; }
+    if (d.t > DIVE_T + DIVE_HOLD && !GEH.root) gehAbortDive("the world did not finish building in " + (DIVE_T + DIVE_HOLD) + " s");
+    else if (d.t > DIVE_T + DIVE_HOLD + 6) gehAbortDive("the fall never settled; y is " + P.pos.y.toFixed(1));
+  }
+  function gehArrive() {
+    const d = P.gehDive;
+    if (!d) return;
+    P.gehDive = null;
+    const x = clamp(P.pos.x, GEH.cx - 28, GEH.cx + 28),
+      z = clamp(P.pos.z, GEH.cz - 28, GEH.cz + 28),
+      y = gehGroundAt(x, z, GEH.floor + 60);
+    // gehGroundAt answers GEH_VOID if the root went away between the check above and here, and a build that produced
+    // nonsense would put the player inside its own floor. either way the rim is a better place to be than this.
+    if (!Number.isFinite(y) || y < GEH.floor - 40 || y > GEH.floor + DIVE_CEIL + 10) { P.gehDive = d; gehAbortDive("the arrival height was " + y); return; }
+    P.pos.set(x, y + 0.05, z);
+    P.vel.set(0, 0, 0);
+    P.grounded = true;
+    P.jumps = 0;
+    P.swim = false;
+    P.swimVol = null;
+    P.air = 100;
+    visY = P.pos.y;
+    lastSafeGeh.copy(P.pos);
+    deepK = 1;
+    SFX.phase();
+    say("Your feet find something. It is not stone and it is not soft.", 5000, true, "dark");
+  }
+  // a failed or slow build puts the player back on the rim of the pool rather than dropping them forever. the rim was
+  // measured before the fall started, when the body was still standing next to it.
+  function gehAbortDive(why) {
+    const d = P.gehDive;
+    if (!d) return;
+    console.error("Gehenna: the descent was aborted —", why);
+    P.gehDive = null;
+    P.swim = false;
+    P.swimVol = null;
+    P.dive = false;
+    P.sliding = false;
+    P.airSlash = null;
+    const r = d.rim && Number.isFinite(d.rim.y) ? d.rim : V3(POOL.x + 10.5, POOL.y, POOL.z);
+    P.pos.copy(r);
+    P.vel.set(0, 0, 0);
+    P.grounded = true;
+    P.jumps = 0;
+    P.air = 100;
+    visY = P.pos.y;
+    deepK = 0;
+    lastSafePos.copy(P.pos);
+    SFX.gasp();
+    say("The water pushes you back up. Whatever is down there is not finished with itself.", 5000, true, "dark");
+  }
+  // the arrival floor. phase 5 replaces this wholesale by defining window.gehBuildWorld, and this is skipped the
+  // moment that exists. until then it is what the descent lands on, so the descent is complete and testable on its own
+  // rather than on a promise. it is built FROM gehH rather than beside it, so the mesh and the collision heightfield
+  // cannot disagree about where the ground is.
+  async function gehBuildFloor() {
+    if (GEH.root) return;
+    const g = new THREE.Group();
+    g.name = "gehenna";
+    // set first, not last: gehH answers GEH_VOID while this is null and the displacement below reads it. nothing can
+    // reach the world in the meantime — the only body under the seam is the falling player, and the dive exempts them
+    // from every predicate that would consult it.
+    GEH.root = g;
+    await __stage(30, "Something moves under the water…");
+    const SPAN = 340,
+      SEGS = 56;
+    const geo = new THREE.PlaneGeometry(SPAN, SPAN, SEGS, SEGS);
+    geo.rotateX(-Math.PI / 2);
+    const pa = geo.attributes.position;
+    for (let i = 0; i < pa.count; i++) {
+      const x = GEH.cx + pa.getX(i),
+        z = GEH.cz + pa.getZ(i),
+        h = gehH(x, z);
+      pa.setY(i, Number.isFinite(h) ? h : GEH.floor);
+    }
+    pa.needsUpdate = true;
+    geo.computeVertexNormals();
+    await __stage(70, "Something moves under the water…");
+    const floor = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: toLin(0x2a0b0e), roughness: 1, metalness: 0 }));
+    floor.position.set(GEH.cx, 0, GEH.cz);
+    floor.receiveShadow = false;
+    floor.castShadow = false;
+    g.add(floor);
+    await __stage(95, "Something moves under the water…");
+    scene.add(g);
+    GEH.ceil = GEH.floor + DIVE_CEIL;
+    console.warn("Gehenna: the placeholder floor is standing. seed", GEH.seed, "floor", GEH.floor.toFixed(1), "span", SPAN);
+  }
   // the goblin camp in the wood: made from the saved count, so a reload rebuilds exactly what was left of it
   function makeGoblinCamp() {
     if (goblins.some(g => g.camp)) return;
@@ -13837,6 +14106,8 @@ const __boot = (async () => {
     P.air = 100;
     P.stam = stamMax() * 0.6;
     P.swim = false;
+    P.gehDive = null; // a death mid-descent ends the descent; nothing else clears it and it would outlive the respawn
+    P.swimVol = null;
     P.vel.set(0, 0, 0);
     P.atk = null;
     P.dive = false;
@@ -15055,6 +15326,22 @@ const __boot = (async () => {
     ambient.color.copy(toLin(0xffffff).lerp(toLin(0xffc890), Math.max(interiorK, caveK * 0.8)));
     sun.intensity *= (1 - interiorK * 0.85) * (1 - caveK * 0.9);
     if (caveK > 0.001) { scene.fog.near = lerp(scene.fog.near, 6, caveK); scene.fog.far = lerp(scene.fog.far, 42, caveK); scene.fog.color.lerp(toLin(0x120e0a), caveK * 0.85); } // under the mound it is dark, warm from the hoard, and close
+    // the same shape one line down, and deliberately after the cave so the deeper of the two wins where they overlap.
+    // black water reads as fog you cannot see through rather than as an unlit room: the distance collapses, the colour
+    // goes to almost nothing, and every light in the scene is cut by one factor instead of each being special-cased.
+    if (deepK > 0.001) {
+      scene.fog.near = lerp(scene.fog.near, 1.2, deepK);
+      scene.fog.far = lerp(scene.fog.far, 24, deepK);
+      scene.fog.color.lerp(toLin(0x03060a), deepK * 0.96);
+      hemi.intensity *= 1 - deepK * 0.9;
+      hemi.color.lerp(toLin(0x16303e), deepK * 0.85);
+      ambient.intensity = ambient.intensity * (1 - deepK) + 0.17 * deepK;
+      ambient.color.lerp(toLin(0x3a2026), deepK * 0.9);
+      sun.intensity *= 1 - deepK * 0.95;
+      sky.material.uniforms.top.value.multiplyScalar(1 - deepK * 0.97);
+      sky.material.uniforms.horizon.value.multiplyScalar(1 - deepK * 0.97);
+      sky.material.uniforms.sunCol.value.multiplyScalar(1 - deepK * 0.99);
+    }
     sunMesh.position.copy(camera.position).addScaledVector(sunDir, graphics.far * 0.85);
     sunMesh.visible = dayElev > -0.15;
     moonMesh.position.copy(camera.position).addScaledVector(sunDir.clone().negate(), graphics.far * 0.85);
@@ -15067,6 +15354,13 @@ const __boot = (async () => {
     if (interiorK > 0.5) {
       sunMesh.visible = false;
       moonMesh.visible = false;
+    }
+    // the three sky bodies are assigned outright a few lines above rather than accumulated, so the deep grade has to
+    // reach them HERE and not up in its own block: put these there and they are simply overwritten on the same frame,
+    // and a swimmer on the bed of a lake sees the stars through the water at full brightness.
+    if (deepK > 0.001) {
+      stars.material.opacity *= 1 - deepK;
+      if (deepK > 0.5) sunMesh.visible = moonMesh.visible = false;
     }
     const lampsOn = 1 - sstep(-0.05, 0.15, dayElev);
     houseLamps.forEach(l => (l.intensity = lampsOn * 1.2));
@@ -16052,6 +16346,20 @@ const __boot = (async () => {
     // for a hut and wrong for a roofless ruin, where it would black out a sky you can plainly see through the rafters.
     interiorK = lerp(interiorK, roomNow ? (roomNow.interiorK === undefined ? 1 : roomNow.interiorK) : 0, Math.min(1, rdt * 4));
     caveK = lerp(caveK, insideCave() ? 1 : 0, Math.min(1, rdt * 3));
+    // deep water and what is under it, driven exactly like caveK above. three sources, one scalar: the drop shaft, a
+    // body below the seam, and being genuinely submerged in a swim volume. the third can only happen while the sink
+    // key is held — floating at rest puts P.pos.y exactly at vol.rest, so the term is negative and clamps to zero and
+    // the valley's lakes look precisely as they did.
+    {
+      const want = P.gehDive
+        ? clamp((0.4 - P.pos.y) / 24, 0, 1)
+        : P.pos.y < DIVIDE
+          ? 1
+          : P.swim && P.swimVol
+            ? clamp((P.swimVol.rest - 0.35 - P.pos.y) / 3, 0, 0.45)
+            : 0;
+      deepK = lerp(deepK, want, Math.min(1, rdt * 3));
+    }
     for (const l of CAVE_LIGHTS) l.intensity = 0.25 + caveK * 2.2;
     updateHallGuard();
     // a room is roomier once you are in it: while nobody outside can see, the walls slide out
@@ -16186,7 +16494,8 @@ const __boot = (async () => {
     } else P.airT = 0;
     const dot = hasInput && sp > 0.5 ? (hv.x * inp.x + hv.z * inp.z) / sp : 1;
     P.braking = hasInput && dot < -0.25 && sp > 3 && !P.sliding;
-    if (P.swim) {
+    if (P.gehDive) gehDiveStep(hdt, rdt, inp, hasInput, hv);
+    else if (P.swim) {
       const swimSpd = (TUNE.player.swimBase + SK.swimming.lvl * TUNE.player.swimPerLevel) * (P.run ? TUNE.player.swimRunMul : 1);
       if (P.run && hasInput) {
         spendStam(7 * hdt);
@@ -16194,7 +16503,19 @@ const __boot = (async () => {
       }
       hv.lerp(hasInput ? inp.clone().multiplyScalar(swimSpd) : V3(), Math.min(1, hdt * 3));
       P.vel.y = 0;
-      P.pos.y = lerp(P.pos.y, 0.1 - 0.9, Math.min(1, hdt * 6));
+      // vertical swim. the sink key is the slide key: x is already this game's "get low" verb, wantSlide already
+      // excludes P.swim so x is provably inert in water today, and the mobile SLIDE button already drives keys.x — so
+      // the mobile half of this costs nothing and needs no new binding. with neither key held the last line below is
+      // the one it replaces, to the bit: SEA.rest is the expression 0.1 - 0.9 carried over, not a recomputed
+      // WATER_Y - 1.1, which is a different double.
+      const vol = P.swimVol || (P.swimVol = swimVolAt(P.pos.x, P.pos.z, P.pos.y));
+      const swimUp = !!keys[" "] || !!TOUCH.up,
+        swimDown = !!keys.x || (!!keys.control && !!document.fullscreenElement);
+      if (swimUp && !swimDown) P.pos.y = Math.min(vol.rest, P.pos.y + TUNE.player.swimRise * hdt);
+      else if (swimDown && !swimUp) P.pos.y = Math.max(Math.max(g0, vol.floor) + 0.25, P.pos.y - TUNE.player.swimSink * hdt);
+      else P.pos.y = lerp(P.pos.y, vol.rest, Math.min(1, hdt * 6));
+      // the way down, and the only one: hold the sink key on the bed of the black pool once the pool is open.
+      if (vol.geh && swimDown && !swimUp && WORLDSTATE.gehUnlocked && !P.gehDive && P.pos.y <= Math.max(g0, vol.floor) + 0.45) gehBeginDive();
       P.air = Math.max(0, P.air - (hdt * 100) / airMax());
       gainXP("swimming", hdt * 1.2);
       if (P.air <= 0) {
@@ -16259,12 +16580,16 @@ const __boot = (async () => {
       if (Math.floor(before / Math.PI) !== Math.floor(P.anim / Math.PI)) SFX.footstep(footingAt(P.pos), P.run);
     } else if (P.grounded) P.anim = 0;
 
-    if (!P.swim && !P.climb) P.vel.y -= GRAV * hdt * (P.dive && P.vel.y < 0 ? 1.25 : 1);
+    if (!P.swim && !P.climb && !P.gehDive) P.vel.y -= GRAV * hdt * (P.dive && P.vel.y < 0 ? 1.25 : 1);
     const nx = P.pos.x + P.vel.x * hdt,
       nz = P.pos.z + P.vel.z * hdt;
     // routed by depth: with terrainH here the player at -280 compares 300 &lt; 1.6 against every candidate, every one
     // fails, and the movement falls through to a velocity bounce. frozen solid, in every direction.
-    const okMove = (x, z) => inBounds(x, z) && stepH(x, z, P.pos.y) - P.pos.y < 1.6;
+    // ...and during the drop shaft there is nothing between the bed of the pool and gehenna's ceiling to move into, so
+    // the step test has nothing left to answer. without this the fall compares gehenna's rim wall against a body that
+    // is still over the valley, refuses every candidate direction and drops through to the velocity bounce: steering
+    // dead in every direction for the whole descent, which is the same failure okMove was routed to avoid.
+    const okMove = (x, z) => inBounds(x, z) && (!!P.gehDive || stepH(x, z, P.pos.y) - P.pos.y < 1.6);
     if (okMove(nx, nz)) {
       const hs = Math.hypot(nx - P.pos.x, nz - P.pos.z),
         n = Math.max(1, Math.ceil(hs / 0.7));
@@ -16315,7 +16640,10 @@ const __boot = (async () => {
       }
     }
     const preY = P.pos.y;
-    if (!P.swim) P.pos.y += P.vel.y * hdt;
+    // ...and not during the drop shaft either, which writes P.pos.y itself. P.vel.y is still set to the shaft's rate
+    // so that anything reading it sees an honest fall, and with this line unguarded the two added together: measured
+    // at 83 m/s down a 41.5 m/s shaft, arriving in three seconds instead of six.
+    if (!P.swim && !P.gehDive) P.pos.y += P.vel.y * hdt;
     if (!P.swim && P.vel.y < 0) {
       // a fast fall must not tunnel through a roof or a platform
       const gNow = groundAt(P.pos.x, P.pos.z, preY);
@@ -16392,12 +16720,17 @@ const __boot = (async () => {
         groundAt(P.pos.x, P.pos.z + 0.32, P.pos.y),
         groundAt(P.pos.x, P.pos.z - 0.32, P.pos.y)
       ),
-      deepHere = terrainH(P.pos.x, P.pos.z) < DEEP && g < DEEP;
+      vol0 = swimVolAt(P.pos.x, P.pos.z, P.pos.y),
+      // the sea's test is the old one, untouched: the valley's lakes and rivers are deep where the heightfield says
+      // so. a registered volume carries its own answer instead, which is how a basin sunk into a hillside twelve
+      // metres above the waterline can hold water you swim in.
+      deepHere = vol0.sea ? terrainH(P.pos.x, P.pos.z) < DEEP && g < DEEP : g < vol0.top - 0.35;
     P.noSwim = Math.max(0, (P.noSwim || 0) - rdt);
-    if (deepHere && P.pos.y <= 0.1 && !(P.noSwim > 0 && P.vel.y > 0)) {
+    if (deepHere && !P.gehDive && P.pos.y <= vol0.enter && !(P.noSwim > 0 && P.vel.y > 0)) {
       // deep water: swim
       if (!P.swim) {
         P.swim = true;
+        P.swimVol = vol0;
         P.grounded = false;
         P.sliding = false;
         P.atk = null;
@@ -16408,14 +16741,15 @@ const __boot = (async () => {
         burst(P.pos.clone().add(V3(0, 0.2, 0)), 0x9fd0ea, 18, 5, 0.6, 0.14);
         ripple(P.pos.x, P.pos.z, 2.5);
       }
-    } else if (P.swim && (!deepHere || P.pos.y > 0.4)) {
+    } else if (P.swim && (!deepHere || P.pos.y > (P.swimVol || vol0).exit)) {
       P.swim = false;
+      P.swimVol = null;
       if (g >= P.pos.y - 0.1 && !deepHere) {
         P.pos.y = g;
         P.grounded = true;
       }
     }
-    if (!P.swim) {
+    if (!P.swim && !P.gehDive) {
       if (P.pos.y <= g) {
         if (!P.grounded) {
           P.landSquash = clamp(-P.vel.y / 22, 0, 1);
@@ -16628,7 +16962,7 @@ const __boot = (async () => {
       else {
         if (Math.max(Math.abs(P.pos.x), Math.abs(P.pos.z)) > HALF * 0.74) showPlace("The Rim");
         else if (near(lighthousePos, 25)) showPlace("The Old Beacon");
-        else if (P.swim) showPlace("The Deep Lake");
+        else if (P.swim) showPlace((P.swimVol && P.swimVol.place) || "The Deep Lake");
         else if (P.pos.y > 60) showPlace("The High Peaks");
         else if (P.pos.y > 28) showPlace("The Highlands");
         else if (nearTrees(P.pos.x, P.pos.z, _nt, 2).length > 2) showPlace("The Old Wood");
@@ -16661,7 +16995,10 @@ const __boot = (async () => {
     let cx = P.pos.x + Math.sin(camYaw) * Math.cos(camPitch) * dist,
       cz = P.pos.z + Math.cos(camYaw) * Math.cos(camPitch) * dist;
     let cy = visY + 2.2 + Math.sin(camPitch) * dist;
-    cy = Math.max(cy, terrainH(cx, cz) + 1.2, 0.8);
+    // the camera's floor is the valley's ground and the old waterline — right everywhere above the seam and fatal
+    // below it, where the bare 0.8 would pin the arm at the surface of a lake while the body falls to -246. in a drop
+    // shaft there is nothing to clip against at all, so the only floor left is "not absurdly far under the player".
+    cy = P.gehDive ? Math.max(cy, P.pos.y - 6) : P.pos.y < DIVIDE ? Math.max(cy, gehH(cx, cz) + 1.2) : Math.max(cy, terrainH(cx, cz) + 1.2, 0.8);
     if (inKeep) cy = Math.min(cy, PLATEAU + KEEP.h - 1);
     if (roomNow) {
       const it = roomNow;
@@ -17020,7 +17357,7 @@ const __boot = (async () => {
     heartsPop = 0;
     heartsEl.classList.toggle("combat", P.armed > 0 || P.hurt > 0);
     stamEl.classList.toggle("low", P.stam < 20);
-    airEl.classList.toggle("show", P.swim || P.air < 99);
+    airEl.classList.toggle("show", P.swim || !!P.gehDive || P.air < 99);
     const sp = hspeed();
     speedEl.textContent = "";
     const fairyStatus = document.getElementById("fairy-status");
