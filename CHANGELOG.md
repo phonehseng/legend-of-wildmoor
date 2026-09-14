@@ -4,6 +4,81 @@ Every change, with the bug it fixes and how. Newest first.
 
 ---
 
+## 2.22.0 — She stands among the people she is defending
+
+### The Matron's post moves to her cart
+
+In 2.21.0 her post was at `cx + 96` and her cart at `cx + 56`, and since you come
+off the hill heading west you crossed 96 first — so **`matronAfter()` was
+unreachable for everyone who walked back out**, which is everyone. A written scene
+nobody can reach is dead content, and the walk out is the only time the player
+sees that place with the machine stopped.
+
+Two shapes were measured rather than argued:
+
+| | **post at her cart** | **post at 96, armed after the cart** |
+|---|---|---|
+| after-script reachable | yes | yes |
+| **engages a player who keeps walking** | **yes — armed at dx 48.6** | **no — closest 40.27 m, never closes** |
+| refusal still works | yes, 0 hits | yes, trivially — she cannot reach you |
+
+**The second is broken.** She arms forty metres behind the player and at a normal
+walking pace never closes, so the fight would only ever happen to somebody who
+voluntarily stopped and waited for her. That is worse than the problem it solves.
+
+And the first turns out better than the objection to it. With her post at the
+cart, her four are chosen nearest **her** — measured at dx 48, 54, 60 and 66, two
+either side. **She stands among the people she is defending**, which is what the
+design wanted for her last phase anyway, and to wake one you still have to get
+past her: the nearest is 9 m east of where she arms. *"The only thing she will not
+permit is going back toward the seated"* is the geometry now rather than a line
+about the geometry.
+
+Arming is at the cart less five metres, so the whole 4.4 m interact scan around
+her is open before she moves. Walking through at pace and pressing E picks up
+**three of her six after-script beats**; a player who stops gets all six. The cart
+figure is hidden on spawn, so there is one body: **the woman who talks to you is
+the woman who stops you.**
+
+### Bug 126 — The Almoner was relieving the four the Matron defends · FIXED
+
+Found only because the variant probe ran both encounters at once, which is
+exactly the case nobody tests.
+
+`gehAlmonerNext` excluded `calm`, `seat` and `sat` — **but not `seated` or
+`grieve`.** So the Almoner walked over on his rounds and unburdened the four the
+Matron is protecting, silently removing them from the pool the player can wake
+and **capping her tier below 4 with nothing on screen to say why.** Only two of
+her four survived the first run. Four survive now.
+
+### A standing note for anyone measuring an attack
+
+**Hitstop makes every attack span read long, for every enemy in this game.**
+
+The frame loop sets `dt = 0` for the whole of a hitstop while the game clock keeps
+running. Enemy state timers advance on `dt`; anything measured in wall clock or
+`time` does not. **So any span containing a landed blow reads long by exactly the
+hitstop inside it.** `damageEnemy` sets 0.06, or 0.1 on a `big` hit;
+`enemyStrike` sets 0.08 on a block or a flurry; the dive sets 0.1.
+
+Measured on the Matron: bar windup **0.611 s** and strike **0.272 s** against
+specs of 0.55 and 0.22. Hold `P.inv` high so `hurtPlayer` returns before setting
+a hitstop and the same timers read **0.555 and 0.223**. They were always right.
+
+The same applies to `P.flurry`, which sets the time scale to 0.18 — a span
+measured across a flurry reads about five and a half times long.
+
+**If you are checking a windup against a specification, suppress the hit or read
+`e.t` directly.** A 10–25% overshoot on a state that lands a blow is the engine,
+not the boss.
+
+### Two numbers corrected from 2.21.0
+
+Both were the probe's own sampling interval fighting the thing it measured, and
+neither was ever wrong in the engine: **set-down is 8.000 m toward the water**
+(spec 8), and **regen at post is 12.000 hp/s exactly** (spec 12), with her in
+`post` for 97.9% of 193 samples.
+
 ## 2.21.0 — The Matron, and all three of Gehenna's bosses are standing
 
 ### She is the woman who was already there

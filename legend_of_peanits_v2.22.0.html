@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.21.0</title>
+<title>Legend of Peanits 2.22.0</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#1b1626, #0d0a14); --edge: #6c583a; --hi: #8a6a3e; }
@@ -510,7 +510,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.21.0</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.22.0</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -580,7 +580,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.21.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.22.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -17777,6 +17777,10 @@ const __boot = (async () => {
 
       const porter = fig(30.8, -3.8, { robe: M.grey, face: 0 });
       const matron = fig(56, 3.4, { robe: M.cloth, face: Math.PI });
+      // kept, because the body that talks to you and the body that stops you have to be the same woman. when she
+      // arms, the boss takes this figure's place and this one is hidden — two matrons forty metres apart on one short
+      // road is the kind of thing nobody notices until a player asks which of them is real.
+      GEH.matronFig = matron;
       // bel sits 1.5 m behind the matron and 4.6 m off the centre line, which is just outside the 4.4 m interact scan.
       // that is deliberate: from the middle of the road the matron is the only one in range, and reaching a child who
       // has two lines takes a step toward her, which is the right amount of effort for what she is.
@@ -18022,7 +18026,20 @@ const __boot = (async () => {
     // the kindly one's shears are the one tool in gehenna and they stay hers.
     grp.add(body, head, armL, armR);
     grp.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
-    const x = GEH.cx + 96, z = GEH.cz, y = gehGroundAt(x, z, GEH.floor + 60);
+    // she stands where the player already met her, at her cart, and not at a constant further up the road. the walk
+    // back is the only time anybody sees this place with the machine stopped, and her after-script is part of that
+    // picture — posting her east of it meant the fight started before the scene could be reached, so the scene could
+    // never be reached at all. arming five metres west of the cart leaves the whole 4.4 m interact scan around her
+    // open before she moves.
+    //
+    // it also puts the four she is defending BEHIND the player when it starts, which turns out to be the point: to
+    // make her killable at all you have to go back east, past her, toward the seated. she has no interest in anybody
+    // who is leaving, and that is now the geometry of the fight rather than a line about it.
+    const post = GEH.matronFig ? GEH.matronFig.pos : V3(GEH.cx + 56, 0, GEH.cz + 3.4);
+    GEH.matPost = V3(post.x, 0, post.z);
+    GEH.matArmX = post.x - 5;
+    if (GEH.matronFig && GEH.matronFig.grp) GEH.matronFig.grp.visible = false;
+    const x = post.x, z = post.z, y = gehGroundAt(x, z, GEH.floor + 60);
     grp.position.set(x, y, z);
     scene.add(grp);
     const e = {
@@ -18044,7 +18061,7 @@ const __boot = (async () => {
     if (!WORLDSTATE.gehDone) return;
     const e = GEH.matron || gehSpawnMatron();
     if (!e || !e.alive || e.armed) return;
-    if (P.pos.x > GEH.cx + 96 || !matInCorridor(P.pos)) return;
+    if (P.pos.x > GEH.matArmX || !matInCorridor(P.pos)) return;
     // she waits out whatever is still being said. the clerk closing beats run on a chain that chainSay would cancel
     // outright, and the ledger is the last thing that happens before this walk.
     const api = gehSay();
@@ -18149,7 +18166,7 @@ const __boot = (async () => {
     switch (e.state) {
       case "post": {
         e.hp = Math.min(e.maxHp, e.hp + 12 * dt);
-        const px = GEH.cx + 96, pz = GEH.cz;
+        const px = GEH.matPost.x, pz = GEH.matPost.z;
         const ax = px - e.pos.x, az = pz - e.pos.z, ad = Math.hypot(ax, az) || 1;
         if (ad > 0.7) { e.pos.x += (ax / ad) * e.spd * dt; e.pos.z += (az / ad) * e.spd * dt; e.heading = Math.atan2(ax, az); }
         else e.heading = Math.PI / 2;
@@ -18389,7 +18406,10 @@ const __boot = (async () => {
     let best = null, bd = 1e9;
     for (const a of GEH.enemies || []) {
       if (a.kind !== "attached" || !a.alive) continue;
-      if (a.state === "calm" || a.state === "seat" || a.state === "sat") continue;
+      // seated and grieve belong to the matron and he must not touch them. they are attached-kind bodies sitting in
+      // his rows, so without this he walks over on his round and relieves the four she is defending — which quietly
+      // takes them out of the pool the player can wake, and caps her tier below four with nothing on screen to say so.
+      if (a.state === "calm" || a.state === "seat" || a.state === "sat" || a.state === "seated" || a.state === "grieve") continue;
       const d = dist2D(a.pos, e.pos);
       if (d < bd) { bd = d; best = a; }
     }
@@ -19113,6 +19133,8 @@ const __boot = (async () => {
     GEH.almSeats = null;
     GEH.heapDown = false;
     GEH.matron = null;
+    GEH.matronFig = null;
+    GEH.matPost = null;
     GEH.woken = 0;
     GEH.seatMesh = null;
     GEH.motes = null;
