@@ -4,6 +4,113 @@ Every change, with the bug it fixes and how. Newest first.
 
 ---
 
+## 2.10.0 — She goes in the ground, and 3.0 is reachable
+
+**This is the build where the update stops being unreachable.** `ysoldeBuried`
+has been read in three places and set in none since 2.8.1, so on a fresh save the
+main quest stopped dead the moment the Warden died and the whirlpool never
+appeared for anyone who had not hand-edited a key.
+
+### The chain, in eight beats
+
+1. **The hush.** Her death pulls every music channel to zero and pushes the
+   schedulers forward so nothing bursts back in. Crickets every half second to
+   one and a half. Three lines, at 4.5, 9 and 13.5 seconds. Nothing hurries you.
+2. **The lift.** E within 4.4 m of her body, which has been face down in that
+   water since Act II.
+3. **The carry, and it is visible.** She lies across the shoulders, face down,
+   arms hanging. She is **not parented** to the hero, because `rebuildHero()`
+   would take her with it; she is driven from the player transform each frame
+   after it resolves. Carrying is 4.03 m/s against a 6.5 walk, and running,
+   jumping, dashing, sliding and every swing are refused. Blocking is left to
+   you. Goblin spawns are suppressed while you are carrying her, and beds refuse
+   you.
+4. **The procession.** Eleven waypoints through `routeGuide` — the rear gate, the
+   north avenue, the east street past her father's door, the plaza, the stocks,
+   the great avenue, the front gate, the grave. Villagers within 16 m stop, turn
+   and speak, drawn without replacement so nobody repeats. Hale's five lines arm
+   at 18 m; the miller's four at 16.
+5. **The grave**, already dug, outside the south gate on ground that is exactly
+   `PLATEAU`. A banked pit, a spoil heap, a spade, a blank headstone. Only the
+   headstone is a collider: `addStruct` has no removal, so a pit-sized one would
+   have been an invisible step in the grass after the mound closed.
+6. **The burial.** E at the graveside. `ysoldeBuried`.
+7. **The King**, who asks you to rest.
+8. **The sleep**, which sets `gehUnlocked` and turns the pool.
+
+### Bug 102 — The main quest dead-ended the instant the Warden died · FIXED
+
+The last objective was *"Decide, at the stone by the pool, what becomes of the
+valley"*, completing on `WORLDSTATE.ending`. `ending` is set only by
+`endTheStory()`, called only by `chooseEnding()` — **which had no callers at
+all**, because the three-option ending was removed at the author's request and
+the objective was left behind. The tracked objective and the guide arrow pointed
+at the pool for ever. The chooser and the objective are gone; `applyEndingWorld`
+and the `ending` guards stay for saves that already carry one.
+
+### Bug 103 — The E prompt would have been lit permanently for the whole carry · FIXED
+
+`anyInteractableNear` matched the `"body"` NPC in its generic loop. `BODY.pos`
+follows the player during the carry, so the prompt would have sat on screen from
+the pool to the grave. `interact()` already excluded her; the prompt did not.
+
+### Bug 104 — Daybreak started on the frame she died · FIXED
+
+`dayBreak = 22` was set in the death handler, so the sun began running up through
+the one moment in the game built to hold still. It is set at the end of the hush.
+
+### Bug 105 — The Warden's throw never reached the player · FIXED
+
+`enemyStrike(e, dmg, tgt, kb, pierce)` computed both and then called
+`hurtPlayer(dmg, e.pos)` with two arguments. The **networked** branch forwarded
+`kb` faithfully, so her 2.1× launch reached a friend across the wire and never
+once reached the player standing in front of her.
+
+### Bug 106 — The lash a dodge cannot answer could be dodged perfectly · FIXED
+
+A pierce blow skips the Flurry branch and lands in `hurtPlayer`, whose first line
+returns on any invulnerability at all. So rolling through a pierce blow took
+**zero damage** — it removed the Flurry reward and left the immunity, which is
+the exact opposite of what it was for. Pierce now ignores the 0.32 s a roll
+grants and still respects the 0.9 s after an ordinary hit, so it cannot
+chain-stun.
+
+### Bug 107 — Hunter arrows flew nose-down, and 2.8.2 is what broke them · FIXED
+
+2.8.2 added one `rotateX` to both projectile systems. The goblin's arrow is a
+bare cylinder mesh, `lookAt` genuinely throws its turn away, and it needed the
+line. **The hunter's arrow is a Group whose two children already carry the
+turn** — the shaft at `rotation.x = π/2` and the head at `(0, 0, 0.55)` — so the
+group points along its own +Z and `lookAt` was already the whole answer. The
+added line maps +Z to −Y and flew every hunter's arrow broadside to its own
+flight. Two different shapes, two different answers, and the same-looking line.
+
+### Save and multiplayer
+
+Three new flags with all four edits each. **Saving mid-carry restores the
+carry** — leaving her at the pool with the flag set strands the chain, and
+clearing the flag hands back a body that has already been lifted. The lift and
+the burial are **host-only**, like the finale; a guest is told what happened and
+their copy of the body is hidden, which is why a guest can never end up holding a
+second one.
+
+### Measured, not assumed
+
+Ground at the grave 8.000 against a `PLATEAU` of 8.000. Route 351 m, about 87
+seconds at carry pace, no waypoint off the ground. The arrow's waypoint index
+across a walked route: 1,2,3,4,5,6,7,8,9,10,10 — one advance per leg, ending on
+the grave. Nearest approach to Hale 2.5 m and to the miller 7.8 m, both armed.
+Carry offset x −1.61, y +2.20, z +0.30 against a body 3.45 m across the
+shoulders. Twenty-four draws from a pool of eleven gave eleven distinct lines
+before any repeat. Stage progression 19 → 20 → 21 → 22 → 23 → 24, where it used
+to stick at 19 for ever.
+
+### Not measured
+
+**How it looks.** Headless has no eyes. The carry pose, the pit reading as a
+hole rather than a bank, and the mound are geometry placed from measured bounding
+boxes and not from a screenshot. One visual pass is wanted.
+
 ## 2.9.3 — A church you can see from the road, and a save structure nobody was checking
 
 ### The abandoned church is rebuilt

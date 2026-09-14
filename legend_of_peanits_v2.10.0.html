@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.9.3</title>
+<title>Legend of Peanits 2.10.0</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -378,7 +378,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.9.3</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.10.0</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -446,7 +446,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.9.3</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.10.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -619,6 +619,8 @@ const __boot = (async () => {
       swimSink: 3.6, // metres a second sinking with the sink key held; a body sinks a little faster than it swims up
       slideAirGrace: 0.45, // a slide survives this many seconds off the ground
       wadeMul: 0.55, // speed in ankle-deep water
+      // speed with a body across your shoulders; running, jumping, dashing and sliding are refused outright
+      carryMul: 0.62,
       dodgeDuration: 0.42, // seconds a dodge lasts
       footLift: 0.09, // the model is lifted this much so its soles rest on the ground
       lieHeightOverMattress: 0.12 // the body rests this far above the mattress when sleeping
@@ -787,7 +789,11 @@ const __boot = (async () => {
   const WORLDSTATE = {
     marenFreed: false, haleExposed: false, pyreDismantled: false, blackPoolAwake: false, awokeAt: 0, hermitTold: false, hermitWarned: false, kingTrusts: false,
     goblinKingDefeated: false, bearDefeated: false, finaleStarted: false, wardenDead: false, ending: null,
-    ysoldeBuried: false, // she is in the ground. this and nothing else opens the water
+    // the burial, in the order it happens. lifted: she is off the water and on your shoulder. buried: she is in the
+    // ground, and this and nothing else opens the way down. kingMourned: the king has heard it and sent you to bed.
+    ysoldeLifted: false,
+    ysoldeBuried: false,
+    kingMourned: false,
     gehUnlocked: false, gehSeed: 0, // the way down is open, and which gehenna it is. everything else about it regenerates
     // whether the after-story down there has been finished. deliberately NOT in WS_SHARED: a guest's gehenna is their
     // own scene, and inheriting a host's finished after-story would silently rob them of the whole of it.
@@ -1361,6 +1367,12 @@ const __boot = (async () => {
         this.stepTi++;
       }
     },
+    // the long quiet after the warden goes under. every channel is pulled to nothing and nothing is scheduled while
+    // it runs, so what is left in the valley is the crickets and the player's own footsteps.
+    silence(seconds) {
+      if (!this.ready) return;
+      this.quietUntil = this.ctx.currentTime + seconds;
+    },
     update(townness, night, inside, boss = false) {
       if (!this.ready) return;
       const c = this.ctx,
@@ -1372,6 +1384,12 @@ const __boot = (async () => {
         this.gB.connect(this.master);
         this.nextB = now;
         this.stepB = 0;
+      }
+      if (this.quietUntil > now) {
+        for (const g of [this.gT, this.gW, this.gTi, this.gB]) if (g) g.gain.setTargetAtTime(0, now, 0.7);
+        // the schedulers are pushed up to now as well, so nothing arrives as a backlog burst when the quiet lifts
+        this.nextT = this.nextW = this.nextB = now;
+        return;
       }
       // 3.0: the valley's pulse drags as the pool's grip tightens. every DURATION below is scaled by the same number, so
       // it is a tempo change and not a stretched tape. the boss channel is exempt on purpose — a slow boss track is a bad
@@ -5942,6 +5960,8 @@ const __boot = (async () => {
         }
       }
       if (n.kind === "body") {
+        // the shoulder owns her transform once she is up, and there is no water left under her to ripple
+        if (P.carry || WORLDSTATE.ysoldeBuried) continue;
         n.mesh.position.copy(n.pos);
         n.mesh.position.y += Math.sin(time * 0.7) * 0.04;
         if (Math.random() < dt * 0.6) ripple(n.pos.x + 1.5, n.pos.z + 0.5, 1.2);
@@ -6290,7 +6310,7 @@ const __boot = (async () => {
                 step(n.pos.x + (ax / l) * 8, n.pos.z + (az / l) * 8, 6.5);
                 break;
               }
-              if (!n.canopy && !n.seenBody && dist2D(BODY.pos, n.pos) < 11) {
+              if (!n.canopy && !n.seenBody && !WORLDSTATE.ysoldeLifted && dist2D(BODY.pos, n.pos) < 11) {
                 n.shock = 2.6 + Math.random();
                 n.seenBodyT = 25;
                 break;
@@ -6836,12 +6856,13 @@ const __boot = (async () => {
       a.pos.addScaledVector(a.vel, dtFrame);
       a.vel.y -= 6 * dtFrame;
       a.mesh.position.copy(a.pos);
-      // lookAt REPLACES the quaternion, so the quarter turn that laid this cylinder along its flight path when it was
-      // built is thrown away on the very first frame. a CylinderGeometry runs along its own Y and lookAt points the
-      // object's +Z at the target, so without putting the turn back every arrow in the game flew broadside — a stick
-      // crossing the sky sideways instead of a shaft going point first.
+      // the hunter's arrow is a GROUP, and its two children already carry the quarter turn: the shaft is a cylinder
+      // with rotation.x = PI/2 and the head sits at (0, 0, 0.55), so the group as a whole points along its own +Z.
+      // lookAt points +Z at the target, which is therefore the whole answer here — a rotateX after it maps +Z to -Y
+      // and flies the arrow nose down, broadside to its own flight. 2.8.2 added one to both projectile systems when
+      // only the goblin's needed it: that one IS a bare cylinder mesh, so lookAt genuinely throws its turn away and
+      // updateGobArrows puts it back. two different shapes, two different answers, and the same-looking line.
       a.mesh.lookAt(a.pos.clone().add(a.vel));
-      a.mesh.rotateX(Math.PI / 2);
       if (a.target && a.target.kind === "goblin") {
         if (a.target.alive && dist2D(a.target.pos, a.pos) < 1.4 && Math.abs(a.target.pos.y + 1.2 - a.pos.y) < 2) {
           damageEnemy(a.target, 2, a.hunter.pos, 5, false);
@@ -8476,6 +8497,52 @@ const __boot = (async () => {
   BODY.mesh.scale.setScalar(1.08);
   BODY.pos.y = POOLW + 0.12;
   BODY.mesh.position.copy(BODY.pos);
+  // ============================================================ 3.0: the grave at the front of the kingdom
+  // somebody dug it while you were in the water, and nobody ever says who. it stands on open ground outside the south
+  // gate, so a procession coming down the great avenue walks straight out on to it with the whole town behind it.
+  const GRAVE = { x: -16, y: PLATEAU, z: 74, r: 4.2 };
+  const GRAVE_PARTS = { root: null, open: new THREE.Group(), shut: new THREE.Group() };
+  buildGrave();
+  // both states are built at worldgen and one of them is hidden: open while she is still above ground, closed the
+  // moment she is not. swapping the two is the whole of the burial, so a load can rebuild it in one line.
+  // the terrain is a single heightfield and cannot be given a hole, so the pit is banked rather than cut: a dark floor
+  // at turf level, a dark lining standing up around it, and the spoil heaped outside that. it reads as an open grave
+  // from every angle the camera can take, and nobody can fall into it, which is the right trade for a player who is
+  // walking up to it with both arms full.
+  function buildGrave() {
+    const soil = lam(0x3f2e1e),
+      dark = lam(0x1a1209),
+      open = GRAVE_PARTS.open,
+      shut = GRAVE_PARTS.shut;
+    open.add(boxM(2.2, 0.06, 1.45, dark, 0, 0.03, 0));
+    for (const [dx, dz, w, d] of [[-1.06, 0, 0.12, 1.45], [1.06, 0, 0.12, 1.45], [0, -0.69, 2.2, 0.12], [0, 0.69, 2.2, 0.12]])
+      open.add(boxM(w, 0.5, d, dark, dx, 0.22, dz));
+    for (const [dx, dz, w, d] of [[-1.34, 0, 0.46, 2.1], [1.34, 0, 0.46, 2.1], [0, -0.98, 3.1, 0.46], [0, 0.98, 3.1, 0.46]])
+      open.add(boxM(w, 0.5, d, soil, dx, 0.2, dz));
+    // the heap of spoil, and the spade left standing in it
+    open.add(sphere(1.25, soil, -2.6, 0.05, 0.3, 1, 0.5, 1));
+    const spade = new THREE.Group();
+    spade.add(cyl(0.05, 0.05, 1.8, timber, 0, 0.95, 0, 6), boxM(0.34, 0.5, 0.05, lam(0x8a8f98), 0, 0.2, 0));
+    spade.position.set(-2.5, 0.15, 0.35);
+    spade.rotation.z = 0.26;
+    open.add(spade);
+    // and what is left of all of it once she is under it
+    shut.add(sphere(1.75, soil, 0, 0.02, 0, 1, 0.4, 0.78));
+    shut.visible = false;
+    // the headstone stands from the first morning, and it is blank, because nobody knew what to cut on it
+    const stone = new THREE.Group();
+    stone.add(boxM(1.1, 1.6, 0.24, stoneM, 0, 0.8, 0), boxM(1.4, 0.22, 0.44, stoneDarkM, 0, 0.07, 0));
+    stone.position.set(0, 0, -1.55);
+    stone.rotation.y = 0.07;
+    const g = new THREE.Group();
+    g.add(open, shut, stone);
+    g.position.set(GRAVE.x, GRAVE.y, GRAVE.z);
+    scene.add(g);
+    GRAVE_PARTS.root = g;
+    // only the headstone is solid. the earth is left walk-through on purpose: addStruct has no removal, so a collider
+    // sized to the open pit would still be standing there as an invisible step after the mound closed over it.
+    addRect(GRAVE.x, GRAVE.z - 1.55, 0.6, 0.2, GRAVE.y + 1.6);
+  }
   await __stage(90, "Hiding secrets…");
   // ============================================================ quest places
   if (CANOPY) {
@@ -9246,7 +9313,8 @@ const __boot = (async () => {
     // the seam is the water. everything below reads valley positions, and gehenna is inside the valley's own x/z
     // bounds, so without the early return a hut three hundred metres overhead lights the ? over your head.
     if (P.pos.y < DIVIDE) return gehInShallows() && GEH.exitArm > 3 && !(GEH_SCRIPT && GEH_SCRIPT.fight);
-    if (near(hermitPos, 4.5) || near(king.pos, 5.5) || near(BODY.pos, 4.5)) return true;
+    if (near(hermitPos, 4.5) || near(king.pos, 5.5) || (!WORLDSTATE.ysoldeLifted && near(BODY.pos, 4.5))) return true;
+    if ((P.carry || WORLDSTATE.ysoldeBuried) && atTheGrave()) return true;
     // the beacon has always had something to say — that the lamp is cold, that you have the flint but not the trick —
     // but it was never listed here, so no prompt ever appeared and the whole tower read as scenery.
     if (near(lighthousePos, 11, 40)) return true;
@@ -9255,7 +9323,7 @@ const __boot = (async () => {
       if (!p.taken && dist2D(p.mesh.position, P.pos) < 5 && Math.abs(p.mesh.position.y - P.pos.y) < 3.2)
         return true;
     for (const h of herbs) if (!h.taken && near(h.pos, 5)) return true;
-    for (const n of npcs) if (n.kind !== "king" && !n.napping && near(n.pos, 4.5)) return true; // a hunter in his tent is not standing there
+    for (const n of npcs) if (n.kind !== "king" && n.kind !== "body" && !n.napping && near(n.pos, 4.5)) return true; // a hunter in his tent is not standing there
     return false;
   }
   // apply a permanent reward, record it, and announce it in the hud
@@ -11501,7 +11569,9 @@ const __boot = (async () => {
       const night = dayElev < 0.05,
         cap = TUNE.goblins.spawnCap,
         alive = goblins.filter(g => g.alive).length;
-      if (!netGuest() && night && alive < cap && performance.now() - startedAt > TUNE.goblins.spawnGrace * 1000)
+      // nothing new comes up out of the ground while she is being carried over it: the walk is the content, and a
+      // player who cannot swing has no answer to a pack of seven
+      if (!netGuest() && !P.carry && night && alive < cap && performance.now() - startedAt > TUNE.goblins.spawnGrace * 1000)
         for (let tries = 0; tries < 8; tries++) {
           const around = [P.pos, ...[...NET.avatars.values()].filter(a => !a.state.dead).map(a => a.state.pos)], c = around[Math.floor(Math.random() * around.length)]; // a pack forms near any one of the players
           const a = Math.random() * 6.28,
@@ -11742,6 +11812,8 @@ const __boot = (async () => {
     flint: false,
     lookY: 0,
     landSquash: 0,
+    // a body across the shoulders. while it is set the run, the jump, the dash, the slide and every swing are refused
+    carry: false,
     wading: false,
     splashT: 0
   };
@@ -12054,7 +12126,11 @@ const __boot = (async () => {
     { text: "Earn the word of every village: the eight mountain villages each have an errand for you", done: () => villagesDone() >= 8, hint: () => `${villagesDone()}/8 villages stand with you. ${villageQuests().find(q => !q.done) ? "Next: " + villageQuests().find(q => !q.done).who : ""}`, target: () => { const q = villageQuests().find(q => !q.done); return q ? q.giver.pos : POOL; } },
     { text: "Carry the four to the black pool, at night", done: () => WORLDSTATE.finaleStarted, hint: () => `The black pool is ${dirTo(POOL)}. Go when the sun is down.`, target: () => POOL },
     { text: "Face what rises from the water", done: () => WORLDSTATE.wardenDead, hint: () => "Its blows are slow and its shape is wrong; it is only solid just after it strikes.", target: () => POOL },
-    { text: "Decide, at the stone by the pool, what becomes of the valley", done: () => !!WORLDSTATE.ending, hint: () => `The stone is ${dirTo(POOL)}`, target: () => POOL },
+    { text: "Take her up out of the water", done: () => WORLDSTATE.ysoldeLifted || WORLDSTATE.ysoldeBuried, hint: () => `She is lying where she has always been. The black pool is ${dirTo(POOL)}.`, target: () => BODY.pos },
+    { text: "Carry her through the kingdom to the grave at the gate", done: () => WORLDSTATE.ysoldeBuried, hint: () => "Somebody dug it at the front of the kingdom while you were in the water. Go the way the arrow goes, and let them see her.", target: () => routeGuide(BURIAL_ROUTE) },
+    { text: "Tell the king it is done", done: () => WORLDSTATE.kingMourned, hint: () => `The throne is ${dirTo(king.pos)}`, target: () => king.pos },
+    { text: "Sleep. There is nothing else to do tonight", done: () => WORLDSTATE.gehUnlocked, hint: () => "Any bed will do. The king was not asking.", target: () => null },
+    { text: "The black pool is turning. Go down.", done: () => WORLDSTATE.gehDone, hint: () => `The black pool is ${dirTo(POOL)}. Swim out to the middle of it.`, target: () => POOL },
     {
       text: "Wildmoor remembers what you did. Climb the elder tree and see it all.",
       done: () => false,
@@ -12466,6 +12542,11 @@ const __boot = (async () => {
       if (WORLDSTATE.ending) { if (POOL_STONE) POOL_STONE.mark.material.emissiveIntensity = WORLDSTATE.ending === "bind" ? 3 : 0; applyEndingWorld(); }
       if (WORLDSTATE.finaleStarted && !WORLDSTATE.wardenDead && !WORLDSTATE.ending && !netGuest()) { spawnWarden(); say("The water in the middle of the pool is still rising. It has not forgotten you.", 5000, true, "dark"); } // the fight resumes from the top after a load
       if (WORLDSTATE.wardenDead && !WORLDSTATE.ending && POOL_STONE) POOL_STONE.mark.material.emissiveIntensity = 2.5;
+      // the burial, rebuilt. restoring the carry is the only answer that is both consistent and finishable: leaving
+      // her floating at the pool with the flag set strands the chain, and clearing the flag hands the player back a
+      // body they have already lifted. she is either on the shoulder or under the mound, never both and never neither.
+      if (WORLDSTATE.ysoldeBuried) ysoldeIntoTheGround();
+      else if (WORLDSTATE.ysoldeLifted) beginCarry();
       if (d.bearDead && BEAR && BEAR.alive) { BEAR.alive = false; BEAR.awake = false; BEAR.mesh.visible = false; BEAR.t = 100; }
       for (const [id, x, z] of d.owed || []) dropReward(id, x, z);
       if (d.fairy) {
@@ -12612,7 +12693,7 @@ const __boot = (async () => {
         if (!num(f.found, 0, 25) || !num(f.hearts, 0, 10) || (f.kids !== undefined && !(Array.isArray(f.kids) && f.kids.every(k => num(k, 0, 99)))) || (f.seen !== undefined && typeof f.seen !== "boolean") || (f.compass !== undefined && typeof f.compass !== "boolean") || ["rest", "petal", "grove", "crown", "accepted", "complete"].some(k => f[k] !== undefined && typeof f[k] !== "boolean")) return null;
       }
       if (d.ws !== undefined) {
-        const rb = ["marenFreed", "haleExposed", "pyreDismantled", "blackPoolAwake", "hermitTold", "hermitWarned", "kingTrusts", "goblinKingDefeated", "bearDefeated", "fairyCourtOpen", "finaleStarted", "wardenDead", "home", "guardsOut", "gehUnlocked", "gehDone", "ysoldeBuried"]; // fairyCourtOpen is accepted from 2.0 keys and ignored
+        const rb = ["marenFreed", "haleExposed", "pyreDismantled", "blackPoolAwake", "hermitTold", "hermitWarned", "kingTrusts", "goblinKingDefeated", "bearDefeated", "fairyCourtOpen", "finaleStarted", "wardenDead", "home", "guardsOut", "gehUnlocked", "gehDone", "ysoldeLifted", "ysoldeBuried", "kingMourned"]; // fairyCourtOpen is accepted from 2.0 keys and ignored
         const spec = {}; for (const k of rb) spec[k] = bool;
         // the seed generator only ever rolls an integer 1..999999, so the validator says the same thing: a fractional
         // seed is a world it could never produce, and it ends up inside fbm.
@@ -13164,7 +13245,7 @@ const __boot = (async () => {
   }
   // start or queue a ground combo, or initiate an aerial slash/dive
   function attackPressed() {
-    if (P.dodge > 0 || P.swim || P.climb || sleepT > 0) return;
+    if (P.dodge > 0 || P.swim || P.climb || P.carry || sleepT > 0) return;
     if (P.atkCd > 0) return;
     {
       const cost = !P.grounded && !P.airSlash ? 12 : P.grounded && !P.atk ? 6 : 0;
@@ -13512,7 +13593,7 @@ const __boot = (async () => {
     return n.dot(v) < -0.2 ? n : null;
   }
   function jump() {
-    if (P.climb || sleepT > 0) return;
+    if (P.climb || P.carry || sleepT > 0) return;
     if (P.atk || P.dodge > 0) return;
     const inp = moveInput(),
       dir = inp.lengthSq() ? inp : hspeed() > 0.5 ? V3(P.vel.x, 0, P.vel.z).normalize() : fwd();
@@ -13595,7 +13676,7 @@ const __boot = (async () => {
   // spend stamina to dodge and open a short defensive timing window
   function dash() {
     const cost = P.bonus.dashCost || 15;
-    if (P.dodge > 0 || P.stam < cost || P.atk || P.swim) return;
+    if (P.dodge > 0 || P.stam < cost || P.atk || P.swim || P.carry) return;
     P.dodge = P.dodgeDur;
     P.inv = Math.max(P.inv, 0.32);
     P.stam -= cost;
@@ -13964,7 +14045,7 @@ const __boot = (async () => {
   // it would land as the boolean true, gehBeginDive's `if (!WORLDSTATE.gehSeed)` re-roll would not fire because true is
   // truthy, and then parseSaveKey rejects a boolean seed, so every save key that player wrote afterwards would be
   // refused as "bad save key" for the rest of the session. a non-boolean has to travel as its own field.
-  const WS_SHARED = ["marenFreed", "haleExposed", "pyreDismantled", "blackPoolAwake", "hermitTold", "hermitWarned", "kingTrusts", "goblinKingDefeated", "bearDefeated", "finaleStarted", "wardenDead", "guardsOut", "gehUnlocked", "ysoldeBuried"];
+  const WS_SHARED = ["marenFreed", "haleExposed", "pyreDismantled", "blackPoolAwake", "hermitTold", "hermitWarned", "kingTrusts", "goblinKingDefeated", "bearDefeated", "finaleStarted", "wardenDead", "guardsOut", "gehUnlocked", "ysoldeLifted", "ysoldeBuried", "kingMourned"];
   const mainProgress = () => ({ t: "mq", metKing, talkedKing, talkedOnce, gaveHerbs, lit, flint: !!P.flint, clues: STORY.clues, evidence: STORY.evidence.slice(), wick: !!STORY.wick, solved: !!STORY.solved, reported: !!STORY.reported, ws: Object.fromEntries(WS_SHARED.map(k => [k, !!WORLDSTATE[k]])), relics: { ...WORLDSTATE.relics }, ending: WORLDSTATE.ending });
   function applyMainProgress(m, peer) {
     const before = mainProgress();
@@ -13977,7 +14058,7 @@ const __boot = (async () => {
     if (typeof m.clues === "number" && m.clues > STORY.clues) STORY.clues = Math.min(5, m.clues);
     if (Array.isArray(m.evidence)) for (const k of m.evidence) if (["cloth", "ring", "diary", "ritual", "note"].includes(k)) evidence(k);
     if (m.wick) STORY.wick = true; if (m.solved) { if (!STORY.solved) { STORY.solved = true; if (!WORLDSTATE.marenFreed) freeMaren(); } } if (m.reported) STORY.reported = true;
-    if (m.ws && typeof m.ws === "object") for (const k of WS_SHARED) if (m.ws[k] === true && !WORLDSTATE[k]) { if (k === "blackPoolAwake") awakenPool(); else if (k === "pyreDismantled") dismantlePyre(); else if (k === "guardsOut") guardsOutside(); else WORLDSTATE[k] = true; if (k === "finaleStarted" && NET.role === "host" && !WORLDSTATE.wardenDead && !(WARDEN && WARDEN.alive)) spawnWarden(); } // progress only ever moves forward; a transition function sets its own flag and does its work
+    if (m.ws && typeof m.ws === "object") for (const k of WS_SHARED) if (m.ws[k] === true && !WORLDSTATE[k]) { if (k === "blackPoolAwake") awakenPool(); else if (k === "pyreDismantled") dismantlePyre(); else if (k === "guardsOut") guardsOutside(); else if (k === "ysoldeLifted") ysoldeOffTheWater(); else if (k === "ysoldeBuried") ysoldeIntoTheGround(); else WORLDSTATE[k] = true; if (k === "finaleStarted" && NET.role === "host" && !WORLDSTATE.wardenDead && !(WARDEN && WARDEN.alive)) spawnWarden(); } // progress only ever moves forward; a transition function sets its own flag and does its work
     if (m.relics && typeof m.relics === "object") for (const k of ["seal", "root", "warden", "tear"]) if (m.relics[k] === true) WORLDSTATE.relics[k] = true;
     // the ending is the one piece of shared progress that cannot be undone: endTheStory rewrites the pool, sets the
     // flag and returns early ever after. it used to be applied from any peer with no authority check at all, so a
@@ -14009,8 +14090,12 @@ const __boot = (async () => {
   }
   // kb scales the knockback only. the warden throws at 2.1, which is the one blow in the game that takes a player
   // off their feet properly — everything else stays at 1 and behaves exactly as it always has.
-  function hurtPlayer(dmg, from, kb = 1) {
-    if (P.inv > 0 || death) return;
+  function hurtPlayer(dmg, from, kb = 1, pierce = false) {
+    // a pierce blow is the one a dodge cannot answer, and it could not answer it: pierce skipped the flurry branch and
+    // arrived here, where the first line returns on any invulnerability at all — so rolling through it dealt ZERO.
+    // it took the flurry reward away and left the immunity, which is the exact opposite of the intent. it ignores the
+    // 0.32 s a roll grants and still respects the 0.9 s after an ordinary hit, so it cannot chain-stun.
+    if ((P.inv > 0 && !(pierce && P.dodge > 0)) || death) return;
     dmg *= (1 / (1 + Math.max(0, heroLevel() - 1) * TUNE.combat.damagePerHeroLevel)) * (P.bonus.guard || 1);
     FAIRY.idle = 0;
     FAIRY.healing = false;
@@ -14064,7 +14149,12 @@ const __boot = (async () => {
       hitstop = 0.08;
       SFX.block();
       burst(P.pos.clone().add(V3(toP.x, 1.4, toP.z)), 0xd8d8e0, 8, 5, 0.3, 0.08);
-    } else hurtPlayer(dmg, e.pos);
+    } else {
+      // kb and pierce were both computed here and then dropped on the floor: the local branch called hurtPlayer with
+      // two arguments while the NETWORKED branch above forwarded kb faithfully. so the warden's 2.1x launch reached a
+      // friend across the wire and never once reached the player standing in front of her.
+      hurtPlayer(dmg, e.pos, kb, pierce);
+    }
   }
   // restore the player at the gate and reset nearby combat state
   let death = null;
@@ -15871,8 +15961,9 @@ const __boot = (async () => {
     // the finale: the four relics, the pool, the night
     if (relicCount() === 4 && villagesDone() >= 8 && !WORLDSTATE.finaleStarted && dayElev < 0.05 && dist2D(P.pos, POOL) < 20 && !roomNow) { if (netGuest()) { // a cooldown, not a latch: this used to be spent forever on the first ask, so a guest whose request went unanswered could never raise the warden again all session
       if (time > (NET.finaleAsked || 0)) { NET.finaleAsked = time + 20; for (const p of NET.peers.values()) netSend(p, { t: "finale" }); say("The relics burn cold. The water waits for the host's word.", 3000, true, "dark"); } } else startFinale(); }
-    if (WORLDSTATE.finaleStarted && !WORLDSTATE.wardenDead && WARDEN && !WARDEN.alive) { WORLDSTATE.wardenDead = true; releaseWatchers(); dayBreak = 22; say("She goes under. Not onward — under. The children are still standing there, and none of them will look at you.", 8000, true, "dark"); if (POOL_STONE) POOL_STONE.mark.material.emissiveIntensity = 2.5; }
+    if (WORLDSTATE.finaleStarted && !WORLDSTATE.wardenDead && WARDEN && !WARDEN.alive) { WORLDSTATE.wardenDead = true; releaseWatchers(); beginHush(); say("She goes under. Not onward — under. The children are still standing there, and none of them will look at you.", 8000, true, "dark"); if (POOL_STONE) POOL_STONE.mark.material.emissiveIntensity = 2.5; }
     if (POOL_STONE && WORLDSTATE.wardenDead && !WORLDSTATE.ending) { if (!POOL_STONE.prompt) POOL_STONE.prompt = makePrompt(); const near2 = dist2D(P.pos, POOL_STONE) < 3.2; POOL_STONE.prompt.visible = near2; if (near2) POOL_STONE.prompt.position.set(POOL_STONE.x, POOL_STONE.y + 2.2, POOL_STONE.z); }
+    updateBurial(dt);
   }
   function startFinale() {
     if (WORLDSTATE.finaleStarted && WARDEN && WARDEN.alive) return;
@@ -15881,14 +15972,260 @@ const __boot = (async () => {
     SFX.dread();
     spawnWarden();
   }
-  // the ending: three ways to close the door, each of which the valley will show forever after
-  function chooseEnding() {
-    const opts = [
-      { key: "bind", label: "Bind it with the beacon's light", text: "Set the king's seal and the root word in the stone and turn the beacon on the pool. The door stays shut as long as the light burns. Someone will always have to keep it." },
-      { key: "break", label: "Break the seal and drain the pool", text: "Shatter the stone with the warden's own weight. Whatever was under the water goes with the water. The pool becomes a hollow of stones, and nothing is owed to anyone again." }
+  // ============================================================ 3.0: the burial
+  // she is dead, and nothing about that sent her onward. what is left is the ordinary work: take her up out of the
+  // water, carry her the length of the kingdom where everyone who knew her can see her, and put her in the ground.
+  // this is the only thing in the game that sets WORLDSTATE.ysoldeBuried, and that flag is what opens the way down.
+  // the three-way ending chooser stood here. it had no callers — nothing in the game reached it — and the objective
+  // that pointed at it could therefore never be completed, so the main quest stuck forever on the frame she died.
+  const CARRY = { sway: 0, spokeT: 0 };
+  const MOURNERS = [];
+  // the long quiet after she goes under: every music channel pulled to nothing and the night left to the crickets.
+  // it is deliberately unhurried. the beat IS the silence, and a player chivvied out of it never hears it at all.
+  const HUSH = { on: false, t: 0, i: 0, cricket: 0 };
+  const HUSH_LINES = [
+    [4.5, "The water closes over the place where she was."],
+    [9, "No wind. No birds. Crickets a long way out on the moor, and nothing else at all."],
+    [13.5, "She is lying at the edge of the pool where she has always been. Somebody has to move her."]
+  ];
+  function beginHush() {
+    HUSH.on = true;
+    HUSH.t = 0;
+    HUSH.i = 0;
+    HUSH.cricket = 1.2;
+    Music.silence(19);
+  }
+  function updateHush(dt) {
+    if (!HUSH.on) return;
+    HUSH.t += dt;
+    HUSH.cricket -= dt;
+    if (HUSH.cricket <= 0) {
+      HUSH.cricket = 0.5 + Math.random() * 1.2;
+      SFX.cricket(0.4 + Math.random() * 0.45);
+    }
+    while (HUSH.i < HUSH_LINES.length && HUSH.t >= HUSH_LINES[HUSH.i][0]) say(HUSH_LINES[HUSH.i++][1], 5600, true, "dark");
+    if (HUSH.t < 17) return;
+    HUSH.on = false;
+    // only now does the night start to break. the clock is locked to midnight for the fight and the sunrise used to
+    // begin on the very frame she died, which walked the sun up through the one moment that has to hold still.
+    dayBreak = 22;
+  }
+  // waypoints from the pool to the grave, in order. they come in at the rear gate and go the whole length of the town
+  // — the north avenue, the east street past her father's door, the plaza, the stocks where hale is, the great avenue
+  // and out at the front — because the street you walk down and the people standing along it ARE the content.
+  // routeGuide is the only thing in the game that reads this, and it only ever advances.
+  const BURIAL_ROUTE = [
+    { x: 0, y: PLATEAU, z: -TOWN_R - 12, r: 15 },
+    { x: 0, y: PLATEAU, z: -44, r: 12 },
+    { x: 18, y: PLATEAU, z: -36, r: 10 },
+    { x: 30, y: PLATEAU, z: -20, r: 10 },
+    { x: 30, y: PLATEAU, z: 4, r: 10 },
+    { x: 30, y: PLATEAU, z: 27, r: 10 },
+    { x: 16, y: PLATEAU, z: 32, r: 9 },
+    { x: -11, y: PLATEAU, z: 38, r: 9 },
+    { x: 0, y: PLATEAU, z: 48, r: 9 },
+    { x: 0, y: PLATEAU, z: 62, r: 10 },
+    { x: GRAVE.x, y: GRAVE.y, z: GRAVE.z, r: 6 }
+  ];
+  // a speech delivered a line at a time off the world clock, because a thought this heavy is never one block
+  function stepLines(seq, dt, n, who, gap = 4.4) {
+    if (seq.i >= seq.lines.length) return;
+    seq.t -= dt;
+    if (seq.t > 0) return;
+    seq.t = gap;
+    speak(n, seq.lines[seq.i++], who, gap * 1000);
+  }
+  // and the same thing off a timer, for a speaker you are standing in front of and will not walk away from
+  function speakLines(n, who, lines, gap = 4400) {
+    lines.forEach((line, i) => setTimeout(() => { if (started && !death) speak(n, line, who, gap); }, i * gap));
+  }
+  // press E where she is floating. a guest never carries her: one body held by two people is two bodies, so the lift
+  // and the burial belong to the host exactly as the finale does, and the flags reach the guest over the wire.
+  function liftYsolde() {
+    if (netGuest()) return say("Your friend has her. Walk with them.", 4000, true, "dark");
+    WORLDSTATE.ysoldeLifted = true;
+    beginCarry();
+    P.interactCd = TUNE.people.pickupPause;
+    say("She comes up out of the water easily. She weighs almost nothing, and that is the worst of it.", 6000, true, "dark");
+    setTimeout(() => say("There is a grave dug at the front of the kingdom. Somebody did it while you were in the water.", 6500, true, "dark"), 5200);
+  }
+  // she rides across the shoulders: her own mesh, posed once here and driven off the player every frame after
+  function beginCarry() {
+    P.carry = true;
+    P.atk = null;
+    P.airSlash = null;
+    P.dive = false;
+    P.block = false;
+    P.sliding = false;
+    BODY.mesh.visible = true;
+    const u = BODY.mesh.userData;
+    for (const a of u.arms || []) a.rotation.set(Math.PI / 2, 0, 0);
+    for (const l of u.legs || []) l.rotation.set(0.7, 0, 0);
+  }
+  // the flag arriving from a peer, or off a save key, moves the world but never puts a body on your shoulder: only
+  // your own press does that, and only your own save can hand it back to you.
+  function ysoldeOffTheWater() {
+    WORLDSTATE.ysoldeLifted = true;
+    if (P.carry) return;
+    BODY.mesh.visible = false;
+  }
+  // the end of it, from any direction: the press at the graveside, a peer's flag, or a save taken after the burial
+  function ysoldeIntoTheGround() {
+    WORLDSTATE.ysoldeLifted = true;
+    WORLDSTATE.ysoldeBuried = true;
+    P.carry = false;
+    BODY.pos.set(GRAVE.x, GRAVE.y - 1.4, GRAVE.z);
+    syncNPCMesh(BODY);
+    BODY.mesh.visible = false;
+    GRAVE_PARTS.open.visible = false;
+    GRAVE_PARTS.shut.visible = true;
+    releaseMourners();
+  }
+  // standing at the graveside, and in the valley rather than up on the wall above it
+  function atTheGrave() {
+    return dist2D(GRAVE, P.pos) < 4.6 && Math.abs(P.pos.y - GRAVE.y) < 3;
+  }
+  function buryYsolde() {
+    if (netGuest()) return say("It is not yours to finish. Stand with them.", 4000, true, "dark");
+    ysoldeIntoTheGround();
+    SFX.dread();
+    P.interactCd = TUNE.people.pickupPause;
+    const lines = [
+      "You put her in yourself. Nobody offers to help, and nobody is being unkind.",
+      "The earth goes back easier than it came out.",
+      "The spade goes back in what is left of the heap. Somebody will want it tomorrow.",
+      "It is done. Nothing about it feels finished."
     ];
-    if (FAIRY.crown || FAIRY.complete) opts.push({ key: "fairy", label: "Give it to the rose court", text: "Queen Rosabel offered: her children will sing it to sleep, as they sing her. It will dream instead of hunger. It will never be gone, but it will never be awake." });
-    askChoice("The stone waits. What becomes of the valley?", opts, key => endTheStory(key));
+    lines.forEach((t, i) => setTimeout(() => say(t, 5400, true, "dark"), i * 4800));
+    setTimeout(() => say("The king should hear it from you.", 5000, true), 20500);
+  }
+  // ---- the procession ----
+  // people along the route stop what they are doing, turn, and say one thing each. sorrow and regret: they knew her,
+  // some of them named the herbalist for it, some of them carried wood to the pyre.
+  const MOURN_LINES = [
+    "Oh. Oh, that's her, isn't it.",
+    "I carried wood for that fire. I want that said out loud.",
+    "I said it was the herbalist. I said it in the street.",
+    "She used to run messages for my mother.",
+    "Nobody went out to look for her. Not one of us went out.",
+    "I told people she'd run off with a boy. I made that up.",
+    "Her hair is still wet.",
+    "I have a clean blanket. Let me fetch it. Please let me fetch it.",
+    "I knew her boots before I knew her face.",
+    "My girl is her age. That is all I can think about.",
+    "Set her down if your arms go. Nobody here would mind."
+  ];
+  const MOURN_KID_LINES = [
+    "Is she asleep?",
+    "She gave me an apple once. A whole one.",
+    "Mum said don't look. I'm looking.",
+    "Where are you taking her?"
+  ];
+  const MAREN_LINE = "They had me in the stocks for that. I keep thinking how she'd have hated the fuss.";
+  // every line is spoken once before any of them is spoken twice. the walk is long enough to hear thirty people, and
+  // a plain random pick repeats inside the first minute, which turns a street of neighbours into one voice.
+  const MOURN_BAGS = new Map();
+  function drawOnce(pool) {
+    let bag = MOURN_BAGS.get(pool);
+    if (!bag || !bag.length) {
+      bag = pool.slice();
+      MOURN_BAGS.set(pool, bag);
+    }
+    return bag.splice(Math.floor(Math.random() * bag.length), 1)[0];
+  }
+  function mournLineFor(n) {
+    if (n === MAREN) return MAREN_LINE;
+    return drawOnce(n.kid ? MOURN_KID_LINES : MOURN_LINES);
+  }
+  function mournNameFor(n) {
+    if (n === MAREN) return "Maren";
+    return n.name || (n.kid ? "A child" : n.female ? "A woman" : "A villager");
+  }
+  // hale weeps in the stocks, and every line of it costs him something he would rather keep
+  const HALE_SEQ = {
+    lines: [
+      "Stop. Stop there a moment and let me see her.",
+      "I knew her name before I chose her. I want that written down.",
+      "She asked me what I was doing.",
+      "I told her it was a blessing.",
+      "Take her on. Don't leave her out here with me."
+    ],
+    i: 0,
+    t: 0,
+    armed: false
+  };
+  const MILLER_SEQ = {
+    lines: ["No. No, you take her back.", "She isn't to go in the ground. She's sixteen.", "...Where. Where are you putting her.", "I'll come down after. I will."],
+    i: 0,
+    t: 0,
+    armed: false
+  };
+  function updateProcession(dt) {
+    if (!P.carry) return;
+    CARRY.spokeT -= dt;
+    for (const n of npcs) {
+      if (n.mourning || n.kind !== "villager" || n.napping || n.lost) continue;
+      if (dist2D(n.pos, P.pos) > 16) continue;
+      n.mourning = true;
+      n.stay = true;
+      n.post = true;
+      n.job = "idle";
+      n.target = null;
+      n.work = null;
+      MOURNERS.push(n);
+    }
+    for (const n of MOURNERS) n.heading = Math.atan2(P.pos.x - n.pos.x, P.pos.z - n.pos.z);
+    if (HALE.kind === "stocks" && (HALE_SEQ.armed || dist2D(HALE.pos, P.pos) < 18)) {
+      HALE_SEQ.armed = true;
+      stepLines(HALE_SEQ, dt, HALE, "Hale", 4.6);
+    }
+    if (!MILLER.asleep && !MILLER.furniture && (MILLER_SEQ.armed || dist2D(MILLER.pos, P.pos) < 16)) {
+      MILLER_SEQ.armed = true;
+      MILLER.heading = Math.atan2(P.pos.x - MILLER.pos.x, P.pos.z - MILLER.pos.z);
+      stepLines(MILLER_SEQ, dt, MILLER, "Ysolde's father", 4.8);
+    }
+    if (CARRY.spokeT > 0) return;
+    const who = MOURNERS.find(n => !n.mournSaid && dist2D(n.pos, P.pos) < 13);
+    if (!who) return;
+    who.mournSaid = true;
+    CARRY.spokeT = 4.6;
+    speak(who, mournLineFor(who), mournNameFor(who), 4400);
+  }
+  // they go back to their lives when she is in the ground. the two flags this clears are the only two it ever set.
+  function releaseMourners() {
+    for (const n of MOURNERS) { n.stay = false; n.post = false; }
+    MOURNERS.length = 0;
+  }
+  // she rides face down across the shoulders with her arms hanging, driven off the player rather than parented to the
+  // hero group, because rebuildHero() throws that group away on any change of clothes and would take her with it.
+  const CARRY_ACROSS = 1.62,
+    CARRY_SHOULDER = 2.2,
+    CARRY_BEHIND = 0.22;
+  function updateCarriedBody(rdt) {
+    if (!P.carry) return;
+    CARRY.sway += rdt * (1.7 + hspeed() * 0.45);
+    const bob = Math.sin(CARRY.sway) * 0.05,
+      fx = Math.sin(P.heading),
+      fz = Math.cos(P.heading),
+      rx = Math.cos(P.heading),
+      rz = -Math.sin(P.heading),
+      m = BODY.mesh;
+    m.visible = true;
+    m.position.set(P.pos.x + rx * CARRY_ACROSS - fx * CARRY_BEHIND, visY + CARRY_SHOULDER + bob, P.pos.z + rz * CARRY_ACROSS - fz * CARRY_BEHIND);
+    m.rotation.order = "YXZ";
+    m.rotation.set(-Math.PI / 2 + bob * 0.7, P.heading + Math.PI / 2, 0.18);
+    // everything in the game that reacts to the body reads BODY.pos, so it has to be where the body actually is
+    BODY.pos.set(P.pos.x, P.pos.y + 1.4, P.pos.z);
+  }
+  // the morning after the king sent you to bed: the pool stops being water, and the way down is open
+  function wakeTheWhirlpool() {
+    WORLDSTATE.gehUnlocked = true;
+    say("Word comes up from the gate before you are properly awake.", 5400, true, "dark");
+    setTimeout(() => say("The black pool is turning. It has been turning since the middle of the night, and it is going down.", 7000, true, "dark"), 5000);
+  }
+  function updateBurial(dt) {
+    updateHush(dt);
+    updateProcession(dt);
   }
   function endTheStory(key) {
     if (WORLDSTATE.ending) return;
@@ -16167,6 +16504,18 @@ const __boot = (async () => {
       );
     }
     metKing = true;
+    // she is in the ground and he is grateful, and being thanked for it is the very thing that will not let go
+    if (WORLDSTATE.ysoldeBuried && !WORLDSTATE.kingMourned) {
+      WORLDSTATE.kingMourned = true;
+      speakLines(king, "King", [
+        "It's done, then. Sit down before you fall down.",
+        "I have been writing to the miller since noon. There are four words on it.",
+        `You have not slept in three days, ${CUSTOM.name}. Go and sleep.`,
+        "Whatever is left of this will still be there in the morning. It always is."
+      ]);
+      return;
+    }
+    if (WORLDSTATE.ysoldeBuried && !WORLDSTATE.gehUnlocked) return speak(king, "Bed, Champion. That was an order, and I am enjoying giving it.", "King", 5000);
     if (!lit)
       return speak(
         king,
@@ -16404,6 +16753,12 @@ const __boot = (async () => {
       say(WORLDSTATE.ysoldeBuried ? "The stone is cold. Whatever it was for, it is finished with." : "The stone has nothing to say. She is still in the water.", 4200, true, "dark");
       return;
     }
+    // the burial comes before everything else at the pool and everything else at the gate: it is all that is left
+    if (WORLDSTATE.wardenDead && !WORLDSTATE.ysoldeLifted && !WORLDSTATE.ysoldeBuried && dist2D(BODY.pos, P.pos) < 4.4) { liftYsolde(); return; }
+    if (atTheGrave()) {
+      if (P.carry) { buryYsolde(); return; }
+      if (WORLDSTATE.ysoldeBuried) { say("The headstone is blank. Nobody could agree what to put on it, and then nobody came back to it.", 5200, true, "dark"); return; }
+    }
     { const nim = npcs.find(n => n.lost && !n.found && dist2D(n.pos, P.pos) < 3.6);
       if (nim) { if (lit) { nim.found = true; speak(nim, "You lit it. I can see the light through the trees — I know the way from that. I'm going home. Tell Mother I'm coming.", "Nim", 5500); nim.stay = false; nim.post = false; nim.running = true; nim.runT = 0; nim.runTo = V3(villages[2].center.x + 3, villages[2].center.y, villages[2].center.z + 2); } else speak(nim, "I'm Nim, from Thornback. I came down here because I like it, and now it's all trees and I can't tell which way is up the mountain. If the old beacon were lit I could see it from here.", "Nim", 6500); return; } }
     // rescue takes priority over nearby furniture; vertical and room checks prevent remote pickups
@@ -16460,6 +16815,10 @@ const __boot = (async () => {
     if (sleepT <= 0) {
       const b = bedHere(2.4);
       if (b) {
+        if (P.carry) {
+          say("Not with her over your shoulder.", 2600);
+          return;
+        }
         if (roomNow.noSleep) {
           say("That's someone's bed. He's in it.", 2500); // ysolde's father, who is not getting up again
           return;
@@ -16519,7 +16878,7 @@ const __boot = (async () => {
         speak(n, withName(npcLine(n)), n.kind === "knight" ? "Knight" : n.name || (n.kid ? "Child" : n.female ? "Woman" : "Villager"), 5000);
         return;
       }
-    if (near(BODY.pos, 4)) {
+    if (!WORLDSTATE.ysoldeLifted && near(BODY.pos, 4)) {
       say(
         "Ysolde. Face down in the black pool. Pale, cold, a bruise like a hand on the back of her neck. Something glints in the reeds.",
         6000,
@@ -17763,6 +18122,8 @@ const __boot = (async () => {
           goblins.forEach(g => {
             if (g.alive) killEnemy(g, false, 999);
           });
+          // the night the king sends you to bed is the night the pool turns over
+          if (WORLDSTATE.ysoldeBuried && WORLDSTATE.kingMourned && !WORLDSTATE.gehUnlocked) wakeTheWhirlpool();
         }
         P.vel.set(0, 0, 0);
       }
@@ -18632,7 +18993,7 @@ const __boot = (async () => {
     const inp = P.climb || custOpen || invOpen || inputLock || sleepT > 0 ? V3() : moveInput(),
       hasInput = inp.lengthSq() > 0 && P.dodge <= 0 && !(P.atk && P.grounded);
     P.moving = hasInput;
-    P.run = (!!keys.shift || TOUCH.run) && P.stam > 1.5 && !P.block;
+    P.run = (!!keys.shift || TOUCH.run) && P.stam > 1.5 && !P.block && !P.carry;
     const th = terrainH(P.pos.x, P.pos.z),
       g0 = groundAt(P.pos.x, P.pos.z, P.pos.y);
     {
@@ -18641,7 +19002,7 @@ const __boot = (async () => {
     }
     P.slideAir = P.grounded ? 0 : (P.slideAir || 0) + dt;
     const slideGround = P.grounded || (P.sliding && P.slideAir < TUNE.player.slideAirGrace && P.vel.y < 4);
-    const wantSlide = (!!keys.x || (!!keys.control && !!document.fullscreenElement)) && slideGround && !P.atk && !P.swim; // ctrl only slides in fullscreen (where chrome locks it); a browser can close its tab on ctrl+w otherwise
+    const wantSlide = (!!keys.x || (!!keys.control && !!document.fullscreenElement)) && slideGround && !P.atk && !P.swim && !P.carry; // ctrl only slides in fullscreen (where chrome locks it); a browser can close its tab on ctrl+w otherwise
     if (P.grounded) P.slideJump = P.sliding;
     P.sliding = !!(P.atk && P.atk.motion.sweep && P.atk.t < 0.38) || (wantSlide && (P.sliding ? hspeed() > 1.5 : hspeed() > 3));
     // gradAt samples terrainH four times and has exactly this one call site, so it is routed here rather than being
@@ -18655,6 +19016,7 @@ const __boot = (async () => {
     const cruise =
         (P.block ? TUNE.player.blockSpeed : P.run ? runSpd() : TUNE.player.walkSpeed) *
         (P.wading ? TUNE.player.wadeMul : 1) *
+        (P.carry ? TUNE.player.carryMul : 1) *
         (1 - clamp(slopeAlong * 0.5, 0, 0.75)),
       SM = stamMax();
     if (P.block) P.blockT += hdt;
@@ -19178,6 +19540,7 @@ const __boot = (async () => {
     hero.rotation.order = "YXZ";
     hero.rotation.y = P.heading;
     hero.rotation.x = P.lying ? -Math.PI / 2 : 0; // the model's soles sit a little under its origin; it is lifted so the feet rest on whatever is underneath
+    updateCarriedBody(rdt);
     const nearS = nearestEnemy(P.pos, 12);
     if (nearS && !P.moving) {
       let a = Math.atan2(nearS.pos.x - P.pos.x, nearS.pos.z - P.pos.z) - P.heading;
