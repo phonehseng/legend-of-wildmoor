@@ -4,6 +4,92 @@ Every change, with the bug it fixes and how. Newest first.
 
 ---
 
+## 2.17.0 — The arrest happens where you can see it
+
+### Maren is freed and Hale is walked to the stocks, on screen
+
+**Reported:** *"make the animation where the knights free maren and drag hale to
+the stocks instead"*, and before that, that the arrest dialogue should be
+shortened with two knight animations.
+
+It was a paragraph and a cut: `freeMaren()` teleported both of them and printed
+ninety words at fifteen seconds while nothing moved. The most important reversal
+in Act II happened off screen.
+
+Now three knights do it. The one nearest the board frees Maren; the two nearest
+Hale take him. **The knights arrive while he is still confessing and his
+remaining lines are dropped on the floor**, which is the point of them arriving.
+Maren's arms come down off the board and **she walks to her own door under her
+own power**.
+
+**Hale does not resist**, because the church writings make him a patient man who
+believes he was right. He lunges once — **at Maren**, as the board comes up — and
+the knights pull him back. That is the only violence in the scene and it is not
+about himself. Then he is walked **past his own pyre**, where he stops for five
+seconds, and put in the stocks.
+
+The dialogue is short breaths paced by the walk: *"Inquisitor. On the king's
+word. Step back from the board."* / *"You are making a mistake. You will not see
+it today."* / Maren: *"Oh. Oh, I can move my hands."* / Hale: *"No. Not her."* /
+Maren: *"Don't let them hurt him. I mean that."* / at the pyre, *"Somebody will
+have to take that down now."* Then from the stocks: *"One life against all of
+them. I did the sum twice."* and **"And I was not finished. Remember that I said
+so."**
+
+Up to seven villagers stop, turn and speak once each. Nothing states the second
+sacrifice, and there is a comment above those lines saying so.
+
+**Measured.** The scene runs 27.5–36 s. Hale's route sampled 133–142 times: **0
+in water, 0 inside a building, 0 structure overlap**. Closest pass to the pyre
+3.65 m against a 2.7 m clearance. He ends at the stocks with a **mesh distance of
+0**. Maren ends about a metre from her door, working. The crowd restores 6 of 6
+and **10 of 10 knights**, the three lent ones walking back rather than blinking.
+
+**The five ways a player breaks it were each driven**, not imagined: walking away
+trips a watchdog at 90 m that resolves the whole scene in 1.2 s; loading an old
+key mid-walk resolves the scene into its finished world first and then applies
+the key's flags on top; the map pauses it solo and mutes it online; dying lets it
+finish or trips the watchdog.
+
+### Bug 123 — The four children who watch the Warden die never work again, and live at the black pool afterwards · FIXED
+
+**The 2.12.0 mourner bug, still present in its twin**, and worse — found by the
+agent building the arrest, in code that was not theirs.
+
+`gatherWatchers` sets `stay`, `post`, `watching`, `job = "idle"`, `target`, and
+**`n.home.copy(n.pos)`**. `releaseWatchers` restored three of those six. So the
+four village children who come to beg you not to kill her were left with no job
+for the rest of the game — and with **their home permanently moved to the black
+pool**, which is where a villager walks back to when it has nothing else to do.
+
+Both scenes share one stash now. The arrest extracted the procession's
+stash-and-restore into `holdForScene` / `releaseSceneHold`, so a third scene
+cannot reintroduce the bug by writing its own half of it, and the watchers use it
+plus one field the others do not touch: home.
+
+### Bug 124 — Hale drifted off the stocks · FIXED
+
+Latent in the shipped game and only made reproducible by the scene. `claim()`
+scores him as the person with the least right to the spot, so any neighbour
+passing within 0.95 m walked him off his own mark and nothing ever put him back.
+`HALE.post = true`.
+
+### Two found by measurement inside the scene itself
+
+- **The crowd never spoke** — zero lines across a 31-second scene. A flat 3.6 s
+  gap gave *"No. Not her."* the same air as a full sentence and the queue never
+  emptied. The gap scales with the line now, and the march waits for the release
+  script so the walk opens on a clear channel.
+- **Hale stopped 4.75 m from the pyre**, across the square from the one thing he
+  had been walked there to look at.
+
+### Open
+
+The scene is 27.5–36 s. It reads as a procession rather than a cutscene, because
+the player keeps full control throughout and can walk away from it — but it is
+long, and `ARREST_MARCH`, `ARREST_LEG_R` and the five-second pyre dwell are the
+knobs if it drags.
+
 ## 2.16.0 — Eleven per cent of the frame back, and Nim's mother was standing in the middle of the kingdom
 
 ### Bug 122 — Nim's mother has been standing at the centre of the kingdom all game · FIXED

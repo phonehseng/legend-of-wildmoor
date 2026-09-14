@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.16.0</title>
+<title>Legend of Peanits 2.17.0</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -451,7 +451,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.16.0</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.17.0</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -521,7 +521,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.16.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.17.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -6075,7 +6075,9 @@ const __boot = (async () => {
         return null;
       };
       const arrive = (p, r) => dist2D(p, n.pos) < r;
-      if (n.kind === "knight") {
+      if (n.kind === "knight" && !n.arrest) {
+        // a knight lent to the arrest is not available for a goblin. without this, one wanderer at the wall pulls the
+        // escort off the prisoner half way across the square and the scene stalls with nobody holding him.
         // never the king — he is yours — and never a wraith. a knight charging a ghost reads as a bug, and losing to one
         // every night would read as worse. they hold their ground and let the thing drift past.
         if (n.fight && (n.fight.wraith || n.fight.kind === "wraith" || n.fight.kind === "warden")) n.fight = null; // drop a ghost he had already latched onto
@@ -6158,6 +6160,7 @@ const __boot = (async () => {
       // goblins about: villagers make for the nearest door, or run from the goblins if there is none
       if (
         !n.fight &&
+        !n.arrest &&
         goblinsAlive &&
         n.kind === "villager" &&
         n.job !== "hunter" &&
@@ -6273,7 +6276,11 @@ const __boot = (async () => {
           }
         }
       }
-      if (n.escort && n.escort.talk > 0) {
+      if (n.arrest) {
+        // first in the chain on purpose: the arrest owns whoever it borrowed, and nothing below may pick them up
+        // while the scene is running
+        arrestTick(n, dt, step);
+      } else if (n.escort && n.escort.talk > 0) {
         // saying his piece: he stands, faces you and does not move until the line is over
         n.escort.talk -= dt;
         n.heading = Math.atan2(P.pos.x - n.pos.x, P.pos.z - n.pos.z);
@@ -7017,7 +7024,7 @@ const __boot = (async () => {
             n.t = 0.5;
           }
           n.stuckTotal = (n.stuckTotal || 0) + 1;
-          if (n.stuckTotal > 4 && distToPlayer > 80) {
+          if (n.stuckTotal > 4 && distToPlayer > 80 && !n.arrest) {
             // out of sight: quietly put them back on open ground
             n.stuckTotal = 0;
             let spot = null;
@@ -13399,6 +13406,10 @@ const __boot = (async () => {
   // apply a validated snapshot to a freshly built world
   function applySave(d) {
     try {
+      // a key describes a world, not a scene. an arrest still walking is resolved into its finished world FIRST, so
+      // the flags the key is about to write land on top of that rather than under it. a key older than the rescue
+      // then leaves the two of them moved with the flag down, which is what every other one-way change here does.
+      if (ARREST.phase) freeMaren(true);
       P.pos.set(d.pos[0], d.pos[1], d.pos[2]);
       // a load normally reloads the page, so P is fresh; the in-process fallback path does not, and these two are the
       // only fields that would carry a body's old water and old descent into a position that has just been replaced.
@@ -15089,8 +15100,8 @@ const __boot = (async () => {
     if (m.lit && !lit) lightBeacon(false);
     if (typeof m.clues === "number" && m.clues > STORY.clues) STORY.clues = Math.min(5, m.clues);
     if (Array.isArray(m.evidence)) for (const k of m.evidence) if (["cloth", "ring", "diary", "ritual", "note"].includes(k)) evidence(k);
-    if (m.wick) STORY.wick = true; if (m.solved) { if (!STORY.solved) { STORY.solved = true; if (!WORLDSTATE.marenFreed) freeMaren(); } } if (m.reported) STORY.reported = true;
-    if (m.ws && typeof m.ws === "object") for (const k of WS_SHARED) if (m.ws[k] === true && !WORLDSTATE[k]) { if (k === "blackPoolAwake") awakenPool(); else if (k === "pyreDismantled") dismantlePyre(); else if (k === "guardsOut") guardsOutside(); else if (k === "ysoldeLifted") ysoldeOffTheWater(); else if (k === "ysoldeBuried") ysoldeIntoTheGround(); else WORLDSTATE[k] = true; if (k === "finaleStarted" && NET.role === "host" && !WORLDSTATE.wardenDead && !(WARDEN && WARDEN.alive)) spawnWarden(); } // progress only ever moves forward; a transition function sets its own flag and does its work
+    if (m.wick) STORY.wick = true; if (m.solved) { if (!STORY.solved) { STORY.solved = true; beginArrest(); } } if (m.reported) STORY.reported = true;
+    if (m.ws && typeof m.ws === "object") for (const k of WS_SHARED) if (m.ws[k] === true && !WORLDSTATE[k]) { if (k === "blackPoolAwake") awakenPool(); else if (k === "pyreDismantled") dismantlePyre(); else if (k === "guardsOut") guardsOutside(); else if (k === "ysoldeLifted") ysoldeOffTheWater(); else if (k === "ysoldeBuried") ysoldeIntoTheGround(); else if (k === "marenFreed") beginArrest(); else WORLDSTATE[k] = true; if (k === "finaleStarted" && NET.role === "host" && !WORLDSTATE.wardenDead && !(WARDEN && WARDEN.alive)) spawnWarden(); } // progress only ever moves forward; a transition function sets its own flag and does its work
     if (m.relics && typeof m.relics === "object") for (const k of ["seal", "root", "warden", "tear"]) if (m.relics[k] === true) WORLDSTATE.relics[k] = true;
     // the ending is the one piece of shared progress that cannot be undone: endTheStory rewrites the pool, sets the
     // flag and returns early ever after. it used to be applied from any peer with no authority check at all, so a
@@ -17334,6 +17345,7 @@ const __boot = (async () => {
   function updateStory2(dt, rdt) {
     storyT += dt;
     updateDiscoveries(dt);
+    updateArrest(dt);
     if (GEH_SCRIPT) GEH_SCRIPT.tick(dt);
     if (STORY.reported && !reportedAt) reportedAt = storyT;
     // act iii begins on the first night after the king has heard that maren is innocent
@@ -17559,24 +17571,39 @@ const __boot = (async () => {
     t: 0,
     armed: false
   };
+  // ---- lending a villager to a scene ----
+  // whatever a scene takes from a villager it has to give back, and it used to give back four fields short. the
+  // villager work state machine is unreachable with job "idle", and no line anywhere else in the file assigns a job
+  // after worldgen — so every villager who stopped to watch her go past stopped working for the rest of the session:
+  // washers, gatherers, woodcutters, water carriers, the two town hunters who shoot goblins at night, and maren,
+  // whose door is thirteen metres off waypoint seven. one borrow and one return, shared, so a second scene cannot
+  // reintroduce the same bug by writing its own half of it.
+  function holdForScene(n) {
+    if (n.sceneHold) return false;
+    n.sceneHold = { job: n.job, stay: n.stay, post: n.post, work: n.work, target: n.target };
+    n.stay = true;
+    n.post = true;
+    n.job = "idle";
+    n.target = null;
+    n.work = null;
+    return true;
+  }
+  function releaseSceneHold(list) {
+    for (const n of list) {
+      const was = n.sceneHold;
+      if (was) { n.job = was.job; n.stay = was.stay; n.post = was.post; n.work = was.work; n.target = was.target; n.sceneHold = null; }
+      else { n.stay = false; n.post = false; }
+    }
+    list.length = 0;
+  }
   function updateProcession(dt) {
     if (!P.carry) return;
     CARRY.spokeT -= dt;
     for (const n of npcs) {
-      if (n.mourning || n.kind !== "villager" || n.napping || n.lost) continue;
+      if (n.mourning || n.sceneHold || n.arrest || n.kind !== "villager" || n.napping || n.lost) continue;
       if (dist2D(n.pos, P.pos) > 16) continue;
+      if (!holdForScene(n)) continue;
       n.mourning = true;
-      // everything this overwrites has to come back, and it used to come back four fields short. the villager work
-      // state machine is unreachable with job "idle", and no line anywhere else in the file assigns a job after
-      // worldgen — so every villager who stopped to watch her go past stopped working for the rest of the session:
-      // washers, gatherers, woodcutters, water carriers, the two town hunters who shoot goblins at night, and maren,
-      // whose door is thirteen metres off waypoint seven.
-      n.preMourn = { job: n.job, stay: n.stay, post: n.post, work: n.work, target: n.target };
-      n.stay = true;
-      n.post = true;
-      n.job = "idle";
-      n.target = null;
-      n.work = null;
       MOURNERS.push(n);
     }
     for (const n of MOURNERS) n.heading = Math.atan2(P.pos.x - n.pos.x, P.pos.z - n.pos.z);
@@ -17596,16 +17623,12 @@ const __boot = (async () => {
     CARRY.spokeT = 4.6;
     speak(who, mournLineFor(who), mournNameFor(who), 4400);
   }
-  // they go back to their lives when she is in the ground, and that means all six fields rather than the two the old
-  // comment here insisted were the only ones ever set. mourning clears too, so a villager can be recruited again.
+  // they go back to their lives when she is in the ground, and that means every field the borrow took rather than the
+  // two an old comment here insisted were the only ones ever set. mourning clears too, so a villager can be recruited
+  // again by whatever scene comes next.
   function releaseMourners() {
-    for (const n of MOURNERS) {
-      const was = n.preMourn;
-      if (was) { n.job = was.job; n.stay = was.stay; n.post = was.post; n.work = was.work; n.target = was.target; n.preMourn = null; }
-      else { n.stay = false; n.post = false; }
-      n.mourning = false;
-    }
-    MOURNERS.length = 0;
+    for (const n of MOURNERS) n.mourning = false;
+    releaseSceneHold(MOURNERS);
   }
   // she rides face down across the shoulders with her arms hanging, driven off the player rather than parented to the
   // hero group, because rebuildHero() throws that group away on any change of clothes and would take her with it.
@@ -18112,16 +18135,16 @@ const __boot = (async () => {
       }
       if (STORY.clues >= 3) {
         STORY.solved = true;
-        freeMaren();
         const ev = STORY.evidence, names = { ring: "A ring", diary: "A diary", cloth: "Cloth from my own coat", ritual: "My candles by the reeds", note: "My own hand, in my own room" };
         const found = ev.length ? ev.map(k => names[k]).join(". ") + "." : "A ring. A diary. Cloth from my own coat.";
-        const real = ev.includes("ritual") || ev.includes("note") ? " You've seen the marks, then. Then you know it's real. Whatever you think of me, you know that much." : "";
-        return speak(
-          n,
-          `${found} You've been thorough.${real} Yes. I met her at the pool. She was going to tell the miller, and the miller talks to the king, and the king would never understand that some things must be given to the dark so the light keeps. I held her under. It was quick. The herbalist was convenient. They always are. Go on then. Tell him. Tell the king.${ev.length >= 5 ? " You found all of it. Then you know I gave it the sheep first. Three winters of sheep, and it stopped taking them, and then it wanted more." : ""}`,
-          "Hale",
-          15000
-        );
+        // ninety words in one fifteen-second subtitle was the wall this scene replaced. he confesses in short breaths
+        // instead, and the knights arrive while he is still going, so the last of it is never heard at all.
+        const lines = [`${found} You've been thorough.`];
+        if (ev.includes("ritual") || ev.includes("note")) lines.push("You've seen the marks. Then you know it was real.");
+        lines.push("Yes. I met her at the pool.", "She was going to tell her father. Her father talks to the king.", "I held her under. It was quick.", "The herbalist was convenient. They always are.");
+        if (ev.length >= 5) lines.push("I gave it the sheep first. Three winters of sheep.", "Then it stopped taking them.");
+        beginArrest(lines);
+        return;
       }
       if (STORY.clues > 0)
         return speak(
@@ -18227,21 +18250,346 @@ const __boot = (async () => {
       );
     }
   }
-  // resolve the rescue and update the related story state
+  // ============================================================ the arrest
+  // the case closing used to be ninety words in one subtitle and two people changing places between frames. it is a
+  // scene now: three knights walk in across the square, the board comes up off maren's wrists, and hale is walked
+  // past the pyre he had built for her and put in the stocks himself, in front of whoever is standing there.
+  //
+  // the world it leaves behind is still freeMaren's and only freeMaren's. the scene never gates the story — the flags
+  // are set the moment it begins and the animation is a layer over the top of them — so a save written half way
+  // through reloads into the finished world rather than into a cutscene nobody can restart.
+  const ARREST_STOCKS = { x: -12.45, z: 36 },
+    MAREN_HOME = { x: -22, z: 30 },
+    ARREST_PYRE = { x: -11, z: 22 },
+    // he stands clear of the board so he can reach over it; a mark any closer is inside the stocks' own collider
+    ARREST_WARDER_MARK = { x: -10.9, z: 36 },
+    // out into the square, past the pyre, and only then to the stocks. the straight line from where hale stands is
+    // seven metres and would be over before anybody in the street looked up, so the detour IS the scene.
+    // the first leg is the pyre and the second approaches the board from the west, the side the prisoner stands on:
+    // a leg east of it puts the final lerp straight through the timbers, and that stride has collision turned off.
+    ARREST_MARCH = [{ x: -11.6, z: 24.8 }, { x: -14.2, z: 34.4 }],
+    // and a leg is only reached when he is close enough for it to mean something. at a flat metre and a half he
+    // stopped four and three quarter metres from the pyre, across the square from the thing he had come to look at.
+    ARREST_LEG_R = [0.8, 1.5],
+    ARREST_MAX = 70,
+    ARREST_GIVEUP_R = 90,
+    ARREST_WATCH_R = 34;
+  const ARREST = { phase: null, t: 0, legT: 0, leg: 0, dwell: 0, lineT: 0, crowdT: 0, queue: [], warder: null, escorts: [], crowd: [] };
+  // the scene has one speaking channel and everything that talks queues on it, so nobody ever talks over anybody
+  const arrestSay = (n, who, line) => ARREST.queue.push([n, who, line]);
+  // the street turning on the man who ran its morality. nobody is pleased with themselves.
+  const ARREST_CROWD_LINES = [
+    "That is the Inquisitor. That is him, in the wood.",
+    "I carried a torch for that fire. I want that said out loud.",
+    "He read to my mother while she was dying.",
+    "Somebody fetch the herbalist a chair.",
+    "I am not sorry yet. I would like to be.",
+    "So who do we believe now?"
+  ];
+  const ARREST_KID_LINES = ["Is he the witch now?", "Can I look? I want to look."];
+
+  // ---- casting ----
+  // the hall guard is never taken: his post is the one piece of knight behaviour a player can walk in on and check.
+  // neither is anyone already fighting, already walking an errand for another scene, or asleep in a tent.
+  function pickArrestKnights() {
+    const free = npcs.filter(n => n.kind === "knight" && !n.hallGuard && !n.arrest && !n.escort && !n.fight && !n.napping && !n.asleep);
+    if (free.length < 3) return null;
+    const warder = free.slice().sort((a, b) => dist2D(a.pos, ARREST_STOCKS) - dist2D(b.pos, ARREST_STOCKS))[0];
+    const rest = free.filter(n => n !== warder).sort((a, b) => dist2D(a.pos, HALE.pos) - dist2D(b.pos, HALE.pos));
+    return { warder, escorts: [rest[0], rest[1]] };
+  }
+  // a knight's post is his home and his radius and the scene touches neither. what it takes is his errand, and the
+  // walk back is the opening knight's own: he returns at a walk to the spot he was standing on and drops it himself.
+  function lendToArrest(n, role) {
+    n.arrest = role;
+    n.arrestFrom = n.pos.clone();
+    n.target = null;
+    n.fight = null;
+    n.t = 0;
+  }
+  function returnFromArrest(n) {
+    if (!n || !n.arrest) return;
+    const from = n.arrestFrom;
+    n.arrest = null;
+    n.arrestSide = 0;
+    n.arrestFrom = null;
+    n.target = null;
+    n.seating = false;
+    n.thrust = 0;
+    if (n.kind === "knight" && from) n.escort = { t: 0, done: true, from };
+  }
+  // the same borrow the procession makes, so it comes back the same way
+  function gatherArrestCrowd() {
+    if (ARREST.crowd.length >= 7) return; // full: no reason to walk every person in the valley again this frame
+    for (const n of npcs) {
+      if (ARREST.crowd.length >= 7) break;
+      if (n.arrest || n.sceneHold || n.mourning || n.kind !== "villager" || n.napping || n.asleep || n.lost || n.furniture) continue;
+      if (dist2D(n.pos, HALE.pos) > 15) continue;
+      if (!holdForScene(n)) continue;
+      n.arrestSaid = false;
+      ARREST.crowd.push(n);
+    }
+  }
+
+  // ---- beginning and ending ----
+  // every route into the rescue comes through here: the confession at the pool, a peer's flag, a save key being
+  // folded in. the flag goes down first and the scene second, always, because the story may never wait on an
+  // animation and a key written during the walk has to describe a world where maren is out of the stocks.
+  function beginArrest(confession = []) {
+    if (WORLDSTATE.marenFreed) return;
+    WORLDSTATE.marenFreed = true;
+    WORLDSTATE.haleExposed = true;
+    const crew = dist2D(ARREST_STOCKS, P.pos) > ARREST_GIVEUP_R ? null : pickArrestKnights();
+    // nobody to send, or nobody here to watch: resolve it outright rather than play to an empty square
+    if (!crew) { freeMaren(); return; }
+    ARREST.phase = "gather";
+    ARREST.t = ARREST.legT = ARREST.leg = ARREST.dwell = ARREST.lineT = ARREST.crowdT = 0;
+    ARREST.queue = [];
+    ARREST.crowd = [];
+    ARREST.warder = crew.warder;
+    ARREST.escorts = crew.escorts;
+    lendToArrest(crew.warder, "warder");
+    for (const k of crew.escorts) lendToArrest(k, "escort");
+    lendToArrest(HALE, "stand");
+    for (const line of confession) arrestSay(HALE, "Hale", line);
+    gatherArrestCrowd();
+  }
+  // hands everyone back. it never resolves the story itself — freeMaren does that — so it is safe to call from any
+  // direction, including a save key landing in the middle of the walk.
+  function endArrestScene() {
+    if (!ARREST.phase) return;
+    returnFromArrest(ARREST.warder);
+    for (const k of ARREST.escorts) returnFromArrest(k);
+    returnFromArrest(HALE);
+    returnFromArrest(MAREN);
+    for (const n of ARREST.crowd) n.arrestSaid = false;
+    releaseSceneHold(ARREST.crowd);
+    ARREST.phase = null;
+    ARREST.warder = null;
+    ARREST.escorts = [];
+    ARREST.queue = [];
+  }
+  function finishArrest() {
+    const watched = !!ARREST.phase && dist2D(HALE.pos, P.pos) < ARREST_WATCH_R;
+    freeMaren();
+    if (watched) haleInTheStocks();
+  }
+  // he is a patient man and he is not sorry. the last of it is arithmetic and then one sentence he does not finish,
+  // and that sentence is the only place in the valley the other half of the bargain is allowed near the surface.
+  // it stays a sentence he does not finish. if it is ever completed anywhere, cut it.
+  function haleInTheStocks() {
+    const lines = [
+      "The wood is colder than it looks. She never said.",
+      "One life against all of them. I did the sum twice.",
+      "And I was not finished. Remember that I said so."
+    ];
+    lines.forEach((t, i) => setTimeout(() => { if (started && !death && dist2D(HALE.pos, P.pos) < 40) speak(HALE, t, "Hale", 4200); }, 1600 + i * 4600));
+  }
+
+  // ---- the script ----
+  // one line at a time, paced by the walk instead of by a wall of text on a fifteen-second timer. he holds his tongue
+  // while the menu is up, because setPaused cancels speech synthesis and a line delivered into a pause arrives as a
+  // silent subtitle over the pause screen.
+  function arrestSpeech(dt) {
+    if (paused) return;
+    ARREST.lineT -= dt;
+    if (ARREST.lineT > 0 || !ARREST.queue.length) return;
+    const [n, who, line] = ARREST.queue.shift();
+    // a line holds the floor for as long as it takes to say and not a second longer. a flat three-and-a-half-second
+    // gap gave "No. Not her." the same air as a full sentence, and the queue backed up far enough behind it that the
+    // street never got a word in at all: measured at nought crowd lines across a thirty-one second scene.
+    ARREST.lineT = clamp(line.length * 0.055, 2.4, 4.2);
+    speak(n, line, who, ARREST.lineT * 1000);
+  }
+  // the crowd only speaks into a gap, so a neighbour never talks over the man being taken. every line is spoken once
+  // before any of them is spoken twice, for the reason the procession does it: a plain random pick turns a street of
+  // neighbours into one voice inside the first minute.
+  function arrestCrowdChatter(dt) {
+    ARREST.crowdT -= dt;
+    if (ARREST.crowdT > 0 || ARREST.queue.length || paused) return;
+    const who = ARREST.crowd.find(n => !n.arrestSaid && dist2D(n.pos, HALE.pos) < 14 && dist2D(n.pos, P.pos) < 40);
+    if (!who) return;
+    who.arrestSaid = true;
+    ARREST.crowdT = 5.4;
+    arrestSay(who, who.name || (who.kid ? "A child" : who.female ? "A woman" : "A villager"), drawOnce(who.kid ? ARREST_KID_LINES : ARREST_CROWD_LINES));
+  }
+
+  // ---- the phases ----
+  const arrestPhase = next => { ARREST.phase = next; ARREST.legT = 0; };
+  function updateArrest(dt) {
+    if (!ARREST.phase) return;
+    ARREST.t += dt;
+    ARREST.legT += dt;
+    // a scene nobody is watching is not a scene. past the clock, or out of the kingdom, it resolves into exactly the
+    // world standing there would have produced, closing line and all.
+    if (ARREST.t > ARREST_MAX || dist2D(ARREST_STOCKS, P.pos) > ARREST_GIVEUP_R) { finishArrest(); return; }
+    gatherArrestCrowd();
+    for (const n of ARREST.crowd) n.heading = Math.atan2(HALE.pos.x - n.pos.x, HALE.pos.z - n.pos.z);
+    if (ARREST.phase !== "gather") arrestCrowdChatter(dt);
+    arrestSpeech(dt);
+    if (ARREST.phase === "gather") arrestGather();
+    else if (ARREST.phase === "release") arrestRelease();
+    else if (ARREST.phase === "march") arrestMarch(dt);
+    else if (ARREST.phase === "lock") arrestLock();
+  }
+  // he is still confessing when they arrive, and they do not wait for him to finish. whatever is left in the queue is
+  // dropped on the floor: being cut off mid-sentence by the man who has come for you is the shape of the whole scene.
+  function arrestGather() {
+    const closed = ARREST.escorts.every(k => dist2D(k.pos, HALE.pos) < 2.4) && dist2D(ARREST.warder.pos, ARREST_WARDER_MARK) < 1.6;
+    if (!closed && ARREST.legT < 16) return;
+    ARREST.queue.length = 0;
+    ARREST.lineT = 0;
+    setEscortSides();
+    for (const k of ARREST.escorts) k.thrust = 0.35;
+    arrestSay(ARREST.escorts[0], "Knight", "Inquisitor. On the king's word. Step back from the board.");
+    arrestSay(HALE, "Hale", "You are making a mistake. You will not see it today.");
+    arrestPhase("release");
+  }
+  // the board comes up and she is out of it on her own feet. and he goes for her, once, which is the only moment in
+  // the scene he is not a patient man — and it is not himself he is reaching for.
+  function arrestRelease() {
+    if (ARREST.legT < 0.7) return;
+    if (!MAREN.arrest) {
+      ARREST.warder.thrust = 0.35;
+      MAREN.kind = "villager";
+      MAREN.job = "idle";
+      MAREN.mesh.userData.arms[0].rotation.x = 0;
+      lendToArrest(MAREN, "walk");
+      if (dist2D(MAREN.pos, P.pos) < 40) SFX.noise(0.22, 340, 120, 0.11, "lowpass", 1, 0);
+      arrestSay(MAREN, "Maren", "Oh. Oh, I can move my hands.");
+      arrestSay(HALE, "Hale", "No. Not her.");
+      HALE.arrest = "lunge";
+      return;
+    }
+    // a short lunge. measured at 2.4 m/s over 1.2 s it carried him three metres, which is not a man being held — it
+    // is a man getting past two knights and then changing his mind.
+    if (ARREST.legT > 1.5 && HALE.arrest === "lunge") { HALE.arrest = "held"; for (const k of ARREST.escorts) k.thrust = 0.35; }
+    // he does not start walking on top of his own arrest. the march begins when the script has been said, so the walk
+    // opens on an empty channel and the street is the thing you hear over it.
+    if (ARREST.legT < 4.4 || (ARREST.queue.length && ARREST.legT < 14)) return;
+    HALE.arrest = "march";
+    arrestSay(MAREN, "Maren", "Don't let them hurt him. I mean that.");
+    arrestPhase("march");
+  }
+  // he stops at the pyre because it is his, and says the one thing about it a man like him would say
+  function arrestMarch(dt) {
+    const leg = ARREST_MARCH[ARREST.leg];
+    if (!leg) { arrestPhase("lock"); return; }
+    if (dist2D(HALE.pos, leg) > (ARREST_LEG_R[ARREST.leg] || 1.5) && ARREST.legT < 22) return;
+    if (!ARREST.dwell) {
+      ARREST.dwell = ARREST.leg === 0 ? 5 : 0.2;
+      if (ARREST.leg === 0) arrestSay(HALE, "Hale", "Somebody will have to take that down now.");
+      return;
+    }
+    ARREST.dwell -= dt;
+    if (ARREST.dwell > 0) return;
+    ARREST.dwell = 0;
+    ARREST.leg++;
+    arrestPhase(ARREST_MARCH[ARREST.leg] ? "march" : "lock");
+  }
+  function arrestLock() {
+    if (dist2D(HALE.pos, ARREST_STOCKS) < 0.12 || ARREST.legT > 14) finishArrest();
+  }
+
+  // ---- the movement ----
+  // run from inside the villager tick rather than off a track of its own, so these people walk the square with
+  // everybody else's legs, collision, separation and ground snap
+  function arrestTick(n, dt, step) {
+    if (n === HALE) return arrestTickHale(n, dt, step);
+    if (n === MAREN) return arrestTickMaren(n, step);
+    if (n.arrest === "warder") return arrestTickWarder(n, step);
+    return arrestTickEscort(n, step);
+  }
+  const arrestFace = (n, p) => { n.heading = Math.atan2(p.x - n.pos.x, p.z - n.pos.z); };
+  // whichever shoulder each of them actually walked up on is the one he takes. sides handed out before anybody moved
+  // send the two of them across each other in front of the prisoner, which reads as a pathing fault rather than an
+  // arrest. settled once, at the moment they close, and not touched again.
+  function setEscortSides() {
+    const rx = Math.cos(HALE.heading),
+      rz = -Math.sin(HALE.heading),
+      side = k => (k.pos.x - HALE.pos.x) * rx + (k.pos.z - HALE.pos.z) * rz;
+    ARREST.escorts[0].arrestSide = side(ARREST.escorts[0]) >= side(ARREST.escorts[1]) ? 1 : -1;
+    ARREST.escorts[1].arrestSide = -ARREST.escorts[0].arrestSide;
+  }
+  function arrestTickWarder(n, step) {
+    const d = dist2D(n.pos, ARREST_WARDER_MARK);
+    if (d > 0.5) { n.wantMove = true; step(ARREST_WARDER_MARK.x, ARREST_WARDER_MARK.z, d > 6 ? 3.4 : 2.2); }
+    arrestFace(n, MAREN.pos);
+  }
+  // walking in, he aims at a point on his own line of approach, so the mark does not swing round the square every time
+  // hale turns his head. from the seize onward it is a fixed shoulder: a stride and a bit out, a quarter stride back.
+  function arrestTickEscort(n, step) {
+    let mx, mz;
+    if (ARREST.phase === "gather") {
+      const dx = n.pos.x - HALE.pos.x, dz = n.pos.z - HALE.pos.z, l = Math.hypot(dx, dz) || 1;
+      mx = HALE.pos.x + (dx / l) * 1.4;
+      mz = HALE.pos.z + (dz / l) * 1.4;
+    } else {
+      const a = HALE.heading + (n.arrestSide || 1) * Math.PI * 0.5;
+      mx = HALE.pos.x + Math.sin(a) * 1.35 - Math.sin(HALE.heading) * 0.25;
+      mz = HALE.pos.z + Math.cos(a) * 1.35 - Math.cos(HALE.heading) * 0.25;
+    }
+    const d = Math.hypot(mx - n.pos.x, mz - n.pos.z);
+    if (d > 0.45) { n.wantMove = true; step(mx, mz, clamp(d * 2.6, 1.2, 4.2)); }
+    if (ARREST.phase === "gather") arrestFace(n, HALE.pos);
+    else n.heading = HALE.heading;
+  }
+  function arrestTickHale(n, dt, step) {
+    if (n.arrest === "stand") { arrestFace(n, ARREST.escorts[0] ? ARREST.escorts[0].pos : MAREN.pos); return; }
+    if (n.arrest === "lunge") { n.wantMove = true; step(MAREN.pos.x, MAREN.pos.z, 2); arrestFace(n, MAREN.pos); return; }
+    // held: he keeps the heading the lunge left him with, which is at her. letting him track her as she walks off
+    // swings the two knights at his shoulders round him in a slow circle, and that reads as pathing, not as a grip.
+    if (n.arrest === "held") return;
+    if (ARREST.phase === "lock") {
+      // the last stride is a lerp and seating holds the board's own collider off him, exactly as the throne does for
+      // the king: step()'s two-and-a-half metre look-ahead is inside the stocks this close to them, so every
+      // candidate heading is refused and he would grind to a halt a stride short of his own mark
+      n.seating = true;
+      n.wantMove = true;
+      n.pos.x = lerp(n.pos.x, ARREST_STOCKS.x, Math.min(1, dt * 2.4));
+      n.pos.z = lerp(n.pos.z, ARREST_STOCKS.z, Math.min(1, dt * 2.4));
+      n.heading = Math.PI / 2;
+      return;
+    }
+    const leg = ARREST_MARCH[ARREST.leg];
+    if (!leg) return;
+    if (ARREST.dwell > 0) { arrestFace(n, ARREST.leg === 0 ? ARREST_PYRE : leg); return; }
+    n.wantMove = true;
+    step(leg.x, leg.z, 1.3);
+  }
+  // she walks away under her own power, to the door freeMaren gives her, so whatever the scene ends on is a step and
+  // not a teleport
+  function arrestTickMaren(n, step) {
+    if (dist2D(n.pos, MAREN_HOME) < 1) { arrestFace(n, HALE.pos); return; }
+    n.wantMove = true;
+    step(MAREN_HOME.x, MAREN_HOME.z, 1.5);
+  }
+
+  // the world the rescue leaves behind, and the only thing anywhere that produces it. the scene above, a peer's flag
+  // and a save key all end here, so there is exactly one description of what "maren is free" means.
   function freeMaren(quiet = false) {
+    endArrestScene(); // however this arrived, the scene is over and everyone it borrowed goes back to their own day
     if (MAREN.kind === "villager" && HALE.kind === "stocks") return; // already done
     WORLDSTATE.marenFreed = true; WORLDSTATE.haleExposed = true;
     MAREN.kind = "villager";
     MAREN.job = "gatherer";
     MAREN.radius = 10;
-    MAREN.home = V3(-22, PLATEAU, 30);
-    MAREN.pos.copy(MAREN.home);
+    MAREN.home = V3(MAREN_HOME.x, PLATEAU, MAREN_HOME.z);
+    // she is put at her door unless she has just walked to it herself; copying over the top of a walk that arrived is
+    // a metre-long pop for no reason
+    if (dist2D(MAREN.pos, MAREN.home) > 1.5) MAREN.pos.copy(MAREN.home);
+    MAREN.pos.y = MAREN.home.y;
     syncNPCMesh(MAREN);
     MAREN.phase = "home";
     MAREN.mesh.userData.arms[0].rotation.x = 0;
     HALE.kind = "stocks";
-    HALE.pos.set(-12.45, PLATEAU, 36);
+    HALE.pos.set(ARREST_STOCKS.x, PLATEAU, ARREST_STOCKS.z);
     HALE.heading = Math.PI / 2;
+    // a man locked to a board cannot step aside for anybody, and claim() is where that is said. without it the
+    // personal-space shove treats him as the person present with the least right to the spot, so every neighbour who
+    // wanders within a metre walks him off his own mark and nothing ever puts him back: measured at 0.46 m off, with
+    // his hands no longer through the holes, the first time a crowd stood next to him.
+    HALE.post = true;
     syncNPCMesh(HALE);
     HALE.job = "idle";
     P.bonus.herbSight = true;
@@ -18430,7 +18778,7 @@ const __boot = (async () => {
         return;
       }
     for (const n of npcs)
-      if (n.kind !== "king" && n.kind !== "body" && !n.napping && near(n.pos, 3.4)) {
+      if (n.kind !== "king" && n.kind !== "body" && !n.napping && !n.arrest && near(n.pos, 3.4)) {
         if (sideTalk(n)) return;
         if (n.kind === "story" || n === MAREN || n === HALE) {
           storyTalk(n);
@@ -19821,12 +20169,14 @@ const __boot = (async () => {
         s = findSpot(POOL.x + Math.cos(a) * r, POOL.z + Math.sin(a) * r, 0.6, 300, 4, 2);
       if (!s || isWater(s.x, s.z) || dist2D(s, POOL) < 14) continue;
       n.pos.set(s.x, groundAt(s.x, s.z, s.y + 3), s.z);
+      // the same stash the procession and the arrest use, plus the one field they do not touch: HOME. this used to
+      // overwrite a child's home with the black pool and restore only stay, post and watching — so the four children
+      // who came to watch her die had no job for the rest of the game AND lived at the pool from then on, because
+      // home is where a villager walks back to when it has nothing else to do.
+      n.watchHome = n.home.clone();
+      holdForScene(n);
       n.home.copy(n.pos);
-      n.stay = true;
-      n.post = true;
       n.watching = true;
-      n.job = "idle";
-      n.target = null;
       n.heading = Math.atan2(POOL.x - n.pos.x, POOL.z - n.pos.z);
       syncNPCMesh(n);
       WATCHERS.push(n);
@@ -19834,9 +20184,13 @@ const __boot = (async () => {
     watchT = 5;
     watchI = 0;
   }
-  // they go home when it is over, however it ended
+  // they go home when it is over, however it ended — and home is the word that was doing the damage here.
   function releaseWatchers() {
-    for (const n of WATCHERS) { n.stay = false; n.post = false; n.watching = false; }
+    for (const n of WATCHERS) {
+      if (n.watchHome) { n.home.copy(n.watchHome); n.watchHome = null; }
+      n.watching = false;
+    }
+    releaseSceneHold(WATCHERS);
     WATCHERS.length = 0;
   }
   function updateWatchers(dt) {
