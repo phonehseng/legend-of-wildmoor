@@ -4,6 +4,123 @@ Every change, with the bug it fixes and how. Newest first.
 
 ---
 
+## 2.16.0 — Eleven per cent of the frame back, and Nim's mother was standing in the middle of the kingdom
+
+### Bug 122 — Nim's mother has been standing at the centre of the kingdom all game · FIXED
+
+Found while verifying a performance change, and worth more than the performance.
+
+When her body is swapped for the one that matches her — the fix that gave her a
+female voice — the code removes the old mesh, adds the new one, and sets
+`g.pos` to her hut. **It never writes `g.mesh.position`.** Normally the villager
+tick would catch that on the next frame, except her hut is in Thornback, **644 m
+from where she is built**, and `updateNPCs` gives up on anybody past 420 m.
+
+So the only thing that would ever have moved her mesh never ran. Her new body
+stood at **world origin — the middle of the kingdom** — for the entire game,
+unless the player happened to walk to Thornback and wake her tick up.
+
+One line, matching what `syncNPCMesh` does for every other hand-moved villager.
+It cannot call `syncNPCMesh` itself, because that is a `const` declared four and a
+half thousand lines further down and would throw.
+
+### 165 people were being drawn whether or not they were in the world
+
+**−2.0 ms off a 17.6 ms frame. An 11.4% saving, reproduced at −2.2, −2.2, −2.1
+and −2.0 across four independent A/B runs.**
+
+Each villager is about **38 meshes**, so the valley's cast is **6,347 scene nodes,
+every one of them `visible`, always** — walked and frustum-tested **twice a
+frame**, once for the near pass and once for the far. three.js skips a hidden
+object's whole subtree, so one flag on the root buys all thirty-eight.
+
+Frame 17.6 → **15.6 ms** median, p90 19.9 → 17.5, render 14.2 → 12.8. Visible NPC
+nodes **6,347 → about 1,600**. `update()` did not move at 1.3 ms — the 165 extra
+writes cost nothing measurable.
+
+The gate follows `camera.far` rather than a constant, so it adjusts itself if the
+draw distance ever changes, and cross-realm distance is already `1e5` — standing
+in Gehenna hides the entire valley for free.
+
+**Proved rather than assumed:** the real frustum was instrumented and every hidden
+NPC mesh checked every frame. **Zero wrongly-hidden meshes across 566,832
+hidden-root-frames and 15.1 million sphere tests.**
+
+### Three allocation removals, and they are below the noise floor
+
+Real work removed; no measurable frame-time effect, and saying so is the result.
+
+- **The clouds.** The only quality profile sets `clouds: 0`, so all 22 are
+  permanently invisible — and both per-frame cloud loops ran anyway. The tint
+  allocated **three `THREE.Color` per cloud per frame, 66 a frame**, to compute
+  one value and write it 22 times.
+- **`updateLightPool`** allocated a fresh array every frame via `filter`. It
+  refills one scratch array now. The predicate is deliberately
+  `!(v.intensity > 0.001)` rather than `<=`, because `<=` admits NaN where the
+  original `filter` excluded it — the agent's own first draft had that bug and
+  its self-review caught it.
+- **The villager step fan** built a fresh array literal per call and then spliced
+  it, for every villager on every tick.
+
+`performance.memory` reports a frozen 159.3 MB for whole sessions in headless
+Edge, so GC pressure could not be measured at all. These rest on counted
+allocations, not on a measured win.
+
+### Investigated and left alone — which is as useful as the fixes
+
+- **`anyInteractableNear()`: the scan is real, the cost is not.** It does walk 83
+  pickups, 14 herbs and 165 NPCs every rendered frame with `Math.hypot`
+  throughout — and it benches at **8.45–9.05 µs a call**, about **0.13% of a 15 ms
+  frame**. Rewriting it to squared distances would save roughly 4 µs and would
+  replace the shared `near()` helper with inline arithmetic. Left alone.
+- **`vlights` does not grow.** The structure is exactly as reported — one push
+  site, no removal path — and the consequence is not. **Measured 273 at boot, 275
+  after the game starts, 275 at ten minutes.** Every call site is worldgen or a
+  one-shot builder; the two that look runtime-reachable are misattributions. The
+  sort is over the live subset and the whole function benches at 9.5–10 µs.
+- **Culling room interiors was measured, had no effect, and was nearly a
+  disaster.** The first attempt hid `it.group` beyond 55 m and measured exactly
+  zero change. Finding out why is what saved it: **`it.group` is the whole house,
+  walls and roof**, not its contents — shipping it would have deleted the village
+  from the horizon.
+- The HUD and minimap are already right: 30–48 µs a frame amortised. The burial
+  chain is clean. `allEnemies()` already memoises.
+
+### The two big ones, sized but not taken
+
+- **`scene.updateMatrixWorld()` costs 3.1–3.9 ms of a 15–18 ms frame** — three
+  times all game logic put together. three.js recomposes the local matrix of all
+  **15,800 nodes** every frame whether they moved or not. Measured: **541 nodes
+  actually move per frame (3.4%)**, and only 863 distinct nodes over forty
+  seconds. An experimental static-marking pass was worth **−1.7 ms**, and was
+  deliberately not shipped: the static set included far villagers' limbs, which
+  are not static — merely not being animated yet — and freezing them leaves a
+  T-posed villager the moment you walk up. Worth 1–1.5 ms if somebody marks
+  scenery static at build time. A dirty-guard inside `updateMatrix` is **not** the
+  answer: the guard benches at 2.4 ms against the 2.9 ms it would save.
+- **581 of the frame's 1,485 draw calls are houses, for 1.4% of its triangles.**
+  Seventy-five buildings at about 26 one-box meshes each, every one with its own
+  material. The 15 instanced meshes draw **1,458,048 triangles in 14 calls** — the
+  foliage is exactly as efficient as its comment claims, and the village is the
+  opposite. Gehenna already solved this for its own houses. Doing the same for
+  the village is the largest remaining win in the renderer.
+
+### Ten minutes of running
+
+Scene nodes 15,793 → 15,829. Geometries 11,905 → 11,928. Materials 4,381 →
+4,398. Pickups 81 → 83. **No unbounded growth** — everything rises by a few dozen
+in the first minute as prompts, quest marks and attack tells are lazily built,
+then is flat for the remaining nine.
+
+### A note on the instrument
+
+Timer resolution in headless Edge is clamped to 100 µs, so per-call medians read
+zero and are worthless. Every figure above comes from accumulated sums or from
+**in-page A/B** — the change flipping on and off every two seconds inside one
+session, so both halves meet identical machine load. That mattered: other agents
+were running Edge concurrently and cross-run frame times drifted from 14.8 to
+22.3 ms **for the same build**.
+
 ## 2.15.0 — The Queen's Thorn, and why the pool wakes
 
 ### The fourth relic is not a tear any more

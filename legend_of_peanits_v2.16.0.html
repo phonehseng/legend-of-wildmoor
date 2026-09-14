@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.15.0</title>
+<title>Legend of Peanits 2.16.0</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -451,7 +451,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.15.0</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.16.0</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -521,7 +521,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.15.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.16.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -779,7 +779,9 @@ const __boot = (async () => {
       // the longest a child runs for home before the rest of the journey is simply finished for her. thornback is
       // seven hundred metres off and the road round the lake is nearer thirteen hundred, so this is a floor under a
       // walk that has gone wrong rather than the way the errand normally ends — the moment you look away she is home.
-      runHomeMax: 480
+      runHomeMax: 480,
+      // metres past the camera's far plane a villager is still drawn, covering the few the camera sits behind
+      drawMargin: 30
     },
     hunters: {
       // a hunter keeps the night watch. he does not sleep it through; he ducks into his tent for a few minutes at a
@@ -2960,11 +2962,22 @@ const __boot = (async () => {
     vlights.push(v);
     return v;
   }
+  // refilled rather than rebuilt. which sources are live changes with every lamp that lights and which are nearest
+  // changes with every step, so there is nothing here worth keeping between frames except the array itself.
+  const _litLights = [];
   // assign the brightest relevant nearby virtual sources to reusable real lights
   function updateLightPool() {
     const ref = camera.position;
-    const act = vlights.filter(v => v.intensity > 0.001);
-    act.forEach(v => (v._d = v.position.distanceTo(ref) - v.distance));
+    const act = _litLights;
+    act.length = 0;
+    for (const v of vlights) {
+      // the same test the filter made, and written this way round on purpose: an intensity that is not a number
+      // fails > 0.001, and it has to fail the skip too, or a light with no number in it joins the pool and takes
+      // the sort with it
+      if (!(v.intensity > 0.001)) continue;
+      v._d = v.position.distanceTo(ref) - v.distance;
+      act.push(v);
+    }
     act.sort((a, b) => a._d - b._d);
     const edge = act[lightPool.length] ? act[lightPool.length]._d : 1e9;
     for (let i = 0; i < lightPool.length; i++) {
@@ -3013,6 +3026,12 @@ const __boot = (async () => {
     TEX.snow.repeat.set(400, 400);
   }
   // clouds
+  // every cloud takes the same colour on the same frame, and reaching it allocated three linear-space colours per
+  // cloud per frame: sixty-six objects thrown away to write one value twenty-two times.
+  const CLOUD_LIT = toLin(0xffffff),
+    CLOUD_NIGHT = toLin(0x30364a),
+    CLOUD_DUSK = toLin(0xffb090),
+    _cloudCol = new THREE.Color();
   const clouds = [];
   for (let i = 0; i < 22; i++) {
     const g = new THREE.Group();
@@ -5810,6 +5829,12 @@ const __boot = (async () => {
     n.stillT = 0;
     n.blockedT = 0;
   }
+  // the headings a blocked villager tries, in order, measured from the one they wanted. the wide fan reaches all the
+  // way round so that someone cornered on a spit of land can walk back down it; the narrow one only slides along a
+  // wall. STEP_FAN_TRY is the working copy, and one is enough because nothing re-enters step() from inside its loop.
+  const STEP_FAN = [0, 0.5, -0.5, 1, -1, 1.6, -1.6, 2.2, -2.2],
+    STEP_FAN_WIDE = [0, 0.5, -0.5, 1, -1, 1.6, -1.6, 2.2, -2.2, 2.7, -2.7, 3.14],
+    STEP_FAN_TRY = [];
   function updateNPCs(dtFrame) {
     const dayTime = dayElev > 0.02,
       goblinsAlive = goblins.some(g => g.alive && g.rise <= 0);
@@ -5834,6 +5859,13 @@ const __boot = (async () => {
       const sameRealm = (n.pos.y < DIVIDE) === (P.pos.y < DIVIDE),
         distToPlayer = sameRealm ? dist2D(P.pos, n.pos) : 1e5,
         skip = distToPlayer > TUNE.people.think3 ? 6 : distToPlayer > TUNE.people.think2 ? 3 : distToPlayer > TUNE.people.thinkFull ? 2 : 1;
+      // a hundred and sixty-five people are thirty-eight meshes each, and every one of those six thousand nodes was
+      // walked and frustum-tested twice a frame — once for the near pass and once for the far one — for people behind
+      // the far plane and behind the fog, in both worlds at once. three.js skips a hidden object's whole subtree, so
+      // one flag on the root buys all thirty-eight: measured at 2.2 ms of an 18 ms frame with the town in view.
+      // the napping hunter owns his own visibility, and so does the body on your shoulder.
+      // the cross-realm distance above is already 1e5, so standing in gehenna hides the valley for free.
+      if (n.mesh && !n.napping && n.kind !== "body") n.mesh.visible = distToPlayer < camera.far + TUNE.people.drawMargin;
       if ((npcTick + n.vi) % skip) continue;
       const dt = Math.min(0.25, dtFrame * skip);
       if (n.furniture || n.asleep) {
@@ -5881,9 +5913,15 @@ const __boot = (async () => {
         // have been blocked a while the fan opens to a full circle, so they can walk back down their own spit of land —
         // and because lastOff is tried first, they keep turning the same way and end up following the shoreline round
         // rather than dithering at the tip.
-        const offs = n.blockedT > 0.8 ? [0, 0.5, -0.5, 1, -1, 1.6, -1.6, 2.2, -2.2, 2.7, -2.7, 3.14] : [0, 0.5, -0.5, 1, -1, 1.6, -1.6, 2.2, -2.2];
-        if (n.lastOff) offs.splice(1, 0, n.lastOff); // straight ahead first; failing that, keep sliding the same way along a wall rather than flipping
-        for (const off of offs) {
+        const fan = n.blockedT > 0.8 ? STEP_FAN_WIDE : STEP_FAN;
+        // straight ahead first; failing that, keep sliding the same way along a wall rather than flipping. the order
+        // is what it always was; it is refilled instead of built, and the insert that used to reallocate the array is
+        // now simply the second push.
+        STEP_FAN_TRY.length = 0;
+        STEP_FAN_TRY.push(fan[0]);
+        if (n.lastOff) STEP_FAN_TRY.push(n.lastOff);
+        for (let i = 1; i < fan.length; i++) STEP_FAN_TRY.push(fan[i]);
+        for (const off of STEP_FAN_TRY) {
           const a = base + off,
             nx = n.pos.x + Math.sin(a) * spd * dt * (off ? 0.8 : 1),
             nz = n.pos.z + Math.cos(a) * spd * dt * (off ? 0.8 : 1),
@@ -10258,7 +10296,12 @@ const __boot = (async () => {
         // to pick, which on most seeds is a man's. the voice belongs to the npc, not to the body, so it has to be
         // rebuilt here with the same numbers addNPC would have used for a woman.
         g.female = true; g.pitch = 1.2; g.rate = 1; g.voice = 340;
-        g.worried = true; g.job = "idle"; g.post = true; g.stay = true; g.allowInside = true; g.paceT = 0; g.pos.set(g.hut.cx, g.hut.y, g.hut.cz); g.home.copy(g.pos); g.throughDoor = g.hut; } } // nim's mother does not leave the hut; she paces it
+        // her body is swapped for a woman's above and her position is set below, and neither of those wrote to the
+        // mesh. her hut is in thornback, six hundred metres from where the game begins, so updateNPCs gives up on her
+        // at 420 m and the one thing that ever writes mesh.position never runs — which left the new body standing at
+        // the world origin, in the middle of the kingdom, for as long as the player stayed away from thornback. she
+        // is put where she lives by hand, the same as every other villager who is moved by hand.
+        g.worried = true; g.job = "idle"; g.post = true; g.stay = true; g.allowInside = true; g.paceT = 0; g.pos.set(g.hut.cx, g.hut.y, g.hut.cz); g.home.copy(g.pos); g.mesh.position.copy(g.pos); g.throughDoor = g.hut; } } // nim's mother does not leave the hut; she paces it
       const canopyFolk = npcs.find(n => n.canopy && !n.kid);
       if (canopyFolk) { canopyFolk.name = "Elder-tree lookout"; addSideQuest({ giver: canopyFolk, who: "Elder-tree lookout", title: "Bring the three children lost on the lookouts home", ask: "Three of the queen's little ones are stuck on our lookout platforms, and none of us can fly. Bring them down and I'll give you the feather that lets a person climb the air.", nag: "The three lookout platforms on the tree. The little pink ones. Bring them home.", thanks: "All three. Take the skyfeather, then; hold it and the air will bear you a third time.", check: () => FAIRY.children.filter(c => (c.clue || "").startsWith("Elder") && c.found).length >= 3, progress: () => `${FAIRY.children.filter(c => (c.clue || "").startsWith("Elder") && c.found).length}/3 lookout children`, reward: () => grant("Skyfeather: a third jump in the air", () => { P.bonus.jumps = 3; }) }); }
     }
@@ -19268,13 +19311,10 @@ const __boot = (async () => {
       const d = dist2D(c.position, P.pos);
       c.position.y = PLATEAU + 6.1 + (d < 9 ? Math.sin(time * 9 + i) * 0.4 + 1.5 : 0);
     });
-    clouds.forEach(c => {
-      c.mat.color.copy(
-        toLin(0xffffff)
-          .lerp(toLin(0x30364a), 1 - day)
-          .lerp(toLin(0xffb090), dusk * 0.5)
-      );
-    });
+    if (graphics.clouds > 0) {
+      _cloudCol.copy(CLOUD_LIT).lerp(CLOUD_NIGHT, 1 - day).lerp(CLOUD_DUSK, dusk * 0.5);
+      for (const c of clouds) c.mat.color.copy(_cloudCol);
+    }
     // wind
     windDir += dt * 0.02;
     gust = Math.max(0, gust - dt * 0.4);
@@ -19294,13 +19334,16 @@ const __boot = (async () => {
       ws.uniforms.uTime.value = time;
       ws.uniforms.uWind.value = windStrength;
     }
-    clouds.forEach(c => {
-      c.g.position.addScaledVector(windVec, dt * 2);
-      if (c.g.position.x > 1100) c.g.position.x = -1100;
-      if (c.g.position.x < -1100) c.g.position.x = 1100;
-      if (c.g.position.z > 1100) c.g.position.z = -1100;
-      if (c.g.position.z < -1100) c.g.position.z = 1100;
-    });
+    // an unshown cloud is still a group of four spheres whose world matrices are rebuilt every time it is nudged, so
+    // the drift was charged to the scene walk as well as to this loop
+    if (graphics.clouds > 0)
+      for (const c of clouds) {
+        c.g.position.addScaledVector(windVec, dt * 2);
+        if (c.g.position.x > 1100) c.g.position.x = -1100;
+        if (c.g.position.x < -1100) c.g.position.x = 1100;
+        if (c.g.position.z > 1100) c.g.position.z = -1100;
+        if (c.g.position.z < -1100) c.g.position.z = 1100;
+      }
   }
   let birdT = 2,
     cricketT = 1,
