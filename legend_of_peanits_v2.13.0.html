@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.12.0</title>
+<title>Legend of Peanits 2.13.0</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#312454, #171129); --edge: #695194; --hi: #a58bd5; }
@@ -387,7 +387,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.12.0</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.13.0</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -457,7 +457,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.12.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.13.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -667,6 +667,11 @@ const __boot = (async () => {
       chaseRange: 36, // a goblin that sees you within this comes for you
       chaseSpeed: 6.2,
       kingChaseSpeed: 5.4,
+      wadeDepth: 1.2, // water no deeper than this is waded rather than refused; the valley's channels are ankle deep
+      bridgeReach: 75, // a goblin stopped by deep water walks this far to reach the near end of a bridge
+      crossFor: 22, // and has this many seconds to get across before it gives the crossing up
+      balkAfter: 3.5, // seconds of getting nowhere before it turns its back on the water
+      balkFor: 6, // and how long it walks away before it comes looking for you again
       turnRate: 6, // radians per second, like a villager
       knightVsKing: 0.25, // a knight's thrust takes this off the goblin king
       kingKnightFloor: 0.3 // knights cannot bring the king below this fraction of his health
@@ -706,7 +711,11 @@ const __boot = (async () => {
       turnToKnight: 2.2, // radians per second you turn to face him
       thinkFull: 90,
       think2: 170,
-      think3: 320 // villagers think every frame within thinkFull metres, every 2nd to think2, every 3rd to think3, every 6th beyond
+      think3: 320, // villagers think every frame within thinkFull metres, every 2nd to think2, every 3rd to think3, every 6th beyond
+      // the longest a child runs for home before the rest of the journey is simply finished for her. thornback is
+      // seven hundred metres off and the road round the lake is nearer thirteen hundred, so this is a floor under a
+      // walk that has gone wrong rather than the way the errand normally ends — the moment you look away she is home.
+      runHomeMax: 480
     },
     hunters: {
       // a hunter keeps the night watch. he does not sleep it through; he ducks into his tent for a few minutes at a
@@ -6172,10 +6181,25 @@ const __boot = (async () => {
         } else if (it.door) { if (dist2D(it.door, n.pos) > 1) { n.wantMove = true; step(it.door.x, it.door.z, 1.4); } else n.heading = Math.atan2(P.pos.x - n.pos.x, P.pos.z - n.pos.z); }
         n.target = null;
       } else if (n.running) {
-        // nim runs for home: up the road at a child's sprint; once she is out of your sight she is simply there
+        // nim runs for home on the roads, at a child's sprint; once she is out of your sight she is simply there.
+        // she used to be slid straight at thornback whenever a step was refused — through the river, through the
+        // hillside — and then put there outright after twenty-five seconds, in full view if you were watching her.
         n.runT += dt; n.wantMove = true;
-        if (!step(n.runTo.x, n.runTo.z, 5.5)) { const k = 1 - Math.min(1, dt * 1.5); n.pos.x = n.runTo.x + (n.pos.x - n.runTo.x) * k; n.pos.z = n.runTo.z + (n.pos.z - n.runTo.z) * k; }
-        if (dist2D(n.pos, n.runTo) < 4 || (distToPlayer > 45 && n.runT > 3) || n.runT > 25) { n.pos.copy(n.runTo); n.pos.y = groundAt(n.pos.x, n.pos.z, n.pos.y + 3); n.home.copy(n.pos); n.running = false; n.job = "explore"; n.radius = 12; n.village = 2; n.target = null; }
+        const runAim = routeAim(n, n.runTo, dt);
+        step(runAim.x, runAim.z, 5.5);
+        // getting somewhere means covering ground, not getting nearer thornback as the crow flies: her road leaves
+        // the kingdom by the north gate and leads away from the village for minutes together, and a straight-line
+        // test calls that stuck. so the measure is where she was twenty seconds ago.
+        if (!n.runPin) n.runPin = { x: n.pos.x, z: n.pos.z, t: 0 };
+        n.runPin.t += dt;
+        if (n.runPin.t > 20) {
+          if (dist2D(n.pos, n.runPin) < 15) routeReset(n); // fifteen metres in twenty seconds is not a walk: ask the roads again
+          n.runPin.x = n.pos.x; n.runPin.z = n.pos.z; n.runPin.t = 0;
+        }
+        // she is only ever put there out of your sight, exactly as before, and forty-five metres is what out of sight
+        // has always meant here. the clock is the last floor under a journey that has gone wrong in a way nobody has
+        // thought of, and it is long now because the honest walk round the lake takes seven minutes if you follow her.
+        if (dist2D(n.pos, n.runTo) < 4 || (distToPlayer > 45 && n.runT > 3) || n.runT > TUNE.people.runHomeMax) { n.pos.copy(n.runTo); n.pos.y = groundAt(n.pos.x, n.pos.z, n.pos.y + 3); n.home.copy(n.pos); n.running = false; n.job = "explore"; n.radius = 12; n.village = 2; n.target = null; n.runPin = null; routeReset(n); }
       } else if (n.job === "trainee") {
         // the same air attack you have: leap, one full spin with the stroke, come down on the dummy, bounce off it, land, breathe; day and night
         n.heading = Math.atan2(n.dummy.x - n.pos.x, n.dummy.z - n.pos.z);
@@ -8818,12 +8842,16 @@ const __boot = (async () => {
         const band = shadowed(new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.032, 8, 20), metal(opts.color || 0xe8e8f0)));
         band.position.y = 0.22;
         band.rotation.x = 0.34;
+        // the bezel and the stone are CHILDREN of the band, so their positions are in the band's own frame — and they
+        // were being given the band's world height and the band's tilt a second time. the result was a gem floating
+        // about seventeen centimetres above a ring it was supposed to be set into. the torus lies in its local xy
+        // plane with radius 0.17, so the top of the band is y 0.17 and everything sits on that, with no z offset and
+        // no rotation of its own, because a child already turns with its parent.
         const bezel = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.052, 0.05, 8), metal(opts.color || 0xe8e8f0)));
-        bezel.position.set(0, 0.385, -0.055);
-        bezel.rotation.x = 0.34;
+        bezel.position.set(0, 0.192, 0);
         band.add(bezel);
         const stone = shadowed(new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), lam(opts.stone || 0x2a3a6a)));
-        stone.position.set(0, 0.415, -0.07);
+        stone.position.set(0, 0.216, 0);
         band.add(stone);
         g.add(band);
       } else if (opts.shape === "book") g.add(boxM(0.5, 0.12, 0.7, lam(0x5a2a2a), 0, 0.1, 0), boxM(0.44, 0.13, 0.64, lam(0xe0d6c2), 0, 0.1, 0));
@@ -9032,6 +9060,362 @@ const __boot = (async () => {
     roseGuide.traverse(o => { o.castShadow = o.receiveShadow = false; }); // a hint floating over your head should not throw a shadow on the field
     roseGuide.visible = false; scene.add(roseGuide); }
   let roseA = 0, roseOn = false; // the compass sleeps until you wake it in the satchel
+  // ============================================================ the roads, as a graph anybody can walk
+  // every crossing in the valley was built under a road: buildBridge only ever runs along a polyline, and a wet
+  // stretch too long to bridge was raised into a causeway instead. so a route that keeps to the roads is a route
+  // that crosses water dry, and nothing here has to know where the water is or how deep it runs.
+  const ROADNET = { nodes: [], adj: [], cell: 48, grid: new Map(), budget: 0, perFrame: 2, stamp: 0, hn: 0 };
+  const ROADNET_SPACING = 7, // metres between nodes along one road
+    ROADNET_JOIN = 14, // two roads passing within this of each other are one junction
+    ROADNET_RISE = 6, // unless one is this far above the other, in which case it is a road crossing over a road
+    // how far off the roads a walker may be and still be handed a route along them. generous on purpose: the wood
+    // below the elder tree, where the lost girl waits, is a hundred and fifty metres from the nearest made road.
+    ROUTE_ENTRY = 180;
+
+  // walk one road end to end and drop a node every few metres, the last of them on its final point
+  function roadNetTrace(pl) {
+    const out = [];
+    let next = 0,
+      travelled = 0;
+    for (let k = 0; k + 1 < pl.length; k++) {
+      const a = pl[k],
+        b = pl[k + 1],
+        len = dist2D(b, a);
+      if (len < 0.01) continue;
+      while (next <= travelled + len) {
+        const t = (next - travelled) / len;
+        out.push({ x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t });
+        next += ROADNET_SPACING;
+      }
+      travelled += len;
+    }
+    const end = pl[pl.length - 1];
+    if (!out.length || dist2D(out[out.length - 1], end) > 0.5) out.push({ x: end.x, z: end.z });
+    return out;
+  }
+
+  // a road point standing in a curtain wall away from any of its gates. the ring road is drawn as a straight line
+  // between two mountain villages and runs clean through the kingdom's masonry, so without this a route along it
+  // holds a walker against the stone until the clock runs out. only walls are tested, and nothing else: probing
+  // every structure instead shatters the graph into nine pieces on carts and doorposts, and a walker given no route
+  // at all is worse off than one given a road with a building beside it.
+  function roadNetBlocked(x, z) {
+    for (const s of structsAt(x, z)) {
+      if (s.r1 === undefined) continue;
+      const dx = x - s.cx,
+        dz = z - s.cz,
+        d = Math.hypot(dx, dz);
+      if (d > s.r0 - 0.6 && d < s.r1 + 0.6 && !inGate(s, dx, dz)) return true;
+    }
+    return false;
+  }
+
+  // each neighbour is two entries, the node then the cost, so an edge walk never allocates
+  function roadNetLink(i, j) {
+    const w = dist2D(ROADNET.nodes[i], ROADNET.nodes[j]);
+    ROADNET.adj[i].push(j, w);
+    ROADNET.adj[j].push(i, w);
+  }
+
+  const roadNetKey = (x, z) => (Math.floor(x / ROADNET.cell) + 3000) * 9000 + (Math.floor(z / ROADNET.cell) + 3000);
+
+  // a road end standing in the mouth of a gate: a little way outside the wall, on a bearing the wall is open on
+  function roadNetAtGate(s, n) {
+    const dx = n.x - s.cx,
+      dz = n.z - s.cz,
+      d = Math.hypot(dx, dz);
+    return d > s.r1 && d < s.r1 + 22 && inGate(s, dx, dz);
+  }
+
+  // a road that stops outside one town gate and a road that starts outside another are one road with a town in
+  // between: a walled kingdom with gates in it is a junction, not a dead end, and the elder-tree lane reaches the
+  // rest of the valley only through it. the ring road is deliberately not joined this way — it runs through the
+  // wall rather than through either gate, which is exactly why following it strands a walker against the masonry.
+  function roadNetGateLinks(ends) {
+    for (let a = 0; a < ends.length; a++)
+      for (let b = a + 1; b < ends.length; b++) {
+        const na = ROADNET.nodes[ends[a]],
+          nb = ROADNET.nodes[ends[b]];
+        if (na.road === nb.road) continue;
+        for (const s of structsAt(na.x, na.z)) {
+          if (!s.gates || s.r1 === undefined) continue;
+          if (!roadNetAtGate(s, na) || !roadNetAtGate(s, nb)) continue;
+          roadNetLink(ends[a], ends[b]);
+          break;
+        }
+      }
+  }
+
+  function buildRoadNet() {
+    const nodes = ROADNET.nodes,
+      adj = ROADNET.adj;
+    nodes.length = adj.length = 0;
+    const ends = [];
+    for (let pi = 0; pi < polylines.length; pi++) {
+      let prev = -1,
+        first = -1,
+        last = -1;
+      for (const p of roadNetTrace(polylines[pi])) {
+        // a blocked point breaks the chain rather than being stepped over, or the road would hop the wall in one edge
+        if (roadNetBlocked(p.x, p.z)) {
+          prev = -1;
+          continue;
+        }
+        const i = nodes.length;
+        // the deck where there is one: a road node on a bridge stands on planks, not in the river beneath them
+        nodes.push({ x: p.x, z: p.z, y: groundAt(p.x, p.z, terrainH(p.x, p.z) + 14), road: pi });
+        adj.push([]);
+        if (prev >= 0) roadNetLink(prev, i);
+        prev = i;
+        if (first < 0) first = i;
+        last = i;
+      }
+      if (first >= 0) ends.push(first, last);
+    }
+    // the roads meet at the gate and at every spur base, but each is its own polyline with its own samples. without
+    // these joins the graph is eighteen separate ribbons and no route ever leaves the road it started on.
+    for (let i = 0; i < nodes.length; i++)
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i],
+          b = nodes[j];
+        if (a.road === b.road) continue;
+        if (Math.abs(a.x - b.x) > ROADNET_JOIN || Math.abs(a.z - b.z) > ROADNET_JOIN) continue;
+        if (Math.abs(a.y - b.y) > ROADNET_RISE || dist2D(a, b) > ROADNET_JOIN) continue;
+        roadNetLink(i, j);
+      }
+    roadNetGateLinks(ends);
+    ROADNET.grid.clear();
+    for (let i = 0; i < nodes.length; i++) {
+      const k = roadNetKey(nodes[i].x, nodes[i].z);
+      if (!ROADNET.grid.has(k)) ROADNET.grid.set(k, []);
+      ROADNET.grid.get(k).push(i);
+    }
+    // which stretch of road each node belongs to. the elder-tree lane runs from the south gate to the wood and touches
+    // no other road anywhere, so the road nearest a walker is not always a road that goes where they are going: an
+    // entry node has to be picked out of the same piece of network as the goal, or the search fails with a road in
+    // sight. flood fill here, once, rather than discovering it a hundred times a minute.
+    let piece = 0;
+    for (let i = 0; i < nodes.length; i++) {
+      if (nodes[i].piece !== undefined) continue;
+      piece++;
+      const stack = [i];
+      nodes[i].piece = piece;
+      while (stack.length) {
+        const u = stack.pop(),
+          a = adj[u];
+        for (let k = 0; k < a.length; k += 2)
+          if (nodes[a[k]].piece === undefined) {
+            nodes[a[k]].piece = piece;
+            stack.push(a[k]);
+          }
+      }
+    }
+    let edges = 0;
+    for (const a of adj) edges += a.length / 2;
+    ROADNET.cost = new Float64Array(nodes.length);
+    ROADNET.from = new Int32Array(nodes.length);
+    ROADNET.seen = new Int32Array(nodes.length);
+    // the heap holds one entry per relaxation, and a relaxation is an edge: sized for the worst case, it never grows
+    ROADNET.heapK = new Float64Array(edges + nodes.length + 8);
+    ROADNET.heapV = new Int32Array(edges + nodes.length + 8);
+    console.info("roads:", nodes.length, "nodes,", edges, "edges,", piece, "connected pieces, over", polylines.length, "roads");
+  }
+
+  // the road node nearest a point, or -1 when every road is further off than maxR. a piece other than 0 restricts the
+  // answer to one connected stretch of network, which is how a walker is given a road that actually goes to the goal.
+  function roadNetNear(x, z, maxR, piece) {
+    const reach = Math.max(1, Math.ceil(maxR / ROADNET.cell)),
+      i0 = Math.floor(x / ROADNET.cell),
+      j0 = Math.floor(z / ROADNET.cell);
+    let best = -1,
+      bd = maxR * maxR;
+    for (let i = i0 - reach; i <= i0 + reach; i++)
+      for (let j = j0 - reach; j <= j0 + reach; j++) {
+        const bucket = ROADNET.grid.get((i + 3000) * 9000 + (j + 3000));
+        if (!bucket) continue;
+        for (const k of bucket) {
+          const n = ROADNET.nodes[k];
+          if (piece && n.piece !== piece) continue;
+          const dx = n.x - x,
+            dz = n.z - z,
+            q = dx * dx + dz * dz;
+          if (q < bd) {
+            bd = q;
+            best = k;
+          }
+        }
+      }
+    return best;
+  }
+
+  function roadHeapPush(k, v) {
+    const K = ROADNET.heapK,
+      V = ROADNET.heapV;
+    let i = ROADNET.hn++;
+    K[i] = k;
+    V[i] = v;
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (K[p] <= K[i]) break;
+      const tk = K[p],
+        tv = V[p];
+      K[p] = K[i];
+      V[p] = V[i];
+      K[i] = tk;
+      V[i] = tv;
+      i = p;
+    }
+  }
+
+  function roadHeapPop() {
+    const K = ROADNET.heapK,
+      V = ROADNET.heapV,
+      out = V[0],
+      hn = --ROADNET.hn;
+    if (hn > 0) {
+      K[0] = K[hn];
+      V[0] = V[hn];
+      let i = 0;
+      for (;;) {
+        const l = 2 * i + 1,
+          r = l + 1;
+        let m = i;
+        if (l < hn && K[l] < K[m]) m = l;
+        if (r < hn && K[r] < K[m]) m = r;
+        if (m === i) break;
+        const tk = K[m],
+          tv = V[m];
+        K[m] = K[i];
+        V[m] = V[i];
+        K[i] = tk;
+        V[i] = tv;
+        i = m;
+      }
+    }
+    return out;
+  }
+
+  // dijkstra over the road graph: the waypoints from the road nearest the walker to the road nearest their goal. the
+  // goal itself is never in the list, so the last stretch off the road is walked exactly as it always was.
+  function roadRoute(fromX, fromZ, toX, toZ, maxEntry) {
+    const nodes = ROADNET.nodes;
+    if (!nodes.length || ROADNET.budget <= 0) return null;
+    // the goal end is chosen first and the walker's end has to share its piece of network: the other way round, a
+    // walker standing beside a lane that goes nowhere is handed that lane and the search then finds no way off it
+    const e = roadNetNear(toX, toZ, maxEntry, 0);
+    if (e < 0) return null;
+    const s = roadNetNear(fromX, fromZ, maxEntry, ROADNET.nodes[e].piece);
+    if (s < 0 || s === e) return null;
+    ROADNET.budget--;
+    const stamp = ++ROADNET.stamp,
+      cost = ROADNET.cost,
+      from = ROADNET.from,
+      seen = ROADNET.seen,
+      adj = ROADNET.adj;
+    ROADNET.hn = 0;
+    seen[s] = stamp;
+    cost[s] = 0;
+    from[s] = -1;
+    roadHeapPush(0, s);
+    let reached = false;
+    while (ROADNET.hn > 0) {
+      const u = roadHeapPop();
+      if (u === e) {
+        reached = true;
+        break;
+      }
+      const a = adj[u],
+        cu = cost[u];
+      for (let k = 0; k < a.length; k += 2) {
+        const v = a[k],
+          c = cu + a[k + 1];
+        if (seen[v] === stamp && cost[v] <= c) continue;
+        seen[v] = stamp;
+        cost[v] = c;
+        from[v] = u;
+        roadHeapPush(c, v);
+      }
+    }
+    if (!reached) return null;
+    const out = [];
+    for (let k = e; k >= 0; k = from[k]) out.push({ x: nodes[k].x, z: nodes[k].z });
+    out.reverse();
+    return out;
+  }
+
+  // the place on the road to walk at next. the route is asked for once and then followed; a walker whose roads have
+  // run out, or who is nowhere near one, is handed the goal itself and crosses country as before.
+  function routeAim(walker, goal, dt) {
+    walker.roadAge = (walker.roadAge || 0) + dt;
+    // an empty answer is retried, because a walker who is too far from the roads now may be beside one in a minute
+    const known = walker.roadPath && walker.roadGoal === goal && (walker.roadPath.length > 0 || walker.roadAge < 5);
+    if (!known) {
+      walker.roadGoal = goal;
+      walker.roadPath = roadRoute(walker.pos.x, walker.pos.z, goal.x, goal.z, ROUTE_ENTRY) || [];
+      walker.roadI = 0;
+      walker.roadAge = 0;
+    }
+    const r = walker.roadPath;
+    // reached, or gone by: a step deflected round a rock can carry a walker past a node without ever coming within
+    // reach of it, and they must not turn round to collect it. the second clause only fires close in, so a walker
+    // still a hundred metres from the road cannot skip the whole route in one go.
+    while (walker.roadI < r.length) {
+      const here = dist2D(r[walker.roadI], walker.pos),
+        next = walker.roadI + 1 < r.length ? dist2D(r[walker.roadI + 1], walker.pos) : 1e9;
+      if (here >= 6 && !(here < 14 && next < here)) break;
+      routeNext(walker);
+    }
+    if (walker.roadI >= r.length) return goal;
+    // a waypoint the walker cannot close on is abandoned, not leaned on. the ring road runs straight through the
+    // kingdom and the town wall has only its two gates, so a walker following it meets a wall with no way through
+    // and would stand against it for ever; the next node along is usually reachable from wherever they ended up.
+    const here = dist2D(r[walker.roadI], walker.pos);
+    if (walker.roadNear === undefined || here < walker.roadNear - 0.5) {
+      walker.roadNear = here;
+      walker.roadHold = 0;
+    } else walker.roadHold = (walker.roadHold || 0) + dt;
+    if (walker.roadHold > 3) routeNext(walker);
+    return walker.roadI < r.length ? r[walker.roadI] : goal;
+  }
+
+  function routeNext(walker) {
+    walker.roadI++;
+    walker.roadNear = undefined;
+    walker.roadHold = 0;
+  }
+
+  // throw a route away, so the next aim asks the roads again from wherever the walker has ended up
+  function routeReset(walker) {
+    walker.roadPath = null;
+    walker.roadGoal = null;
+    walker.roadI = 0;
+    walker.roadNear = undefined;
+    walker.roadHold = 0;
+  }
+
+  // the bridge that best carries somebody from here to there: the end nearer them, then the end nearer their goal.
+  // every bridge in the valley spans water under a road, so reaching one end and then the other is a crossing, and
+  // none of this has to know which bank anybody is standing on.
+  function crossingFor(fromX, fromZ, toX, toZ, reach) {
+    let best = null,
+      // a detour dearer than this is not a detour, it is a different errand
+      bestCost = Math.hypot(toX - fromX, toZ - fromZ) * 2.2 + 40;
+    for (const br of BRIDGES)
+      for (const ends of [
+        [br.A, br.B],
+        [br.B, br.A]
+      ]) {
+        const near = ends[0],
+          far = ends[1],
+          walk = Math.hypot(near.x - fromX, near.z - fromZ);
+        if (walk > reach) continue;
+        const cost = walk + br.len + Math.hypot(far.x - toX, far.z - toZ);
+        if (cost >= bestCost) continue;
+        bestCost = cost;
+        best = { nx: near.x, nz: near.z, fx: far.x, fz: far.z, onDeck: false };
+      }
+    return best;
+  }
   // reject navigation cells inside water, buildings or solid obstacles
   function nearWater(x, z, r) {
     // written out rather than looped over a fresh array of pairs: this sits inside the villager step search, where the
@@ -11604,6 +11988,82 @@ const __boot = (async () => {
     for (const a of NET.avatars.values()) { if (a.state.dead || !realm(a.state.pos)) continue; const d = dist2D(a.state.pos, p); if (d < bd) { bd = d; best = { pos: a.state.pos, id: a.id }; } }
     return best;
   }
+  // a goblin's step: straight at you first, then wider and wider either side. the wide fan only opens once it has
+  // been getting nowhere for a moment, so an ordinary chase is still a straight line at you.
+  const GOBLIN_FAN = [0, 0.5, -0.5, 1, -1],
+    GOBLIN_FAN_WIDE = [0, 0.5, -0.5, 1, -1, 1.6, -1.6, 2.2, -2.2, 2.7, -2.7];
+
+  // the height a goblin would stand at if it took this step, or null if it cannot take it. dry ground, a bridge deck
+  // and water no deeper than its waist all count. the old test refused every wet step outright, which is why a goblin
+  // met by an ankle-deep brook stood on the bank for the rest of its life and could be cheesed from across a river.
+  function goblinFooting(g, x, z) {
+    if (!inBounds(x, z)) return null;
+    if (insideInterior(x, z, 0.8) && !insideInterior(g.pos.x, g.pos.z, 0)) return null;
+    const gh = groundAt(x, z, g.pos.y + 1.8);
+    if (gh - g.pos.y > 1.8) return null;
+    // waterSurfaceAt reads the valley's heightfield whatever depth it is asked about, so below the seam it would
+    // measure a goblin in gehenna against a lake three hundred metres over its head
+    if (g.pos.y < DIVIDE) return gh;
+    const ws = waterSurfaceAt(x, z);
+    return ws > -1e8 && gh < ws - TUNE.goblins.wadeDepth ? null : gh;
+  }
+
+  // a goblin stopped by water it cannot wade walks to the near end of the handiest bridge, then to the far end, and
+  // only then looks for you again. it hands back the place to head for, or null to head straight at you as usual.
+  function goblinDetour(g, tgt, dt) {
+    if (Math.hypot(tgt.x - g.pos.x, tgt.z - g.pos.z) < 12) g.crossing = null; // this close there is nothing left to go round
+    if (g.crossing) {
+      const c = g.crossing;
+      g.crossingT -= dt;
+      if (!c.onDeck && Math.hypot(c.nx - g.pos.x, c.nz - g.pos.z) < 4) c.onDeck = true;
+      const over = c.onDeck && Math.hypot(c.fx - g.pos.x, c.fz - g.pos.z) < 4;
+      if (over || g.crossingT <= 0) {
+        g.crossing = null;
+        g.blockedT = 0;
+        return null;
+      }
+      return c.onDeck ? { x: c.fx, z: c.fz } : { x: c.nx, z: c.nz };
+    }
+    if ((g.blockedT || 0) < TUNE.goblins.balkAfter * 0.4) return null;
+    const c = crossingFor(g.pos.x, g.pos.z, tgt.x, tgt.z, TUNE.goblins.bridgeReach);
+    if (!c) return null;
+    g.crossing = c;
+    g.crossingT = TUNE.goblins.crossFor;
+    g.blockedT = 0;
+    return { x: c.nx, z: c.nz };
+  }
+
+  // a goblin that has covered a lot of ground and finished where it started is pacing a bank, not chasing anybody.
+  // ground covered against ground gained is the only test that separates the two: a goblin running after somebody who
+  // keeps ahead of it gains nothing either, and that one must not be given up on. a goblin held still gains nothing
+  // and covers nothing, so the floor of two metres catches it as well.
+  function goblinCircling(g, dt, walked) {
+    if (!g.bankPin) g.bankPin = { x: g.pos.x, z: g.pos.z, t: 0, walk: 0 };
+    const p = g.bankPin;
+    p.t += dt;
+    p.walk += walked;
+    if (p.t < TUNE.goblins.balkAfter) return false;
+    const gained = Math.hypot(g.pos.x - p.x, g.pos.z - p.z),
+      circling = gained < Math.max(2, p.walk * 0.35);
+    p.x = g.pos.x;
+    p.z = g.pos.z;
+    p.t = 0;
+    p.walk = 0;
+    return circling;
+  }
+
+  // what a goblin does when the water wins: it turns its back on whatever it could not cross and walks away for a few
+  // seconds before it hunts again. anything is better than standing at the edge of a lake for the rest of the night.
+  function goblinBalk(g, awayX, awayZ) {
+    const d = Math.hypot(awayX, awayZ) || 1;
+    g.state = "balk";
+    g.balkT = TUNE.goblins.balkFor;
+    g.balkTo = { x: g.pos.x - (awayX / d) * 20, z: g.pos.z - (awayZ / d) * 20 };
+    g.crossing = null;
+    g.bankPin = null;
+    g.blockedT = 0;
+    g.lastOff = 0;
+  }
   function updateGoblins(dt) {
     // the cull runs for everyone, guests included. it used to sit below the guest return, so a guest accumulated one
     // group per goblin the host had ever spawned and never removed a single one. worse, a goblin that leaves the host's
@@ -11706,7 +12166,8 @@ const __boot = (async () => {
         if (g.sink === undefined && (g.fleeT > 12 || dist > 75)) g.sink = 0;
         if (g.sink !== undefined) { g.sink += dt; g.mesh.position.set(g.pos.x, g.pos.y - g.sink * 1.3, g.pos.z); if (g.sink > 2.4) { g.alive = false; g.gone = true; } continue; }
         const d0 = dist || 1, ax = g.pos.x - (dx / d0) * 10, az = g.pos.z - (dz / d0) * 10; const dd = Math.hypot(ax - g.pos.x, az - g.pos.z) || 1; const nx = g.pos.x + ((ax - g.pos.x) / dd) * 7 * dt, nz = g.pos.z + ((az - g.pos.z) / dd) * 7 * dt;
-        if (inBounds(nx, nz) && !isWater(nx, nz) && terrainH(nx, nz) - g.pos.y < 1.8) { g.pos.x = nx; g.pos.z = nz; } g.heading = Math.atan2(ax - g.pos.x, az - g.pos.z);
+        const fleeH = goblinFooting(g, nx, nz);
+        if (fleeH !== null) { g.pos.x = nx; g.pos.z = nz; g.pos.y = fleeH; } g.heading = Math.atan2(ax - g.pos.x, az - g.pos.z);
         g.pos.y = groundAt(g.pos.x, g.pos.z, g.pos.y); g.mesh.position.copy(g.pos); g.visH = turnToward(g.visH === undefined ? g.heading : g.visH, g.heading, dt * TUNE.goblins.turnRate); g.mesh.rotation.y = g.visH; g.anim = (g.anim || 0) + dt * 9; if (g.bar) g.bar.visible = false;
         continue;
       }
@@ -11727,15 +12188,31 @@ const __boot = (async () => {
         if (dist < 45) SFX.goblinMoan(dist);
       }
       const move = (tx, tz, spd) => {
-        const d = Math.hypot(tx - g.pos.x, tz - g.pos.z) || 1,
-          nx = g.pos.x + ((tx - g.pos.x) / d) * spd * dt,
-          nz = g.pos.z + ((tz - g.pos.z) / d) * spd * dt;
-        if (inBounds(nx, nz) && !isWater(nx, nz) && terrainH(nx, nz) - g.pos.y < 1.8 && (!insideInterior(nx, nz, 0.8) || insideInterior(g.pos.x, g.pos.z, 0))) {
+        const base = Math.atan2(tx - g.pos.x, tz - g.pos.z),
+          offs = (g.blockedT || 0) > 0.6 ? GOBLIN_FAN_WIDE.slice() : GOBLIN_FAN.slice();
+        if (g.lastOff) offs.splice(1, 0, g.lastOff); // keep sliding the same way along a bank rather than flipping between two refusals
+        for (const off of offs) {
+          const a = base + off,
+            reach = spd * dt * (off ? 0.85 : 1),
+            nx = g.pos.x + Math.sin(a) * reach,
+            nz = g.pos.z + Math.cos(a) * reach,
+            gh = goblinFooting(g, nx, nz);
+          if (gh === null) continue;
           g.pos.x = nx;
           g.pos.z = nz;
+          // the footing is carried over rather than re-derived below: groundAt refuses a surface more than 1.2 m over
+          // the height it is given, so a goblin that has just stepped on to a bridge would be dropped into the river
+          g.pos.y = gh;
+          g.heading = a;
+          g.lastOff = off;
+          g.blockedT = 0;
           moving = true;
+          return true;
         }
-        g.heading = Math.atan2(tx - g.pos.x, tz - g.pos.z);
+        g.blockedT = (g.blockedT || 0) + dt;
+        g.lastOff = 0;
+        g.heading = base;
+        return false;
       };
       switch (g.state) {
         case "lurk":
@@ -11749,12 +12226,36 @@ const __boot = (async () => {
             if (dist < 9) { const ax = g.pos.x - (dx / (dist || 1)) * 6, az = g.pos.z - (dz / (dist || 1)) * 6; move(ax, az, 5.8); g.heading = Math.atan2(dx, dz); }
             else if (dist > 17) move(tgt.pos.x, tgt.pos.z, 5.5);
             else { g.heading = Math.atan2(dx, dz); g.shotT -= dt; if (g.shotT <= 0 && Math.abs(tgt.pos.y - g.pos.y) < 9) { g.shotT = 2.6; g.state = "reload"; g.t = 0.5; gobShoot(g, tgt); } }
-          } else if (dist > 2.9 + (g.king ? 0.6 : 0)) move(tgt.pos.x, tgt.pos.z, (g.king ? TUNE.goblins.kingChaseSpeed : TUNE.goblins.chaseSpeed) * (g.king && g.phase === 3 ? 1.35 : 1));
-          else {
+          } else if (dist > 2.9 + (g.king ? 0.6 : 0)) {
+            const chaseSpd = (g.king ? TUNE.goblins.kingChaseSpeed : TUNE.goblins.chaseSpeed) * (g.king && g.phase === 3 ? 1.35 : 1),
+              via = goblinDetour(g, tgt.pos, dt),
+              wasX = g.pos.x,
+              wasZ = g.pos.z;
+            move(via ? via.x : tgt.pos.x, via ? via.z : tgt.pos.z, chaseSpd);
+            if (!via && goblinCircling(g, dt, Math.hypot(g.pos.x - wasX, g.pos.z - wasZ))) goblinBalk(g, dx, dz);
+          } else {
             g.state = "windup";
             g.t = g.king ? 0.6 : 0.45;
             g.heading = Math.atan2(dx, dz);
+            g.crossing = null;
+            g.bankPin = null;
           }
+          break;
+        case "balk":
+          // walking its temper off. it still swings at anyone who comes to it, but it will not stand at the water.
+          g.balkT -= dt;
+          if (dist < 2.9 + (g.king ? 0.6 : 0)) {
+            g.state = "windup";
+            g.t = g.king ? 0.6 : 0.45;
+            g.heading = Math.atan2(dx, dz);
+            break;
+          }
+          if (g.balkT <= 0) {
+            g.state = "chase";
+            g.blockedT = 0;
+            break;
+          }
+          move(g.balkTo.x, g.balkTo.z, TUNE.goblins.chaseSpeed * 0.55);
           break;
         case "windup":
           g.heading = Math.atan2(dx, dz);
@@ -19849,6 +20350,9 @@ const __boot = (async () => {
       }
     }
 
+    // a dijkstra over the road graph is cheap; a hundred of them in one frame is not, so the whole valley shares a
+    // couple of searches a frame and whoever misses out keeps the route they already had until the next one
+    ROADNET.budget = ROADNET.perFrame;
     // ---- slimes ----
     updateSlimes(dt, rdt);
     updateGoblins(dt);
@@ -20119,6 +20623,9 @@ const __boot = (async () => {
   }
   await __stage(97, "Learning the roads…");
   // buildNavGrid(); // not needed while the arrow points straight at its goal
+  // the roads themselves, though, are how everyone who walks gets over water: built here because the decks are in by
+  // now, so a node standing on a bridge knows it is standing on planks
+  buildRoadNet();
   await __stage(98, "Drawing the map…");
   // ============================================================ hud
   const mm = document.getElementById("minimap"),

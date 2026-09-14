@@ -4,6 +4,101 @@ Every change, with the bug it fixes and how. Newest first.
 
 ---
 
+## 2.13.0 — Goblins wade, Nim walks the roads, and the gem is on the ring
+
+### Bug 116 — The gem was floating above the ring · FIXED
+
+**Reported:** *"fix the ring texture so the gem is actually on the ring."*
+
+A parenting mistake. The bezel and the stone are added as **children of the
+band**, so their positions are in the band's own frame — and they were being
+given the band's world height *and* its tilt a second time. The torus lies in its
+local xy plane with radius 0.17, so the top of the band is at y 0.17 and
+everything should sit on that with no z offset and no rotation of its own.
+
+**Measured**, with the band's own base as the datum, since it does not move:
+the stone's centre was **0.212 m above the top of the band** and is now **0.001 m
+above it** — resting on the band rather than hovering a ring's diameter over it.
+
+*A note on how that was measured, because the first attempt was wrong.* The
+probe used `Box3.setFromObject(torus)`, which **traverses children** — and the
+stone is a child of the band, so it was always inside the band's own box and the
+check said "set" in both builds. The band's *bottom* is unaffected by its
+children, which is why the comparison above uses that instead.
+
+### Bug 117 — A goblin met by an ankle-deep brook froze forever · FIXED
+
+**Reported from play**, and worse than reported. `move()` rejected every step
+where `isWater()` was true, and the valley's channels are about **3.4 m wide and
+0.3 m deep**. Measured on the shipped build: a goblin starting 15 m away across a
+brook spent **385 of 400 frames completely motionless**, and never got closer
+than 10.3 m.
+
+Now it wades. `goblinFooting` accepts dry ground, bridge decks — resolved through
+`groundAt` rather than `terrainH`, so a goblin stepping onto a deck is not
+dropped into the river — and water up to 1.2 m, carrying the footing height
+forward. A deflection fan with hysteresis opens only once a goblin has been
+getting nowhere for a moment, so an ordinary chase is still a straight line. A
+goblin genuinely beaten by deep water now **balks**: it turns round and walks off
+rather than grinding against the bank forever.
+
+| | before | after |
+|---|---|---|
+| Goblin across a river, bridge 84 m off | frozen 385/400 frames, closest 10.3 m | wades in, closest **2.6 m**, attacks, 0 frames above the waist |
+| Bridge 164 m off | frozen 399/400, closest 8.7 m | closest **2.8 m**, attacks |
+| On dry ground (control) | closest 2.7 m | **closest 2.7 m**, unchanged |
+| Deep water, no bridge in reach | slid sideways forever, 72 m walked, no progress | **3 balks**, longest stall 0.65 s |
+| Goblin King across a channel | — | closest **3.3 m**, reaches windup |
+
+### Bug 118 — Nim never reached the river to cross it · FIXED
+
+The report was that she walks through water. What she actually did was **circle
+in a 13 m loop at her spawn for twenty-five seconds and then teleport 703 m in a
+single frame.** The lerp fallback everyone suspected was never reached: `step()`
+was succeeding every frame while she orbited a lake shore that sits directly
+between her and Thornback.
+
+She follows a road graph now — `ROADNET`, built over the existing `polylines` at
+the same worldgen stage that already says "Learning the roads…". Every bridge in
+the valley was built under a road, so a road route crosses water dry.
+
+**Measured: 2,037 m walked home in about 400 s, 0 frames in water, 0 frames sunk,
+and 606 frames standing on bridge decks.** Her route is the one a person would
+walk: out of the wood, west to the elder lane, up through the south gate, across
+the kingdom, out the north gate, round the ring road, over two bridges, and up
+the spiral into Thornback. All 165 villagers were re-measured over a day and a
+night and match the baseline exactly.
+
+### Two things deliberately not done
+
+**`riverAt`, `riverDist` and `isWater` are untouched**, and no worldgen placement
+moved — so no `addPickup` id shifted and every existing save key still loads.
+Bug 100 stands as written.
+
+**`roadNetBlocked` leaves the graph in five connected pieces rather than one.**
+The ring road is drawn as a straight line between two mountain villages and
+**runs clean through the kingdom's curtain wall**, and the elder-tree lane is a
+stub whose only connection to the valley is through the town's two gates. Nodes
+standing in a wall away from its gates are dropped, which fragments the graph.
+Nim's route resolves and every village spiral tested resolves, but **a route to
+all eight villages was not verified.** Dropping *every* blocked node instead
+shatters it into nine pieces and leaves Nim no route at all, which is why the
+test is narrowed to walls, and the code says so where somebody will find it.
+
+### A patch-format trap worth recording
+
+Three of the ten blocks in this patch were headed *"insert the replacement
+immediately BEFORE this line"* and *"new text, then the anchor line unchanged"* —
+and **none of the three actually repeated the anchor line.** Applied literally,
+each one deleted the line it promised to keep, including the whole
+`function updateGoblins(dt) {` header. The build failed with
+`Unexpected token 'const'` **five hundred lines further down**, which is where the
+parser finally gave up rather than where the damage was.
+
+It was found by comparing running brace depth against the unpatched file at a
+shared landmark: depth 2 before, depth 1 after. That check costs nothing and
+points at the right region immediately, where the error message does not.
+
 ## 2.12.0 — The hush never happened, the mourners never went home, and subtitles wait for the voice
 
 ### Bug 113 — Beat two of the 3.0 chain was dead code · FIXED
