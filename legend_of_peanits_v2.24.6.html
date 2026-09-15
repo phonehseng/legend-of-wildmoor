@@ -19686,7 +19686,8 @@ const __boot = (async () => {
     const roundCityX = 368, roundCityR = 48;
     const plaza = new THREE.Mesh(new THREE.CylinderGeometry(roundCityR, roundCityR, 0.4, 96), stone);
     plaza.position.set(GEH.cx + roundCityX, y - 0.175, GEH.cz); root.add(plaza);
-    gehAddStruct({ cx: GEH.cx + roundCityX, cz: GEH.cz, r: roundCityR, b: roundCityR, bottom: y - 0.4, top: y, floorOnly: true, walk: true });
+    // The analytic circle in gehH is the walkable floor. Do not register the disk in the solid grid: even a
+    // floor-only record is visited by movement/corner resolution and can wall off the approach to the center gate.
     ring(roundCityR - 0.6, y + 0.04, 0.1, lit, roundCityX, 0);
     ring(27, y + 0.045, 0.07, gold, roundCityX, 0);
     ring(12, y + 0.055, 0.08, lit, roundCityX, 0);
