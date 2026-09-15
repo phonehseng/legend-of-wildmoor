@@ -2375,7 +2375,7 @@ const __boot = (async () => {
     if (dx >= 168 && dx <= 336 && Math.abs(dz) <= 24) return GEH.floor + 1;
     // The avenue opens into a circular city at its far end. Keep the straight approach intact, but give the
     // terminus its own level so the ring road and radial buildings remain walkable.
-    if (Math.hypot(dx - 368, dz) <= 32) return GEH.floor + 1;
+    if (Math.hypot(dx - 368, dz) <= 48) return GEH.floor + 1;
     // And the ramp down to it off the hill. It has to start from whatever the hill ACTUALLY is at its lip rather
     // than from a fixed nine metres: the hill crests at 6.69 there, so the fixed version put a 2.3 m wall across the
     // only road to the kingdom, and a six-metre drop off either side of the ramp. Blending from h fixes both seams.
@@ -19567,7 +19567,7 @@ const __boot = (async () => {
       return { text: "Slay the Kindly One", hint: "IV · The Last Account. " + hint, target: sister ? sister.pos : GEH.clerkPos || target("kindly", 136, 0) };
     }
     const e = enemy("lucifer");
-    if (!GEH.inPride) return { text: "Slay Lucifer, Demon of Pride", hint: "V · The Still Kingdom. Follow the road over the hill to the white tear.", target: V3(GEH.cx + 328, GEH.floor + 5, GEH.cz) };
+    if (!GEH.inPride) return { text: "Slay Lucifer, Demon of Pride", hint: "V · The Still Kingdom. Follow the road over the hill to the white tear.", target: V3(GEH.cx + 368, GEH.floor + 1, GEH.cz) };
     const hint = e && e.armed ? "Break his hold. Listen when the children speak." : e && e.beat >= 5 ? "Follow Lucifer to the centre of the room." : "Speak to Lucifer beside the children.";
     return { text: "Slay Lucifer, Demon of Pride", hint: "VI · The Impossible Room. " + hint, target: e ? e.pos : V3(GEH.cx - 73, GEH.floor + 9, GEH.cz + 54) };
   }
@@ -19609,7 +19609,7 @@ const __boot = (async () => {
     if (GEH.kingdomRoot) {
       if (!GEH.kingdom) {
         const ky = GEH.floor + 1;
-        GEH.kingdom = { cx: 248, cz: 0, r: 128, y: ky, portal: V3(GEH.cx + 328, ky, GEH.cz), cooldown: 1.4, transit: null };
+        GEH.kingdom = { cx: 248, cz: 0, r: 128, y: ky, portal: V3(GEH.cx + 368, ky, GEH.cz), cooldown: 1.4, transit: null };
       }
       return;
     }
@@ -19620,7 +19620,7 @@ const __boot = (async () => {
     const root = new THREE.Group(); root.name = "gehenna-still-kingdom"; GEH.root.add(root);
     const y = GEH.floor + 1;
     GEH.kingdomRoot = root;
-    GEH.kingdom = { cx: 248, cz: 0, r: 128, y, portal: V3(GEH.cx + 328, y, GEH.cz), cooldown: 1.4, transit: null };
+    GEH.kingdom = { cx: 248, cz: 0, r: 128, y, portal: V3(GEH.cx + 368, y, GEH.cz), cooldown: 1.4, transit: null };
     // the kingdom is also built the moment lucifer lets go, with the player still standing in the white room, so
     // this cannot simply declare them outside it: that hid the room and showed the city for the frame before
     // gehUpdateKingdom put it back.
@@ -19652,12 +19652,15 @@ const __boot = (async () => {
       block(w, 0.05, 0.3, x + w / 2, y + 0.02, 7.8, gold);
       block(w, 0.04, 0.2, x + w / 2, y + 0.02, 0, lit);
     }
-    // 80 Buildings: 40 along z = -13.5 and 40 along z = +13.5
+    // The houses move outward as each outer boss falls, opening the avenue one ring at a time.
+    const bossProgress = [WORLDSTATE.gehAlmonerDown, WORLDSTATE.gehMatronDown, WORLDSTATE.gehHeapDown].filter(Boolean).length;
+    const houseSpread = bossProgress * 4.5;
+    // 80 Buildings: 40 along each side of the avenue.
     for (let i = 0; i < 40; i++) {
       const bx = 170 + i * 4;
       const h = 14 + (i * 7 % 13), bw = 3.6, bd = 5.0;
       for (const side of [-1, 1]) {
-        const bz = side * 13.5;
+        const bz = side * (13.5 + houseSpread);
         block(bw, h, bd, bx, y + h / 2, bz, stone, true);
         block(bw + 0.3, 0.5, bd + 0.3, bx, y + h, bz, gold);
         block(0.15, h - 1, bd + 0.05, bx, y + h / 2, bz, gold);
@@ -19678,40 +19681,46 @@ const __boot = (async () => {
     block(10, 12, 10, 248, y + 26, 0, stone);
     block(7, 10, 7, 248, y + 34, 0, gold);
     block(0.8, 36, 0.8, 248, y + 26, 0, lit);
-    // Monumental portal arch at the terminus of the avenue (x = 328)
-    for (const sz of [-3.2, 3.2]) block(1.2, 10, 1.0, 328, y + 5, sz, gold, true);
-    block(1.2, 1.0, 7.4, 328, y + 10, 0, gold);
-    const tear = new THREE.Mesh(new THREE.PlaneGeometry(5.8, 9.2), new THREE.MeshBasicMaterial({ color: 0x010102, side: THREE.DoubleSide, fog: false }));
-    tear.rotation.y = Math.PI / 2; tear.position.set(GEH.cx + 328.06, y + 4.6, GEH.cz); root.add(tear);
-    const seam = new THREE.Mesh(new THREE.PlaneGeometry(0.035, 9.0), new THREE.MeshBasicMaterial({ color: 0xfff8e9, side: THREE.DoubleSide, fog: false }));
-    seam.rotation.y = Math.PI / 2; seam.position.set(GEH.cx + 328.08, y + 4.6, GEH.cz); root.add(seam);
+    // Circle platform from the earlier build, plugged into the end of the straight avenue. The only gate is the
+    // exact central tear: there is no second gate at the avenue mouth.
+    const roundCityX = 368, roundCityR = 48;
+    const plaza = new THREE.Mesh(new THREE.CylinderGeometry(roundCityR, roundCityR, 0.4, 96), stone);
+    plaza.position.set(GEH.cx + roundCityX, y - 0.175, GEH.cz); root.add(plaza);
+    gehAddStruct({ cx: GEH.cx + roundCityX, cz: GEH.cz, r: roundCityR, b: roundCityR, bottom: y - 0.4, top: y });
+    ring(roundCityR - 0.6, y + 0.04, 0.1, lit, roundCityX, 0);
+    ring(27, y + 0.045, 0.07, gold, roundCityX, 0);
+    ring(12, y + 0.055, 0.08, lit, roundCityX, 0);
+    block(47, 0.05, 6.8, roundCityX - 24.5, y + 0.035, 0, gold);
+    for (let i = 0; i < 40; i++) {
+      const a = i * Math.PI * 2 / 40;
+      if (Math.cos(a) > 0.91) continue;
+      const radius = i % 2 ? 39 : 43, bx = roundCityX + Math.cos(a) * radius, bz = Math.sin(a) * radius;
+      const h = 13 + (i * 7 % 13), w = 3.5 + (i % 3) * 0.55, d = 3.8;
+      block(w, h, d, bx, y + h / 2, bz, stone, true);
+      block(w + 0.3, 0.45, d + 0.3, bx, y + h, bz, gold);
+      block(0.12, h - 1, d + 0.045, bx, y + h / 2, bz, gold);
+      for (let row = 0; row < Math.floor(h / 3); row++) block(w + 0.045, 0.2, d + 0.065, bx, y + 2 + row * 2.8, bz, lit);
+    }
+    for (const radius of [30, 43]) ring(radius, y + 31, 0.26, gold, roundCityX, 0);
+    const crownGeo = new THREE.CylinderGeometry(45, 7, 24, 16, 1, true);
+    const crown = new THREE.LineSegments(new THREE.EdgesGeometry(crownGeo), new THREE.LineBasicMaterial({ color: 0x9f6429, transparent: true, opacity: 0.65 }));
+    crownGeo.dispose(); crown.position.set(GEH.cx + roundCityX, y + 42, GEH.cz); root.add(crown);
+    for (const [sx, sz] of [[roundCityX - 5, -8], [roundCityX + 5, -8], [roundCityX - 5, 8], [roundCityX + 5, 8]]) {
+      block(2.4, 31, 2.4, sx, y + 15.5, sz, stone, true);
+      block(0.16, 30, 2.44, sx, y + 15.5, sz, lit);
+    }
+    block(12.5, 16, 18.5, roundCityX, y + 23, 0, stone);
+    block(8.2, 14, 11, roundCityX, y + 35, 0, gold);
+    block(4.6, 15, 5, roundCityX, y + 46, 0, stone);
+    block(0.7, 44, 0.7, roundCityX, y + 32, 0, lit);
+    // Center gate, matching the earlier circular platform structure.
+    for (const sz of [-3.3, 3.3]) block(1.1, 9, 0.8, roundCityX, y + 4.5, sz, gold, true);
+    block(1.1, 0.8, 7.4, roundCityX, y + 9, 0, gold);
+    const tear = new THREE.Mesh(new THREE.PlaneGeometry(5.8, 8.6), new THREE.MeshBasicMaterial({ color: 0x010102, side: THREE.DoubleSide, fog: false }));
+    tear.rotation.y = Math.PI / 2; tear.position.set(GEH.cx + roundCityX + 0.06, y + 4.3, GEH.cz); root.add(tear);
+    const seam = new THREE.Mesh(new THREE.PlaneGeometry(0.035, 8.4), new THREE.MeshBasicMaterial({ color: 0xfff8e9, side: THREE.DoubleSide, fog: false }));
+    seam.rotation.y = Math.PI / 2; seam.position.set(GEH.cx + roundCityX + 0.08, y + 4.3, GEH.cz); root.add(seam);
     GEH.kingdom.seam = seam;
-    // Circular city at the end of the straight avenue: the portal is the gate into a compact ring-road plaza.
-    const roundCityX = 368, roundCityR = 30;
-    const plaza = new THREE.Mesh(new THREE.CylinderGeometry(roundCityR, roundCityR, 0.35, 64), stone);
-    plaza.position.set(GEH.cx + roundCityX, y - 0.18, GEH.cz); root.add(plaza);
-    gehAddStruct({ cx: GEH.cx + roundCityX, cz: GEH.cz, r: roundCityR, b: roundCityR, bottom: y - 0.35, top: y });
-    ring(roundCityR - 2, y + 0.05, 0.24, gold, roundCityX, 0);
-    ring(11, y + 0.08, 0.18, lit, roundCityX, 0);
-    const roundKeep = new THREE.Mesh(new THREE.CylinderGeometry(7.5, 9.5, 13, 16), stone);
-    roundKeep.position.set(GEH.cx + roundCityX, y + 6.5, GEH.cz); root.add(roundKeep);
-    gehAddStruct({ cx: GEH.cx + roundCityX, cz: GEH.cz, r: 9.5, b: 9.5, bottom: y, top: y + 13 });
-    const roundDome = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 6.4, 5, 16), gold);
-    roundDome.position.set(GEH.cx + roundCityX, y + 15.5, GEH.cz); root.add(roundDome);
-    for (let i = 0; i < 12; i++) {
-      const a = i * Math.PI * 2 / 12, bx = roundCityX + Math.cos(a) * 21, bz = Math.sin(a) * 21;
-      const h = 7 + (i % 4) * 1.8;
-      const building = new THREE.Mesh(new THREE.CylinderGeometry(2.7, 3.2, h, 8), i % 2 ? stone : gold);
-      building.position.set(GEH.cx + bx, y + h / 2, GEH.cz + bz); root.add(building);
-      gehAddStruct({ cx: GEH.cx + bx, cz: GEH.cz + bz, r: 3.2, b: 3.2, bottom: y, top: y + h });
-      const cap = new THREE.Mesh(new THREE.CylinderGeometry(3.1, 2.4, 0.45, 8), lit);
-      cap.position.set(GEH.cx + bx, y + h + 0.2, GEH.cz + bz); root.add(cap);
-    }
-    for (let i = 0; i < 8; i++) {
-      const a = i * Math.PI / 4, lx = roundCityX + Math.cos(a) * 14, lz = Math.sin(a) * 14;
-      block(0.16, 3.4, 0.16, lx, y + 1.7, lz, gold);
-      block(0.58, 0.62, 0.58, lx, y + 3.48, lz, lit);
-    }
     // Street lamps along the avenue
     const lampX = [176, 196, 216, 236, 256, 276, 296, 316];
     for (const lx of lampX) {
