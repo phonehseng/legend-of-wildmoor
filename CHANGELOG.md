@@ -2,6 +2,19 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 2.24.5 — the hand comes down
+
+- lucifer shakes harder the closer he is to losing his hold. the hand he is holding back shakes with him, and the room and the camera shake with both.
+- his shove now takes half of whatever health you have left, every time — and at two hearts it takes the rest.
+- lucifer's room will not open for one of you. everyone still connected has to be at the tear, and then everyone goes through together.
+- the ending is rebuilt. he says nothing over the hand; it comes down through him and through you and lifts away with you both inside it. the white room comes apart behind you until there is nothing left to light, and the screen holds black for five seconds before you are asked anything.
+- **both endings were broken and are fixed.** the finale clock kept re-blacking the screen, re-dimming the room and re-asking the question on every frame after you answered — so Stay dropped you back into a black screen that never went away, and Move on had its storybook torn down the frame after it appeared. move on now plays the three slides, rolls the credits, and ends on a title card offering a new game or a return to wildmoor.
+- the children in that room have legs that actually walk now.
+- **fixed: a shared errand could become impossible to hand in.** if a guest picked up the quest item within about half a second of the errand starting, the host read that as their starting state, never credited the pickup, and nothing anyone did could complete it.
+- **fixed: a 2.3 m wall across the road to the still kingdom.** the ramp off the hill started at a fixed height the hill never reached, which also left a six-metre drop off either side of it.
+- fixed: building the kingdom the moment lucifer let go briefly declared you outside the white room you were standing in.
+- test tools: new ending suite; the kingdom, pride river and lucifer art suites were reading coordinates from before the room moved and now run again.
+
 ## 2.24.4 — the little river
 
 [screenshots + download](docs/updates/2.24.4.md) · [test notes](docs/QA_2.24.4.md)

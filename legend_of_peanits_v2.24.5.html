@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.24.4</title>
+<title>Legend of Peanits 2.24.5</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#1b1626, #0d0a14); --edge: #6c583a; --hi: #8a6a3e; }
@@ -502,8 +502,8 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   .choice-opt:hover, #pause .btn:hover { background: var(--bone); color: #110d1b; }
   #minimap.big { border: 6px solid var(--bone); outline: 3px solid var(--gold); border-radius: 0; z-index: 20; }
   #worldTools { display: flex; flex-direction: column; gap: 7px; pointer-events: auto; }
-  #worldTools button { display: flex; align-items: center; width: 78px; height: 32px; padding: 0; background: transparent; color: var(--bone); border: 0; cursor: pointer; }
-  #worldTools button:hover, #worldTools button:focus-visible { color: var(--gold); outline: 1px solid currentColor; outline-offset: 3px; }
+  #worldTools button { display: flex; align-items: center; width: 78px; height: 32px; padding: 0; background: transparent; color: var(--gold); border: 0; cursor: pointer; text-shadow: inherit; }
+  #worldTools button:hover, #worldTools button:focus-visible { color: var(--bone); outline: 1px solid currentColor; outline-offset: 3px; }
   #worldTools svg { width: 30px; height: 30px; stroke: currentColor; stroke-width: 1.7; fill: none; filter: drop-shadow(1px 1px 1px #000); }
   #worldTools kbd { order: -1; }
   .slot-item.special { border: 2px solid #ff9ccc; box-shadow: inset 0 0 18px #b738713f, 0 0 8px #e45b9655; }
@@ -534,7 +534,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.24.4</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.24.5</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -604,7 +604,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.24.4</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 2.24.5</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -976,11 +976,23 @@ const __boot = (async () => {
     luciferDefeated: false, gehFinaleWitnessed: false, afterlife: null,
     relics: { seal: false, root: false, warden: false, tear: false }, wolfChoice: null, home: false, guardsOut: false
   };
+  const isGameBeaten = () =>
+    !!(
+      typeof WORLDSTATE !== "undefined" &&
+      (WORLDSTATE.luciferDefeated ||
+        WORLDSTATE.afterlife ||
+        WORLDSTATE.ending)
+    );
+  const isCarryingBody = () =>
+    !!(
+      (typeof P !== "undefined" && P.carry) ||
+      (typeof BURIAL !== "undefined" && BURIAL.carrier && (BURIAL.phase === "carry" || BURIAL.phase === "bury"))
+    );
   const rootReadable = () => { const q = SIDE.find(q => q.who === "Nim's mother"); return !!(q && q.done); };
   const villageQuests = () => SIDE.filter(q => q.giver && q.giver.village !== undefined);
   const villagesDone = () => villageQuests().filter(q => q.done).length;
   // the valley's difficulty grows with what you carry: enemies hit harder and last longer the further the story goes
-  const difficulty = () => 1 + 0.12 * relicCount() + 0.03 * villagesDone() + (WORLDSTATE.finaleStarted ? 0.2 : 0);
+  const difficulty = () => 1 + 0.12 * relicCount() + 0.03 * villagesDone() + (WORLDSTATE.finaleStarted && !isGameBeaten() ? 0.2 : 0);
   const evidence = k => {
     if (!["cloth", "ring", "diary", "ritual", "note"].includes(k)) return;
     if (!STORY.evidence.includes(k)) STORY.evidence.push(k);
@@ -995,7 +1007,7 @@ const __boot = (async () => {
   // are already saved, validated, reconstructed and shared, so the beat costs the save format nothing.
   // it is keyed on the burial rather than on dread(), because dread() is reset to zero the instant an ending is
   // chosen and this outlives that; and it ends on gehDone, which is the only thing that ever settles the valley.
-  const siegeOn = () => WORLDSTATE.ysoldeBuried && !WORLDSTATE.gehDone && !WORLDSTATE.ending;
+  const siegeOn = () => WORLDSTATE.ysoldeBuried && !WORLDSTATE.gehDone && !WORLDSTATE.ending && !isGameBeaten();
   // the fourth relic is a thorn and not a tear. the queen of the rose court does not grieve for her children and
   // never did, so a tear is the one object she could not have produced. the save key stays `tear` because a save
   // key is a save key and renaming one silently resets it for every existing save; this label is the only version
@@ -1020,8 +1032,12 @@ const __boot = (async () => {
   // because the whole turn in act iii is that they did, and then stopped.
   let _dreadV = -1, // -1 means never computed: the first tick snaps, so a loaded save opens at its true colour
     _dreadT = 0;
-  const dread = () => (_dreadV < 0 ? 0 : _dreadV);
+  const dread = () => (isGameBeaten() ? 0 : (_dreadV < 0 ? 0 : _dreadV));
   function updateDread(dt) {
+    if (isGameBeaten()) {
+      _dreadV = 0;
+      return;
+    }
     _dreadT -= dt;
     if (_dreadT > 0 && _dreadV >= 0) return; // twice a second is far oftener than any of these inputs actually move
     const el = Math.max(dt, 0.5 - _dreadT); // how long it really was since the last pass, which is what the ease below must use
@@ -1033,7 +1049,7 @@ const __boot = (async () => {
         0.13 * relicCount() + // 0.52 across the four relics: the loudest voice
         0.025 * Math.min(8, villagesDone()) + // 0.20 across the eight villages
         (WORLDSTATE.finaleStarted ? 0.1 : 0); // the water is already rising
-    if (WORLDSTATE.ending) d = 0; // it is over. the valley gets its colour back the moment you choose
+    if (WORLDSTATE.ending || isGameBeaten()) d = 0; // it is over. the valley gets its colour back the moment you choose
     d = clamp(d, 0, 1);
     // it creeps in over about thirteen seconds and drains in four, so picking up a relic never snaps the sky
     if (_dreadV < 0) _dreadV = d;
@@ -1045,7 +1061,7 @@ const __boot = (async () => {
     else _dreadV += clamp(d - _dreadV, -el * 0.25, el * 0.06);
   }
   function storyAct() {
-    if (WORLDSTATE.ending) return STORY_ACT.COMPLETE;
+    if (WORLDSTATE.ending || isGameBeaten()) return STORY_ACT.COMPLETE;
     if (WORLDSTATE.finaleStarted) return STORY_ACT.FINALE;
     if (WORLDSTATE.hermitWarned) return STORY_ACT.VALLEY;
     if (WORLDSTATE.blackPoolAwake) return STORY_ACT.AWAKENING;
@@ -1055,7 +1071,7 @@ const __boot = (async () => {
   }
   const ACT_NAMES = ["Arrival", "The Champion", "The Black Pool", "Something Was Listening", "The Valley", "What Lies Beneath", "Wildmoor Remembers"];
   // reputation tags villagers read: authored line pools switch on these
-  const repTags = () => ({ champion: talkedKing, marenFreed: WORLDSTATE.marenFreed, haleExposed: WORLDSTATE.haleExposed, kingSlain: WORLDSTATE.goblinKingDefeated, bearSlain: WORLDSTATE.bearDefeated, manyFairies: FAIRY.found >= 15, poolAwake: WORLDSTATE.blackPoolAwake && !WORLDSTATE.ending, ending: WORLDSTATE.ending });
+  const repTags = () => ({ champion: talkedKing, marenFreed: WORLDSTATE.marenFreed, haleExposed: WORLDSTATE.haleExposed, kingSlain: WORLDSTATE.goblinKingDefeated, bearSlain: WORLDSTATE.bearDefeated, manyFairies: FAIRY.found >= 15, poolAwake: WORLDSTATE.blackPoolAwake && !WORLDSTATE.ending && !isGameBeaten(), ending: WORLDSTATE.ending });
   // named places: found by walking into them; logged in the satchel and drawn on the big map
   const DISCOVERIES = {
     blackPool: { name: "The Black Pool", r: 24 },
@@ -1605,7 +1621,7 @@ const __boot = (async () => {
       // boss track — and the gain crossfades are untouched, so track switching behaves exactly as it did.
       // the typeof guard is load-bearing: dread is an arrow const declared after this object, so it is not hoisted.
       const dr = typeof dread === "function" ? dread() : 0,
-        slow = 1 + 0.55 * Math.max(dr, WORLDSTATE.wardenDead ? 0.7 : 0);
+        slow = (typeof isGameBeaten === "function" && isGameBeaten()) ? 1 : (1 + 0.55 * Math.max(dr, WORLDSTATE.wardenDead ? 0.7 : 0));
       this.gT.gain.setTargetAtTime(boss ? 0 : townness * (night ? 0.55 : 1) * (inside ? 0.45 : 1), now, boss ? 0.4 : 1.5);
       this.gW.gain.setTargetAtTime(boss ? 0 : (1 - townness) * (night ? 0.6 : 1) * (inside ? 0.45 : 1), now, boss ? 0.4 : 1.5);
       this.gB.gain.setTargetAtTime(boss ? 1.3 : 0, now, boss ? 0.6 : 1.2);
@@ -2089,9 +2105,26 @@ const __boot = (async () => {
   // why his empty bench is the last thing in gehenna you see.
   // everything is inside a radius of 156, and the world is walkable to 196 (inBounds passes at 600+190 and fails at
   // 600+196), so there is forty metres of margin between the furthest thing built and the edge of the coordinates.
+  const GEH_PRIDE_X = -800, GEH_PRIDE_Z = 800;
+  // the clock the last scene runs on, in seconds since lucifer lets go. the hand reaches them at CRUSH and both of
+  // them go up inside it; the white room comes apart behind them until DARK, where there is nothing left to light.
+  // FADE lays the screen overlay over the last of it, and the five seconds between DARK and CHOICE are the whole
+  // point of the beat: the black is meant to sit there long enough to be uncomfortable before anything is asked.
+  const GEH_END_CRUSH = 1.7, GEH_END_FADE = 6.4, GEH_END_DARK = 7.4, GEH_END_CHOICE = 12.4, GEH_END_TOTAL = 13;
   const GEH_L = {
     dishR: 17, dishD: 1.35, waterY: -0.5,
-    roadX0: 14, roadX1: 128, roadW: 3.2,
+    roadX0: 14, roadX1: 128,
+    get roadW() {
+      let w = 3.2;
+      if (typeof WORLDSTATE !== "undefined") {
+        if (WORLDSTATE.gehAlmonerDown) w += 1.3;
+        if (WORLDSTATE.gehMatronDown) w += 1.3;
+        if (WORLDSTATE.gehHeapDown) w += 1.3;
+        if (WORLDSTATE.gehDone) w += 1.3;
+        if (WORLDSTATE.luciferDefeated) w += 1.3;
+      }
+      return w;
+    },
     rowX0: 36, rowStep: 6, rowN: 11, rowZ: 10.5,
     houseW: 2.5, houseD: 2.2, houseH: 3.1,
     sweeperX: 24, benchX: 70, stillX: 92,
@@ -2229,9 +2262,14 @@ const __boot = (async () => {
   // between them drew as dry sand — sand-coloured, above the water, standable — and was classified as lake. in front of
   // the bear cave, where the shore falls at a couple of centimetres a metre, that band is ten metres wide and covers
   // nearly nine hundred square metres of visible beach that villagers, goblins, wraiths and plants all refuse to enter.
+  let P = null;
   const isWater = (x, z) => terrainH(x, z) < WATER_Y || riverAt(x, z) !== null,
     isDeep = (x, z) => terrainH(x, z) < DEEP,
-    inBounds = (x, z) => Math.abs(x) < HALF - 4 && Math.abs(z) < HALF - 4;
+    inBounds = (x, z) => (P && P.pos && P.pos.y < DIVIDE) ?
+      (typeof GEH !== "undefined" && (GEH.inPride || (Math.abs(x - (GEH.cx + GEH_PRIDE_X)) < 250 && Math.abs(z - (GEH.cz + GEH_PRIDE_Z)) < 250)) ?
+        (Math.abs(x - (GEH.cx + GEH_PRIDE_X)) < 240 && Math.abs(z - (GEH.cz + GEH_PRIDE_Z)) < 240) :
+        (Math.abs(x - GEH.cx) < 360 && Math.abs(z - GEH.cz) < 360)) :
+      (Math.abs(x) < HALF - 4 && Math.abs(z) < HALF - 4);
   // ---- 3.0 phase 2: water you can be inside ----
   // swimming used to be a surface float pinned to one global waterline, so there was no such thing as a body of water
   // with its own top and its own bed. a swim volume is that: a disc with a top, a rest depth and a floor. every lake
@@ -2304,37 +2342,41 @@ const __boot = (async () => {
   // at gehenna's coordinates cannot crater the valley: there are no shared coordinates to crater.
   // One channel profile drives its floor mesh, shore, swim boundary and collision bed.
   function gehPrideRiverAt(x, z) {
-    const rz = z - GEH.cz, t = clamp((rz - 43) / 35, 0, 1);
-    const end = Math.min(smooth(clamp((rz - 43) / 4, 0, 1)), smooth(clamp((78 - rz) / 4, 0, 1)));
-    const center = -94 + Math.sin((rz - 43) * 0.16) * 2.2;
-    const half = 4.9 * Math.pow(Math.max(0, end), 0.35), distance = Math.abs(x - GEH.cx - center);
+    const px = x - (GEH.cx + GEH_PRIDE_X), pz = z - (GEH.cz + GEH_PRIDE_Z);
+    const end = Math.min(smooth(clamp((pz + 17) / 4, 0, 1)), smooth(clamp((18 - pz) / 4, 0, 1)));
+    const center = (GEH.cx + GEH_PRIDE_X) - 9 + Math.sin((pz + 17) * 0.16) * 2.2;
+    const half = 4.9 * Math.pow(Math.max(0, end), 0.35), distance = Math.abs(x - center);
     const depth = half > 0 && distance < half ? 2.8 * end * (1 - smooth(clamp((distance - 1.45) / Math.max(0.01, half - 1.45), 0, 1))) : 0;
-    return { center, half, depth, t, bed: GEH.floor + 9 - depth, wet: depth > 0.2 };
+    return { center, half, depth, bed: GEH.floor + 9 - depth, wet: depth > 0.2 };
   }
   function gehH(x, z) {
     if (!GEH.root) return GEH_VOID;
     const dx = x - GEH.cx, dz = z - GEH.cz, r = Math.hypot(dx, dz);
-    // The second Gehenna is a raised, circular city. Its street and the impossible
-    // white pocket share this analytic floor with their drawn slabs, below DIVIDE.
-    if (Math.hypot(dx - 48, dz - 78) <= 48 ||
-        dx >= 132 && dx <= 140 && dz >= 0 && dz <= 38 ||
-        dx >= 100 && dx <= 140 && dz >= 30 && dz <= 38 ||
-        dx >= 100 && dx <= 108 && dz >= 30 && dz <= 82 ||
-        dx >= 48 && dx <= 108 && dz >= 74 && dz <= 82) return GEH.floor + 9;
-    if (dx >= -108 && dx <= -62 && dz >= 37 && dz <= 83) return gehPrideRiverAt(x, z).bed;
+    // Pride river bed & ground in Impossible Room (infinite white expanse)
+    const px = x - (GEH.cx + GEH_PRIDE_X), pz = z - (GEH.cz + GEH_PRIDE_Z);
+    if (Math.abs(px) < 250 && Math.abs(pz) < 250) {
+      if (Math.abs(px) < 35 && Math.abs(pz) < 35) {
+        const pr = gehPrideRiverAt(x, z);
+        if (pr.depth > 0) return pr.bed;
+      }
+      return GEH.floor + 9;
+    }
     if (dx <= -19.5 && dx >= -69 && Math.abs(dz) <= 2.1) return GEH.floor + Math.max(0, Math.floor((-dx - 20) / 0.6)) * 0.27;
-    // phase 5 shaping. every term is analytic and lives in THIS function, which is the whole reason the drawn ground
-    // and the collision heightfield can never disagree: the mesh is built by sampling these same lines.
-    // the walk runs east along dz = 0. the ash lies almost flat along it and rolls everywhere else, so the road is
-    // never in a trench and the rows never stand on a slope.
-    const walk = dx > -24 && dx < 158 ? 1 - smooth(clamp((Math.abs(dz) - 13) / 22, 0, 1)) : 0;
+    // phase 5 shaping:
+    const walk = dx > -24 && dx < 340 ? 1 - smooth(clamp((Math.abs(dz) - 13) / 22, 0, 1)) : 0;
     let h = GEH.floor + (fbm(x / 60 + GEH.seed, z / 60 + GEH.seed, 4) - 0.5) * 9 * (1 - walk * 0.9);
     if (r < GEH_L.dishR) h -= GEH_L.dishD * Math.pow(1 - r / GEH_L.dishR, 1.5); // the dish of black water you surface in
     const yd = Math.hypot(dx - GEH_L.yardX, dz);
     if (yd < GEH_L.yardR + 4) h = lerp(h, GEH.floor + 0.1, 1 - smooth(clamp((yd - GEH_L.yardR) / 4, 0, 1))); // the yard is dead flat because it is swept
     const hd = Math.hypot(dx - GEH_L.hillX, dz);
     if (hd < GEH_L.hillR) h += GEH_L.hillH * Math.pow(Math.cos((hd / GEH_L.hillR) * Math.PI * 0.5), 1.5); // and the one hill, with the one desk on it
-    if (r > 150) h += (r - 150) * 1.4; // the room closes in around you rather than ending at an edge you can walk off
+    if (r > 150 && !(dx >= 140 && dx <= 340 && Math.abs(dz) <= 26)) h += (r - 150) * 1.4; // the room closes in around you rather than ending at an edge you can walk off
+    // The Still Kingdom straight avenue and buildings, on their own level one metre above the floor.
+    if (dx >= 168 && dx <= 336 && Math.abs(dz) <= 24) return GEH.floor + 1;
+    // And the ramp down to it off the hill. It has to start from whatever the hill ACTUALLY is at its lip rather
+    // than from a fixed nine metres: the hill crests at 6.69 there, so the fixed version put a 2.3 m wall across the
+    // only road to the kingdom, and a six-metre drop off either side of the ramp. Blending from h fixes both seams.
+    if (dx >= 144 && dx <= 168 && Math.abs(dz) <= 12) return lerp(h, GEH.floor + 1, smooth(clamp((dx - 144) / 24, 0, 1)));
     return h;
   }
   const gehStructsAt = (x, z) => GEH.structs.get(skey(Math.floor(x / SCELL), Math.floor(z / SCELL))) || _nostruct;
@@ -3933,6 +3975,26 @@ const __boot = (async () => {
       }
     }
   };
+  const pushOutOfLucifer = (p, rad = 0.55) => {
+    const e = typeof GEH !== "undefined" && GEH ? GEH.lucifer : null;
+    if (!e || !e.alive || e.hidden || !e.mesh || !e.mesh.visible) return;
+    if (p.y >= DIVIDE && !GEH.inPride) return;
+    if (typeof netGehennaRoom === "function" && !GEH.inPride && !netGehennaRoom(p)) return;
+    const scale = e.bodyScale || 0.62;
+    const top = e.pos.y + 3.4 * scale;
+    const bottom = e.pos.y - 0.4;
+    if (p.y < bottom || p.y > top) return;
+    let dx = p.x - e.pos.x, dz = p.z - e.pos.z;
+    let d = Math.hypot(dx, dz);
+    const luciferRad = Math.max(0.42, scale * 0.72);
+    const min = luciferRad + rad;
+    if (d < min) {
+      if (d < 0.0001) { dx = 1; dz = 0; d = 1; }
+      p.x = e.pos.x + (dx / d) * min;
+      p.z = e.pos.z + (dz / d) * min;
+    }
+  };
+  if (typeof window !== "undefined") window.pushOutOfLucifer = pushOutOfLucifer;
   const isShaded = (x, z) =>
     nearTrees(x, z, _nt, 2).some(t => !t.felled && Math.hypot(t.x - x, t.z - z) < 4 * t.s) || Math.hypot(x - ELDER.x, z - ELDER.z) < 55;
   const findSpot = (x, z, minH, maxH, maxSlope = 4, clear = 3) =>
@@ -4431,6 +4493,10 @@ const __boot = (async () => {
     shadowed(trunk);
     scene.add(trunk);
     addStruct({ cx: E.x, cz: E.z, r: R0 * 0.95, top: y0 + H, b: R0 * 0.95, taper: { y0, y1: y0 + H, r0: R0 * 0.95, r1: R0 * 0.55 * 0.95 } });
+    // resolveStructs skips any struct where p.y < top-40; the full trunk has top=y0+H=142,
+    // so only players above y=102 would be blocked. add a second low-level struct covering
+    // the base (y0 to y0+42) so the trunk is solid at ground level too.
+    addStruct({ cx: E.x, cz: E.z, r: R0 * 0.95, top: y0 + 42, b: R0 * 0.95, taper: { y0, y1: y0 + 42, r0: R0 * 0.95, r1: R0 * 0.78 * 0.95 } });
     // (the elder tree has no root cones: they never sat in the ground convincingly)
     const leaf = new THREE.MeshStandardMaterial({ color: toLin(0x64ac48), roughness: 0.95, map: TEX.leaf, alphaTest: 0.45, side: THREE.DoubleSide });
     leafSway(leaf);
@@ -5205,8 +5271,9 @@ const __boot = (async () => {
     mesh.geometry.computeVertexNormals();
   }
   function animateHero(P, dt, t, root = hero) {
-    const u = root.userData,
-      m = P.moving,
+    const u = root.userData;
+    if (root === hero && u.lastStayShade !== isInvisMode()) applyAfterlifeAppearance();
+    const m = P.moving,
       air = !P.grounded && !P.swim && !P.sliding,
       sp = Math.hypot(P.vel.x, P.vel.z),
       armed = !P.carry && P.armed > 0;
@@ -5896,6 +5963,9 @@ const __boot = (async () => {
     return Math.random() < 0.35 && /[a-z]\.$/.test(line) ? line.slice(0, -1) + `, ${CUSTOM.name}.` : line;
   }
   const PIP_LINES = ["Three strokes before your boots touch the ground. That's the whole trick. Watch.", "Don't bother me. I'm training.", "Knights don't rest. So I don't rest.", "Sir Corrin says a spear. I say a sword. One day I'll have a real one and he'll see.", "Jump, cut, cut, cut, land. Again. Again. That's how you get good.", "One day I'll wear the blue and carry steel, not this stick.", "The dummy's never once hit me back. That's how you know I'm winning.", "My mother says I'll wear the straw out. Then I'll get a new dummy."];
+  const isInvisMode = () =>
+    !!((typeof WORLDSTATE !== "undefined" && (WORLDSTATE.afterlife === "stay" || WORLDSTATE.invisMode || WORLDSTATE.invis)) ||
+    (typeof P !== "undefined" && P && (P.invis || P.invisMode)));
   // the line a villager says: never the same one twice running
   function npcLine(n) {
     let line = npcLineRaw(n);
@@ -5904,6 +5974,18 @@ const __boot = (async () => {
     return line;
   }
   function npcLineRaw(n) {
+    if (isInvisMode()) {
+      return pick([
+        `What... what are you? You feel so distant, ${CUSTOM.name}.`,
+        `I can barely hear your footsteps... What are you? You feel distant, ${CUSTOM.name}.`,
+        `You look like a shadow cast by nothing. What are you, ${CUSTOM.name}? You feel distant.`,
+        `There's a chill where you stand. What are you? You feel so distant, ${CUSTOM.name}.`,
+        `I can see right through your hands... What are you, ${CUSTOM.name}? You feel distant.`,
+        `Looking at you feels like trying to hold onto smoke. What are you? You feel so distant, ${CUSTOM.name}.`,
+        `Your voice sounds like it's coming from across the water. What are you, ${CUSTOM.name}? You feel distant.`,
+        `Are you still walking among us, ${CUSTOM.name}? What are you now? You feel so distant.`
+      ]);
+    }
     // this sits at the very top on purpose. the trainee below and the hall guard under him both return without a
     // probability of their own, so from anywhere further down neither of them could ever say this, and they are two
     // of the three people it most needs to come from.
@@ -5986,6 +6068,12 @@ const __boot = (async () => {
       if (r.ending === "break") return pick(["The pool's gone. Just stones and a green edge. My mother won't believe it till she's stood in it.", "They say the champion broke something under the water and the whole valley let out a breath.", "No more dreams. First quiet night I've had since midsummer."]);
       if (r.ending === "bind") return pick(["The beacon burns all night now, and a thread of it lies across the sky to the pool. Say what you like, it's a comfort.", "The king's made beacon-keeping a crown office. Fancy that. A wage for keeping a lamp lit.", "Bound it to the light, they say. Then the light had better never go out."]);
       if (r.ending === "fairy") return pick(["Singing, at night, from the pool. Not a sad sound. My children sleep better for it.", "Petals on the black water. Pink ones. Whatever's down there, the little folk have it now.", "The herbalist says it dreams. I hope it dreams of something kind."]);
+      if (isGameBeaten()) return pick([
+        "The sky is clear again. The shadow has finally lifted from Wildmoor.",
+        "First quiet night we've had in ages. Whatever was deep beneath the earth has been laid to rest.",
+        "Look at the light on the hills. Wildmoor feels like home again.",
+        "No more cold mists rising from the water. It's peaceful now."
+      ]);
       // this branch had no probability guard and every one of its siblings does, so from the moment the pool woke until
       // an ending was chosen — the entire back half of the game — the kingSlain, haleExposed and champion pools below
       // were unreachable. eleven written lines nobody could hear.
@@ -9660,6 +9748,7 @@ const __boot = (async () => {
   }
   function sideApplySnapshot(m) {
     if (!Array.isArray(m.q) || m.q.length > SIDE.length) return;
+    let started = false;
     if (NET.role === "guest" && !NET.sideJoined) {
       NET.sideJoined = true;
       for (const q of SIDE) if (sideSharesReward(q)) { q.taken = false; q.done = false; q.partyProgress = null; q.netSessionRev = undefined; }
@@ -9672,7 +9761,17 @@ const __boot = (async () => {
       if (q.netSessionRev !== undefined && row[1] < q.netSessionRev) continue;
       if (q.netSessionRev === undefined || row[1] > q.netSessionRev) q.partyProgress = row[3].slice();
       else q.partyProgress = row[3].map((v, i) => Math.max(v, (q.partyProgress || [])[i] || 0));
+      const fresh = q.netSessionRev === undefined || row[1] > q.netSessionRev;
       q.netSessionRev = row[1]; q.partyRev = row[1]; if (row[2] === 1 && sideSharesReward(q)) { q.done = true; sideRewardOnce(q); }
+      if (fresh) started = true;
+    }
+    // the host counts a guest's contribution as the DIFFERENCE from the first activity row it ever saw from them, so
+    // that baseline has to be taken the instant the errand starts. waiting for the next half-second tick left a
+    // window in which a guest standing on the item could pick it up first: the host then read their baseline as
+    // "already has it", never credited the delta, and the shared errand could never be handed in by anybody.
+    if (started && NET.role === "guest" && P.pos.y >= DIVIDE) {
+      const host = NET.peers.get("host");
+      if (host) netSend(host, { t: "sqa", q: sideActivityRows() });
     }
   }
   function sidePeerAvatar(peer) { return [...NET.avatars.values()].find(a => a.via === peer.id) || null; }
@@ -13113,8 +13212,19 @@ const __boot = (async () => {
     for (let i = GOB_ARROWS.length - 1; i >= 0; i--) {
       const a = GOB_ARROWS[i]; a.life -= dt; a.pos.addScaledVector(a.vel, dt); a.vel.y -= 9 * dt; a.mesh.position.copy(a.pos); a.mesh.lookAt(a.pos.clone().add(a.vel)); a.mesh.rotateX(Math.PI / 2);
       let hit = false;
-      if (!death && dist2D(a.pos, P.pos) < 0.9 && Math.abs(a.pos.y - P.pos.y - 1) < 1.4) { hit = true; if (P.block) { recordBlock(); lowerShield(true); SFX.block(); say("Arrow blocked!", 700); } else hurtPlayer(1, V3(a.pos.x - a.vel.x, a.pos.y, a.pos.z - a.vel.z)); }
-      for (const av of NET.avatars.values()) if (!hit && dist2D(a.pos, av.state.pos) < 0.9 && Math.abs(a.pos.y - av.state.pos.y - 1) < 1.4) { hit = true; const p = NET.peers.get(av.via); if (p && NET.role === "host") netSend(p, { t: "ehit", to: av.id, dmg: 1, k: "arrow", x: +a.pos.x.toFixed(1), z: +a.pos.z.toFixed(1) }); }
+      if (!death && dist2D(a.pos, P.pos) < 0.9 && Math.abs(a.pos.y - P.pos.y - 1) < 1.4) {
+        hit = true;
+        if (!isCarryingBody()) {
+          if (P.block) { recordBlock(); lowerShield(true); SFX.block(); say("Arrow blocked!", 700); } else hurtPlayer(1, V3(a.pos.x - a.vel.x, a.pos.y, a.pos.z - a.vel.z));
+        }
+      }
+      for (const av of NET.avatars.values()) if (!hit && dist2D(a.pos, av.state.pos) < 0.9 && Math.abs(a.pos.y - av.state.pos.y - 1) < 1.4) {
+        hit = true;
+        if (!av.state.carry) {
+          const p = NET.peers.get(av.via);
+          if (p && NET.role === "host") netSend(p, { t: "ehit", to: av.id, dmg: 1, k: "arrow", x: +a.pos.x.toFixed(1), z: +a.pos.z.toFixed(1) });
+        }
+      }
       if (hit || a.life <= 0 || a.pos.y < groundAt(a.pos.x, a.pos.z, a.pos.y)) { scene.remove(a.mesh); GOB_ARROWS.splice(i, 1); }
     }
   }
@@ -13126,9 +13236,10 @@ const __boot = (async () => {
     // and that enemy would walk off after somebody 280 metres above its own ceiling. this is the same two-realm test
     // the enemy snapshot already uses, applied where the chasing is decided.
     const realm = q => (q.y < DIVIDE) === (p.y < DIVIDE);
-    // a dead host is no prey, and neither is one standing in the other world
-    let best = { pos: P.pos, id: null, state: P }, bd = death || !realm(P.pos) ? 1e9 : dist2D(P.pos, p);
-    for (const a of NET.avatars.values()) { if (a.state.dead || !realm(a.state.pos)) continue; const d = dist2D(a.state.pos, p); if (d < bd) { bd = d; best = { pos: a.state.pos, id: a.id, state: a.state }; } }
+    // a dead host is no prey, and neither is one standing in the other world, or one carrying Ysolde
+    const carrying = typeof isCarryingBody === "function" && isCarryingBody();
+    let best = { pos: P.pos, id: null, state: P }, bd = death || !realm(P.pos) || carrying ? 1e9 : dist2D(P.pos, p);
+    for (const a of NET.avatars.values()) { if (a.state.dead || !realm(a.state.pos) || a.state.carry) continue; const d = dist2D(a.state.pos, p); if (d < bd) { bd = d; best = { pos: a.state.pos, id: a.id, state: a.state }; } }
     return best;
   }
   // a goblin's step: straight at you first, then wider and wider either side. the wide fan only opens once it has
@@ -13239,7 +13350,7 @@ const __boot = (async () => {
         alive = goblins.filter(g => g.alive).length;
       // nothing new comes up out of the ground while she is being carried over it: the walk is the content, and a
       // player who cannot swing has no answer to a pack of seven
-      if (!netGuest() && !wardenFightActive() && !P.carry && night && alive < cap && performance.now() - startedAt > TUNE.goblins.spawnGrace * 1000)
+      if (!netGuest() && !wardenFightActive() && !isCarryingBody() && night && alive < cap && performance.now() - startedAt > TUNE.goblins.spawnGrace * 1000)
         for (let tries = 0; tries < 8; tries++) {
           const around = [P.pos, ...[...NET.avatars.values()].filter(a => !a.state.dead).map(a => a.state.pos)], c = around[Math.floor(Math.random() * around.length)]; // a pack forms near any one of the players
           const a = Math.random() * 6.28,
@@ -13357,9 +13468,10 @@ const __boot = (async () => {
         g.heading = base;
         return false;
       };
+      if (isCarryingBody() && (g.state === "chase" || g.state === "windup" || g.state === "balk")) g.state = "lurk";
       switch (g.state) {
         case "lurk":
-          if (dist < TUNE.goblins.chaseRange) g.state = "chase";
+          if (!isCarryingBody() && dist < TUNE.goblins.chaseRange) g.state = "chase";
           else if (g.leader && g.leader.alive && dist2D(g.leader.pos, g.pos) > 4.5)
             move(g.leader.pos.x, g.leader.pos.z, 5);
           break;
@@ -13394,7 +13506,7 @@ const __boot = (async () => {
             break;
           }
           if (g.balkT <= 0) {
-            g.state = "chase";
+            g.state = isCarryingBody() ? "lurk" : "chase";
             g.blockedT = 0;
             break;
           }
@@ -13425,17 +13537,17 @@ const __boot = (async () => {
           }
           break;
         case "rest":
-          if (g.t <= 0) g.state = "chase";
+          if (g.t <= 0) g.state = isCarryingBody() ? "lurk" : "chase";
           break;
         case "reload": // an archer nocking the next arrow: still, and open to a blow
           g.heading = Math.atan2(dx, dz);
-          if (g.t <= 0) g.state = "chase";
+          if (g.t <= 0) g.state = isCarryingBody() ? "lurk" : "chase";
           break;
         case "stun":
           g.pos.x += g.vel.x * dt;
           g.pos.z += g.vel.z * dt;
           g.vel.multiplyScalar(Math.pow(0.02, dt));
-          if (g.t <= 0) g.state = "chase";
+          if (g.t <= 0) g.state = isCarryingBody() ? "lurk" : "chase";
           break;
       }
       resolveStructs(g.pos, 0.5);
@@ -13477,7 +13589,7 @@ const __boot = (async () => {
   //   block/blockT/blockCd: shield up, how long, and its rest; dodge/dodgeDur/inv: a dodge in progress and invulnerability seconds; flurry: the counter window
   //   jumps: jumps used since landing; airSlash/dive: aerial attacks; hurt: red flash; kills/gkills: slimes and goblins killed; steps: paces walked
   //   herbs/flint: quest items; lookY: head turn toward a nearby enemy; landSquash: landing bounce; splashT: splash cooldown; lying/lieY: asleep in a bed and how high
-  const P = {
+  P = {
     pos: V3(0, PLATEAU, TOWN_R + 12),
     vel: V3(),
     grounded: true,
@@ -14484,7 +14596,7 @@ const __boot = (async () => {
         }
       if (P.flint && typeof flintMesh !== "undefined") flintMesh.visible = false;
       for (const i of d.herbsTaken || []) { const h = herbs[i]; if (h && !h.taken) { h.taken = true; h.mesh.visible = false; h.glow.intensity = 0; } }
-      if (WORLDSTATE.blackPoolAwake && !WORLDSTATE.ending && POOL_DARK) { POOL_DARK.visible = true; if (POOL_RUNE) POOL_RUNE.material.emissiveIntensity = 2.2; }
+      if (WORLDSTATE.blackPoolAwake && !WORLDSTATE.ending && !isGameBeaten() && POOL_DARK) { POOL_DARK.visible = true; if (POOL_RUNE) POOL_RUNE.material.emissiveIntensity = 2.2; }
       if (WORLDSTATE.pyreDismantled && PYRE_GROUP && PYRE_GROUP.parent) scene.remove(PYRE_GROUP);
       if (WORLDSTATE.guardsOut) guardsOutside();
       if (WORLDSTATE.home) buildHomeShelf();
@@ -14494,8 +14606,9 @@ const __boot = (async () => {
       { const mq = SIDE.find(q => q.giver === MILLER); if (mq && mq.done) millerToBed(); } // ysolde's father asleep in his bed
       if (WORLDSTATE.wolfChoice === "goblins" && !STORY.wolfDone && STORY.campLeft > 0) makeGoblinCamp();
       if (WORLDSTATE.ending) { if (POOL_STONE) POOL_STONE.mark.material.emissiveIntensity = WORLDSTATE.ending === "bind" ? 3 : 0; applyEndingWorld(); }
-      if (WORLDSTATE.finaleStarted && !WORLDSTATE.wardenDead && !WORLDSTATE.ending && !netGuest()) { spawnWarden(); say("The water in the middle of the pool is still rising. It has not forgotten you.", 5000, true, "dark"); } // the fight resumes from the top after a load
-      if (WORLDSTATE.wardenDead && !WORLDSTATE.ending && POOL_STONE) POOL_STONE.mark.material.emissiveIntensity = 2.5;
+      if (isGameBeaten()) settleWorldAfterGame();
+      if (WORLDSTATE.finaleStarted && !WORLDSTATE.wardenDead && !WORLDSTATE.ending && !isGameBeaten() && !netGuest()) { spawnWarden(); say("The water in the middle of the pool is still rising. It has not forgotten you.", 5000, true, "dark"); } // the fight resumes from the top after a load
+      if (WORLDSTATE.wardenDead && !WORLDSTATE.ending && !isGameBeaten() && POOL_STONE) POOL_STONE.mark.material.emissiveIntensity = 2.5;
       // the burial, rebuilt. restoring the carry is the only answer that is both consistent and finishable: leaving
       // her floating at the pool with the flag set strands the chain, and clearing the flag hands the player back a
       // body they have already lifted. she is either on the shoulder or under the mound, never both and never neither.
@@ -14772,8 +14885,9 @@ const __boot = (async () => {
   const cameraFollow = { ready: false, player: P.pos.clone(), yaw: 0, pitch: 0.4, rotation: new THREE.Quaternion() };
   function followCameraTravel() {
     // Portals and respawns move the camera by the same amount as the player.
-    // Chasing across the old world position can carry the view through their head.
-    if (cameraFollow.ready && cameraFollow.player.distanceToSquared(P.pos) > 24 * 24) {
+    // Only snap for genuine large teleports (> 16 units); smaller glitches are
+    // absorbed by the lerp so a single bad frame cannot whip the camera 180°.
+    if (cameraFollow.ready && cameraFollow.player.distanceToSquared(P.pos) > 16 * 16) {
       camera.position.x += P.pos.x - cameraFollow.player.x;
       camera.position.y += P.pos.y - cameraFollow.player.y;
       camera.position.z += P.pos.z - cameraFollow.player.z;
@@ -14781,16 +14895,11 @@ const __boot = (async () => {
     cameraFollow.player.copy(P.pos);
   }
   function steadyCameraLookAt(dt, x, y, z) {
-    cameraFollow.rotation.copy(camera.quaternion);
+    // Direct lookAt — no quaternion slerp. The slerp was the source of the
+    // random 180° flip: when geometry pushed the target yaw past ±π the
+    // shortest-arc clamp chose the wrong hemisphere and snapped the view.
+    // Simple lookAt is frame-stable and smooth enough at lerp * 9.
     camera.lookAt(x, y, z);
-    if (cameraFollow.ready) {
-      // Mouse, touch and key turns keep their input allowance. Geometry-induced
-      // turns take the shortest arc at a gentle speed, including after a long frame.
-      const inputTurn = Math.hypot(wrapAngle(camYaw - cameraFollow.yaw), camPitch - cameraFollow.pitch);
-      const allowance = inputTurn + 0.65 * clamp(dt, 0, 0.05);
-      cameraFollow.rotation.rotateTowards(camera.quaternion, allowance);
-      camera.quaternion.copy(cameraFollow.rotation);
-    }
     cameraFollow.yaw = camYaw; cameraFollow.pitch = camPitch; cameraFollow.ready = true;
   }
   addEventListener("keydown", e => {
@@ -15517,6 +15626,7 @@ const __boot = (async () => {
     e.hp -= dmg;
     netConfirmPractice(from, dmg);
     e.flash = 0.12;
+    if (e.kind === "kindly" && typeof GEH !== "undefined") GEH.lampFlash = 0.28;
     if ((!e.boss || big) && !(e.kind === "kindly" && (e.state === "windup" || e.state === "strike"))) {
       e.state = "stun";
       e.t = e.boss ? 0.25 : big ? 0.5 : 0.3;
@@ -15605,6 +15715,7 @@ const __boot = (async () => {
       // no strength, no tally, no kill line. it never wanted anything and it never took anything that was not given
       // to it, and there is nothing in eight hundred years of other people's property that is worth a sentence.
       GEH.heapDown = WORLDSTATE.gehHeapDown = true;
+      if (typeof gehUpdateRoadWidth === "function") gehUpdateRoadWidth();
       autoSave("the Unclaimed store is open");
       if (e.ring) e.ring.visible = false;
       if (e.thrown) e.thrown.visible = false;
@@ -16420,7 +16531,7 @@ const __boot = (async () => {
   const GEH_NET_KINDS = ["attached", "almoner", "matron", "unclaimed", "kindly", "lucifer"];
   const netGehennaSeed = n => Number.isInteger(n) && n > 0 && n <= 999999;
   const netGehennaBelow = p => p && Number.isFinite(p.y) && p.y < DIVIDE;
-  const netGehennaRoom = p => netGehennaBelow(p) && Math.abs(p.x - (GEH.cx - 85)) < 25 && Math.abs(p.z - (GEH.cz + 60)) < 25;
+  const netGehennaRoom = p => netGehennaBelow(p) && Math.abs(p.x - (GEH.cx + GEH_PRIDE_X)) < 240 && Math.abs(p.z - (GEH.cz + GEH_PRIDE_Z)) < 240;
   const netGehennaActor = tgt => tgt && tgt.id ? NET.avatars.get(tgt.id)?.state : P;
   const netGehennaAlive = tgt => { const s = netGehennaActor(tgt); return !!s && netGehennaBelow(s.pos) && (s === P ? !death && !P.gehDive : !s.dead); };
   function netGehennaActive() {
@@ -16580,6 +16691,7 @@ const __boot = (async () => {
       }
       if (!e) continue;
       e.gehNetId = r.id; e.gehMirror = true; e.netRow = r; e.alive = !!r.alive;
+      if (e.kind === "kindly" && r.hp < e.hp) { e.flash = 0.12; if (typeof GEH !== "undefined") GEH.lampFlash = 0.28; }
       e.hp = r.hp; e.maxHp = r.max; e.state = r.s; e.t = r.t; e.heading = r.h; e.armed = !!r.armed;
       e.phase = r.phase; e.tier = r.tier; e.guard = r.guard; e.atk = r.atk; e.tellR = r.tellR; e.heat = r.heat;
       e.scenePhase = r.scenePhase; e.sceneT = r.sceneT; e.beat = r.beat; e.bodyScale = r.bodyScale || e.bodyScale;
@@ -16593,7 +16705,7 @@ const __boot = (async () => {
     netGehennaSetTransform(GEH.godHand, s.hand);
     netGehennaGrant();
     if (s.finale && s.finale.epoch === s.fightEpoch && Number.isFinite(s.finale.t) && Array.isArray(s.finale.members)) {
-      GEH.netFinale = { t: clamp(s.finale.t, 0, 18), scale: clamp(+s.finale.scale || 0.62, 0.62, 2.4), handY: Number.isFinite(s.finale.handY) ? s.finale.handY : GEH.floor + 14, members: s.finale.members.slice(0, 32) };
+      GEH.netFinale = { t: clamp(s.finale.t, 0, GEH_END_TOTAL), scale: clamp(+s.finale.scale || 0.62, 0.62, 2.4), handY: Number.isFinite(s.finale.handY) ? s.finale.handY : GEH.floor + 14, members: s.finale.members.slice(0, 32) };
       if (s.finale.members.includes(NET.myId) && !NET.gehFinaleLocal && netGehennaRoom(P.pos)) gehLuciferDown(true);
     }
   }
@@ -16620,7 +16732,7 @@ const __boot = (async () => {
   }
   function netGehennaDamage(e, dmg, from, kb, big) {
     if (!netGuest() || !netGehennaBelow(e.pos)) return false;
-    if (from === P.pos && e.gehNetId) { const peer = NET.peers.get("host"); if (peer) netSend(peer, { t: "ged", seed: WORLDSTATE.gehSeed, id: e.gehNetId, dmg, kb, big: !!big, epoch: GEH.luciferFight?.epoch || 0 }); e.flash = 0.12; }
+    if (from === P.pos && e.gehNetId) { const peer = NET.peers.get("host"); if (peer) netSend(peer, { t: "ged", seed: WORLDSTATE.gehSeed, id: e.gehNetId, dmg, kb, big: !!big, epoch: GEH.luciferFight?.epoch || 0 }); e.flash = 0.12; if (e.kind === "kindly" && typeof GEH !== "undefined") GEH.lampFlash = 0.28; }
     return true;
   }
   function netGehennaEffect(tgt, kind, data) {
@@ -16651,6 +16763,11 @@ const __boot = (async () => {
       } else {
         if (time - (peer.gehTalkAt ?? -Infinity) < 0.3) return true;
         if (m.action === "lucifer") { if (m.epoch !== (GEH.fightEpoch || 0) || !netGehennaRoom(a.state.pos)) return true; peer.gehTalkAt = time; gehInteractLucifer(a.state); }
+        else if (m.action === "pride") {
+          if (!GEH.kingdom || netGehennaRoom(a.state.pos) || dist2D(a.state.pos, GEH.kingdom.portal) > GEH_PRIDE_GATE_R) return true;
+          peer.gehTalkAt = time;
+          if (!gehPrideAway().length) gehPrideEnterAll();
+        }
         else if (m.action === "talk" && ["clerk", "kindly"].includes(m.id)) {
           const s = GEH_SCRIPT.netSpeaker(m.id);
           if (!s || dist2D(a.state.pos, s.pos) > 4.8 || Math.abs(a.state.pos.y - s.pos.y) > 5) return true;
@@ -16669,6 +16786,7 @@ const __boot = (async () => {
     }
     if (m.t !== "gfx" || m.to !== NET.myId || !netGehennaBelow(P.pos) || death) return true;
     if (m.kind === "setdown" && [m.x, m.y, m.z].every(Number.isFinite) && m.y < DIVIDE && dist2D(P.pos, m) < 12) { P.pos.set(m.x, m.y, m.z); P.vel.set(0, 0, 0); P.grounded = true; lastSafeGeh.copy(P.pos); }
+    else if (m.kind === "pride") { if (!GEH.inPride && GEH.kingdom && !GEH.kingdom.transit) gehPrideTransit(true); }
     else if (m.kind === "mended") P.stam = stamMax();
     else if (m.kind === "strike" && [m.x, m.y, m.z, m.dmg].every(Number.isFinite) && m.y < DIVIDE) {
       if (enemyPerfectDodge(m.pierce === true)) return true;
@@ -16678,15 +16796,53 @@ const __boot = (async () => {
     }
     return true;
   }
+  // the last scene, on one clock that every client runs from the same f.t. nobody speaks over it: the hand comes
+  // down through the two of them, closes, and lifts away with both inside it, and then the white room follows them
+  // out a shade at a time until there is nothing left to light. the five seconds of black after that are held
+  // deliberately — see the GEH_END_* constants.
   function netGehennaFinaleTick(dt) {
     const f = GEH.netFinale, e = GEH.lucifer;
     if (!f || !e || !GEH.godHand) return;
-    f.t = Math.min(18, f.t + dt);
+    f.t = Math.min(GEH_END_TOTAL, f.t + dt);
     e.sceneT = f.t;
-    e.scenePhase = f.t < 18 ? "release" : "released";
-    gehPoseLucifer(e, "release", lerp(f.scale, 0.62, smooth(clamp(f.t / 3, 0, 1))), time);
-    GEH.godHand.position.y = lerp(f.handY, e.pos.y + 35, smooth(clamp(f.t / 5, 0, 1)));
-    GEH.godHand.visible = f.t < 5;
+    e.scenePhase = f.t < GEH_END_TOTAL ? "release" : "released";
+    const taken = f.t >= GEH_END_CRUSH;
+    gehPoseLucifer(e, "release", lerp(f.scale, 0.62, smooth(clamp(f.t / 1.5, 0, 1))), time);
+    e.mesh.visible = !taken;
+    const down = smooth(clamp(f.t / GEH_END_CRUSH, 0, 1)), away = smooth(clamp((f.t - GEH_END_CRUSH) / 2.6, 0, 1));
+    GEH.godHand.position.y = lerp(lerp(f.handY, e.pos.y - 1.2, down), GEH.floor + 46, away);
+    GEH.godHand.visible = f.t < GEH_END_DARK;
+    if (taken && !GEH.endStruck) {
+      GEH.endStruck = true;
+      shake = Math.max(shake, 1.1);
+      SFX.tone(44, 900, 2.6, 0.2, "sine", 0, 380);
+    }
+    // everything from here down is this player's view of the scene, and the guard on it is the phase rather than a
+    // flag on f: a guest's f is replaced wholesale by every host snapshot. without it the clock kept blacking the
+    // screen, dimming the room and re-asking the question on every frame after the answer was given — which is
+    // exactly what made both endings look broken, and what left Stay sitting on a black screen for ever.
+    const watching = AFTERLIFE.phase === "release";
+    const dark = smooth(clamp((f.t - GEH_END_CRUSH) / (GEH_END_DARK - GEH_END_CRUSH), 0, 1));
+    if (watching) {
+      // the player goes up with him. only the people in the room for it lose their body and their controls.
+      hero.visible = !taken;
+      if (taken) { P.vel.set(0, 0, 0); P.atk = null; P.block = false; inputLock = true; }
+      GEH.prideDark = dark;
+      if (GEH.inPride) {
+        gehPrideShade(dark);
+        if (GEH.prideRoom) {
+          // the white world drops out from under the scene while it darkens, shaking itself apart as it goes.
+          const q = dark * (1 - dark) * 2.4;
+          GEH.prideRoom.position.set((Math.random() - 0.5) * q, -dark * dark * 34 + (Math.random() - 0.5) * q, (Math.random() - 0.5) * q);
+        }
+        if (dark > 0.01 && dark < 0.995) shake = Math.max(shake, 0.25 + dark * 0.55);
+      }
+      if (f.t >= GEH_END_FADE) {
+        const fadeEl = document.getElementById("fade");
+        if (fadeEl) fadeEl.style.opacity = "1";
+      }
+      if (f.t >= GEH_END_CHOICE) showAfterlifeChoice();
+    }
     gehPrideChildren(f.t);
   }
 
@@ -16822,7 +16978,7 @@ const __boot = (async () => {
     // arrived here, where the first line returns on any invulnerability at all — so rolling through it dealt ZERO.
     // it took the flurry reward away and left the immunity, which is the exact opposite of the intent. it ignores the
     // 0.32 s a roll grants and still respects the 0.9 s after an ordinary hit, so it cannot chain-stun.
-    if ((P.inv > 0 && !(pierce && P.dodge > 0)) || death) return;
+    if ((P.inv > 0 && !(pierce && P.dodge > 0)) || death || isCarryingBody()) return;
     dmg *= (1 / (1 + Math.max(0, heroLevel() - 1) * TUNE.combat.damagePerHeroLevel)) * (P.bonus.guard || 1);
     FAIRY.idle = 0;
     FAIRY.healing = false;
@@ -16863,9 +17019,16 @@ const __boot = (async () => {
   // point is to take away the one move that trivialises a slow boss, not to take away every move.
   function enemyStrike(e, dmg, tgt, kb = 1, pierce = false) {
     if ((e.pos.y < DIVIDE) !== ((tgt ? tgt.pos : P.pos).y < DIVIDE)) return;
+    if (isCarryingBody()) return;
     dmg *= difficulty(); // the valley hits harder the further you have come
     if (netGehennaBelow(e.pos) && netGehennaEffect(tgt, "strike", { dmg: +dmg.toFixed(2), x: e.pos.x, y: e.pos.y, z: e.pos.z, kb, pierce, nonlethal: e.kind === "kindly" })) return;
-    if (tgt && tgt.id) { const a = NET.avatars.get(tgt.id); const p = a && NET.peers.get(a.via); if (p) netSend(p, { t: "ehit", to: tgt.id, dmg: +dmg.toFixed(2), k: e.kind, x: +e.pos.x.toFixed(1), z: +e.pos.z.toFixed(1), big: !!e.big, kb: +kb.toFixed(2), pierce: pierce === true }); return; }
+    if (tgt && tgt.id) {
+      const a = NET.avatars.get(tgt.id);
+      if (a && a.state && a.state.carry) return;
+      const p = a && NET.peers.get(a.via);
+      if (p) netSend(p, { t: "ehit", to: tgt.id, dmg: +dmg.toFixed(2), k: e.kind, x: +e.pos.x.toFixed(1), z: +e.pos.z.toFixed(1), big: !!e.big, kb: +kb.toFixed(2), pierce: pierce === true });
+      return;
+    }
     const dx = P.pos.x - e.pos.x,
       dz = P.pos.z - e.pos.z,
       dist = Math.hypot(dx, dz) || 1,
@@ -16926,8 +17089,11 @@ const __boot = (async () => {
     SFX.tone(70, 30, 0.9, 0.3, "sawtooth", 0, 300);
   }
   // how far the camera arm can reach before it would pass into a wall, a pillar, a ring of rock or a tree trunk:
-  // sample points along the arm and stop at the first one a collider would push aside, so the camera never looks at you through solid stone
+  // sample points along the arm and stop at the first one a collider would push aside, so the camera never looks at you through solid stone.
+  // skip entirely in the open world — the same short-circuit rayCameraArm already uses — to avoid ~37 resolveStructs +
+  // pushOutOfTrees lookups per frame that accomplish nothing outdoors.
   function clearCameraArm(maxDist) {
+    if (!roomNow && caveK <= 0.2 && P.pos.y >= DIVIDE) return maxDist;
     const sy = Math.sin(camPitch), cxz = Math.cos(camPitch), dx = Math.sin(camYaw) * cxz, dz = Math.cos(camYaw) * cxz, hy = visY + 2.2;
     for (let d = 1.2; d <= maxDist; d += 0.4) {
       const q = { x: P.pos.x + dx * d, y: hy + sy * d - 1.2, z: P.pos.z + dz * d }, x0 = q.x, z0 = q.z;
@@ -16936,6 +17102,9 @@ const __boot = (async () => {
       const t = { x: x0, y: q.y, z: z0 };
       pushOutOfTrees(t, 0.35);
       if (Math.abs(t.x - x0) > 0.01 || Math.abs(t.z - z0) > 0.01) return Math.max(1.2, d - 0.6);
+      const l = { x: x0, y: q.y, z: z0 };
+      pushOutOfLucifer(l, 0.35);
+      if (Math.abs(l.x - x0) > 0.01 || Math.abs(l.z - z0) > 0.01) return Math.max(1.2, d - 0.6);
     }
     return maxDist;
   }
@@ -16975,6 +17144,7 @@ const __boot = (async () => {
   // ============================================================ 2.0: the pool wakes, the valley answers, the end is chosen
   let storyT = 0, reportedAt = 0;
   function awakenPool() {
+    if (typeof isGameBeaten === "function" && isGameBeaten()) return;
     if (WORLDSTATE.blackPoolAwake && POOL_DARK && POOL_DARK.visible) return; // already awake and showing it
     WORLDSTATE.blackPoolAwake = true; WORLDSTATE.awokeAt = time;
     if (POOL_DARK) POOL_DARK.visible = true;
@@ -17445,6 +17615,7 @@ const __boot = (async () => {
     }
     function bossDown() {
       WORLDSTATE.gehDone = true;
+      if (typeof gehUpdateRoadWidth === "function") gehUpdateRoadWidth();
       state.fight = false;
       for (const s of speakers) if (s.id === "kindly") s.leaving = true;
       giveLedger();
@@ -17464,6 +17635,7 @@ const __boot = (async () => {
     }
     function almonerDown() {
       WORLDSTATE.gehAlmonerDown = true;
+      if (typeof gehUpdateRoadWidth === "function") gehUpdateRoadWidth();
       queue([["", "The cart tips over: a shoe, a comb, a child's wooden horse. The first gate opens."], ["The Matron", "Leave the people in my ward alone."]]);
       autoSave("the Almoner's gate is open");
     }
@@ -17473,6 +17645,7 @@ const __boot = (async () => {
     }
     function matronDown() {
       WORLDSTATE.gehMatronDown = true;
+      if (typeof gehUpdateRoadWidth === "function") gehUpdateRoadWidth();
       queue([["", "She falls while straightening a collar. Beyond her ward, the Caller waits beside the store of surrendered things."]]);
       autoSave("the Matron's ward is open");
     }
@@ -17684,6 +17857,10 @@ const __boot = (async () => {
     const g = new THREE.Group();
     g.name = "gehenna";
     GEH.root = g;
+    const cityGroup = new THREE.Group();
+    cityGroup.name = "gehenna-city";
+    g.add(cityGroup);
+    GEH.cityRoot = cityGroup;
     GEH.mats = [];
     GEH.lampPos = [];
     GEH.enemies = [];
@@ -17727,9 +17904,7 @@ const __boot = (async () => {
       const ASH = toLin(0x14120f), EMBER = toLin(0x8e1605), ROAD = toLin(0x2d2823), YARD = toLin(0x3a342d), DEEPC = toLin(0x050409);
       for (let i = 0; i < n; i++) {
         const x = GEH.cx + pa.getX(i), z = GEH.cz + pa.getZ(i), h = gehH(x, z);
-        const underGarden = x > GEH.cx - 111 && x < GEH.cx - 59 && z > GEH.cz + 34 && z < GEH.cz + 86;
-        // The separate garden mesh resolves its banks every half metre; coarse ash must not cut through it.
-        pa.setY(i, underGarden ? GEH.floor + 5.6 : Number.isFinite(h) ? h : GEH.floor);
+        pa.setY(i, Number.isFinite(h) ? h : GEH.floor);
         const dx = x - GEH.cx, dz = z - GEH.cz, r = Math.hypot(dx, dz);
         let cr = ASH.r, cg = ASH.g, cb = ASH.b;
         const onRoad = dx > GEH_L.roadX0 - 4 && dx < GEH_L.roadX1 + 4 ? 1 - clamp((Math.abs(dz) - GEH_L.roadW) / 2.6, 0, 1) : 0;
@@ -17754,7 +17929,33 @@ const __boot = (async () => {
       const floor = new THREE.Mesh(geo, M.ground);
       floor.position.set(GEH.cx, 0, GEH.cz);
       floor.name = "geh-ground";
-      g.add(floor);
+      cityGroup.add(floor);
+      GEH.groundGeo = geo;
+    }
+    function gehUpdateRoadWidth() {
+      if (!GEH.groundGeo) return;
+      const geo = GEH.groundGeo;
+      const pa = geo.attributes.position, ca = geo.attributes.color;
+      if (!pa || !ca) return;
+      const n = pa.count;
+      const ASH = toLin(0x14120f), EMBER = toLin(0x8e1605), ROAD = toLin(0x2d2823), YARD = toLin(0x3a342d), DEEPC = toLin(0x050409);
+      for (let i = 0; i < n; i++) {
+        const x = GEH.cx + pa.getX(i), z = GEH.cz + pa.getZ(i), h = gehH(x, z);
+        const dx = x - GEH.cx, dz = z - GEH.cz, r = Math.hypot(dx, dz);
+        let cr = ASH.r, cg = ASH.g, cb = ASH.b;
+        const onRoad = dx > GEH_L.roadX0 - 4 && dx < GEH_L.roadX1 + 4 ? 1 - clamp((Math.abs(dz) - GEH_L.roadW) / 2.6, 0, 1) : 0;
+        if (onRoad > 0) { cr = lerp(cr, ROAD.r, onRoad); cg = lerp(cg, ROAD.g, onRoad); cb = lerp(cb, ROAD.b, onRoad); }
+        const yk = 1 - clamp((Math.hypot(dx - GEH_L.yardX, dz) - GEH_L.yardR) / 3, 0, 1);
+        if (yk > 0) { cr = lerp(cr, YARD.r, yk); cg = lerp(cg, YARD.g, yk); cb = lerp(cb, YARD.b, yk); }
+        const v = Math.abs(fbm(x * 0.05 + GEH.seed, z * 0.05 + GEH.seed, 2) - 0.5);
+        const crack = Math.pow(clamp(1 - v / 0.058, 0, 1), 1.7) * (0.55 + 0.45 * fbm(x * 0.21, z * 0.21, 2));
+        if (crack > 0.002) { cr = lerp(cr, EMBER.r, crack); cg = lerp(cg, EMBER.g, crack); cb = lerp(cb, EMBER.b, crack); }
+        if (r < GEH_L.dishR) { const k = Math.pow(1 - r / GEH_L.dishR, 0.7); cr = lerp(cr, DEEPC.r, k); cg = lerp(cg, DEEPC.g, k); cb = lerp(cb, DEEPC.b, k); }
+        const hx = gehH(x + 2.4, z) - gehH(x - 2.4, z), hz = gehH(x, z + 2.4) - gehH(x, z - 2.4);
+        const sh = clamp(0.9 - Math.hypot(hx, hz) * 0.09 + hx * 0.035 + clamp((GEH.floor + 1 - h) / 7, -0.25, 0.3), 0.25, 1.35);
+        ca.setXYZ(i, cr * sh, cg * sh, cb * sh);
+      }
+      ca.needsUpdate = true;
     }
     await __stage(46, "Something moves under the water…");
 
@@ -17764,7 +17965,7 @@ const __boot = (async () => {
       const w = new THREE.Mesh(new THREE.CircleGeometry(GEH_L.dishR - 0.4, 40), M.water);
       w.rotation.x = -Math.PI / 2;
       w.position.set(GEH.cx, GEH.floor + GEH_L.waterY, GEH.cz);
-      g.add(w);
+      cityGroup.add(w);
       GEH.water = w;
       const rg = new THREE.RingGeometry(1.2, GEH_L.yardR - 0.5, 64, 9);
       rg.rotateX(-Math.PI / 2);
@@ -17777,7 +17978,7 @@ const __boot = (async () => {
       const ring = new THREE.Mesh(rg, M.sweep);
       ring.position.set(GEH.cx + GEH_L.yardX, gehH(GEH.cx + GEH_L.yardX, GEH.cz) + 0.04, GEH.cz);
       ring.renderOrder = 1;
-      g.add(ring);
+      cityGroup.add(ring);
     }
 
     // ---- the rows. twenty-two houses, identical, flat-roofed, one door each and not one window, because a window is
@@ -17796,7 +17997,7 @@ const __boot = (async () => {
           // InstancedMesh instance whose matrix is never set keeps the identity matrix, which would have drawn a
           // brick box, a roof and a door at the world origin — in the middle of the valley, nine hundred metres up.
           if (s === GEH_L.roomS && i === GEH_L.roomI) {
-            gehBuildRoom(g, M, cx, cz, y, s ? -1 : 1);
+            gehBuildRoom(cityGroup, M, cx, cz, y, s ? -1 : 1);
             pos.set(cx, y, cz); mm4.compose(pos, q, sc0);
             body.setMatrixAt(k, mm4); roof.setMatrixAt(k, mm4); door.setMatrixAt(k, mm4);
             continue;
@@ -17807,7 +18008,7 @@ const __boot = (async () => {
           gehAddStruct({ cx, cz, w: GEH_L.houseW, d: GEH_L.houseD, top: y + GEH_L.houseH + 0.22, b: GEH_L.houseW + 0.3 });
         }
       body.instanceMatrix.needsUpdate = roof.instanceMatrix.needsUpdate = door.instanceMatrix.needsUpdate = true;
-      g.add(body, roof, door);
+      cityGroup.add(body, roof, door);
     }
     await __stage(60, "Something moves under the water…");
 
@@ -17822,7 +18023,7 @@ const __boot = (async () => {
         pos.set(cx, gehH(cx, cz) + 0.1, cz); mm4.compose(pos, q, sc); kerb.setMatrixAt(i, mm4);
       }
       kerb.instanceMatrix.needsUpdate = true;
-      g.add(kerb);
+      cityGroup.add(kerb);
       const LP = [];
       for (let i = 0; i < 8; i++) { const cx = GEH.cx + 20 + i * 14, cz = GEH.cz + (i % 2 ? 5.6 : -5.6); LP.push(V3(cx, gehH(cx, cz), cz)); }
       LP.push(V3(GEH.cx + GEH_L.yardX, gehH(GEH.cx + GEH_L.yardX, GEH.cz + 8.5), GEH.cz + 8.5));
@@ -17835,7 +18036,7 @@ const __boot = (async () => {
         GEH.lampPos.push(V3(LP[i].x, LP[i].y + 3.3, LP[i].z));
       }
       post.instanceMatrix.needsUpdate = head.instanceMatrix.needsUpdate = true;
-      g.add(post, head);
+      cityGroup.add(post, head);
       const hx = GEH.cx + GEH_L.hillX, hz = GEH.cz, hy = gehH(hx, hz);
       const desk = new THREE.Group();
       desk.position.set(hx, hy, hz);
@@ -17850,7 +18051,7 @@ const __boot = (async () => {
       led.position.set(0, 1.03, 0);
       led.rotation.y = 0.14;
       desk.add(top, led, legs[0], legs[1], legs[2], legs[3]);
-      g.add(desk);
+      cityGroup.add(desk);
       GEH.ledger = led;
       gehAddStruct({ cx: hx, cz: hz, w: 1.15, d: 0.6, top: hy + 1.0, b: 1.2 });
     }
@@ -17873,7 +18074,7 @@ const __boot = (async () => {
         pos.set(cx, y + 1.19, cz); mm4.compose(pos, q, sc); headM.setMatrixAt(i, mm4);
       }
       bodyM.instanceMatrix.needsUpdate = headM.instanceMatrix.needsUpdate = true;
-      g.add(bodyM, headM);
+      cityGroup.add(bodyM, headM);
       // the seated stay geometry and nothing else, but where they are is wanted twice: the almoner kneels among them
       // in his last phase, and it is the list the matron's four are chosen out of. world coordinates, built once.
       GEH.seats = SEATS.map((s, i) => { const x = GEH.cx + s[0], z = GEH.cz + s[1]; return { i, x, y: gehH(x, z), z, face: s[2] }; });
@@ -17891,7 +18092,7 @@ const __boot = (async () => {
       pg.setAttribute("position", new THREE.BufferAttribute(arr, 3));
       const pts = new THREE.Points(pg, M.mote);
       pts.frustumCulled = false;
-      g.add(pts);
+      cityGroup.add(pts);
       GEH.motes = pts;
     }
     await __stage(76, "Something moves under the water…");
@@ -17931,7 +18132,7 @@ const __boot = (async () => {
           grp.add(shaft, bristle);
         }
         grp.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
-        g.add(grp);
+        cityGroup.add(grp);
         return { grp, pos: V3(x, y, z) };
       };
       const sweeper = fig(GEH_L.sweeperX, 4.6, { robe: M.grey, broom: true, face: -2.3 });
@@ -17972,7 +18173,7 @@ const __boot = (async () => {
         shutter.position.set(0, 2.24, 2.06);
         shutter.rotation.x = -0.62;
         lodge.add(below, above, jambL, jambR, sideL, sideR, lid, sill, shutter);
-        g.add(lodge);
+        cityGroup.add(lodge);
         hatchShutter = shutter;
         gehAddStruct({ cx: lx, cz: lz, w: 2.2, d: 1.8, top: ly + 3.12, b: 2.5 });
         // every box has a tag, because that is the whole of his argument: this place has had everybody, and it wrote
@@ -18009,7 +18210,7 @@ const __boot = (async () => {
         axle.rotation.z = Math.PI / 2;
         axle.position.y = 0.34;
         cart.add(tray, load, axle);
-        g.add(cart);
+        cityGroup.add(cart);
       }
 
       // ---- the yard: the post, the board, and the queue standing round it in two arcs. this is the first time the
@@ -18036,7 +18237,7 @@ const __boot = (async () => {
         }
         slips.instanceMatrix.needsUpdate = true;
         post.add(slips);
-        g.add(post);
+        cityGroup.add(post);
         GEH.slips = slips;
         gehAddStruct({ cx: px, cz: pz, r: 0.3, top: py + 2.95, b: 0.7 });
         // the arc spans 0.28pi to 0.72pi and starts at a radius of 6.4, and both ends of that were measured rather
@@ -18056,7 +18257,7 @@ const __boot = (async () => {
           pos.set(qx, qy + 1.92, qz); mm4.compose(pos, q, sc); qHead.setMatrixAt(i, mm4);
         }
         qBody.instanceMatrix.needsUpdate = qHead.instanceMatrix.needsUpdate = true;
-        g.add(qBody, qHead);
+        cityGroup.add(qBody, qHead);
       }
 
       const porter = fig(30.8, -3.8, { robe: M.grey, face: 0 });
@@ -18086,7 +18287,7 @@ const __boot = (async () => {
       lg2.position.set(1.02, 0.23, 0);
       bench.add(seatTop, back, lg1, lg2);
       bench.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
-      g.add(bench);
+      cityGroup.add(bench);
       // raised the height of the seat, so he is sitting on the bench rather than in the ash
       const sitter = fig(GEH_L.benchX + 0.3, 6.4, { seated: true, face: Math.PI * 0.92 });
       sitter.grp.position.y += 0.4;
@@ -18137,7 +18338,7 @@ const __boot = (async () => {
     GEH.heapDown = !!WORLDSTATE.gehHeapDown;
     if (!WORLDSTATE.gehHeapDown) gehSpawnUnclaimed(GEH.cx + GEH_L.yardX, GEH.cz + 6);
     if (WORLDSTATE.gehMatronDown) { gehOpenRoom(); if (GEH.matronFig) GEH.matronFig.grp.visible = false; }
-    gehBuildKingdom();
+    if (WORLDSTATE.luciferDefeated) gehBuildKingdom(); else gehBuildHillPortal();
     gehBuildFinale();
 
     let nodes1 = 0;
@@ -18332,7 +18533,7 @@ const __boot = (async () => {
     scene.add(grp);
     const e = {
       nid: ++ENEMY_NID, kind: "matron", geh: true, boss: true, big: true, mesh: grp,
-      pos: V3(x, y, z), vel: V3(), hp: 240, maxHp: 240, r: 1, state: "post", t: 0, alive: true,
+      pos: V3(x, y, z), vel: V3(), hp: 60, maxHp: 60, r: 1, state: "post", t: 0, alive: true,
       heading: Math.PI / 2, flash: 0, bar: makeHealthBar(), name: "The Matron", born: time, arms: [armL, armR],
       phase: 1, tier: 0, guard: MAT_GUARD[0], spd: 7.6, atk: null, armed: false, said: false,
       grabT: 14, roundT: 16, roundTgt: null, roofT: 0, lock: null, lockT: 0, hitDone: true
@@ -18648,7 +18849,7 @@ const __boot = (async () => {
     scene.add(grp);
     const e = {
       nid: ++ENEMY_NID, kind: "almoner", geh: true, boss: true, big: true, mesh: grp, pos: V3(x, y, z), vel: V3(),
-      hp: 150, maxHp: 150, r: 0.9, state: "walk", t: 0, alive: true, heading: -Math.PI / 2, flash: 0,
+      hp: 75, maxHp: 75, r: 0.9, state: "walk", t: 0, alive: true, heading: -Math.PI / 2, flash: 0,
       bar: makeHealthBar(), name: "The Almoner", born: time, arms: [armL, armR], cart,
       phase: 1, armed: false, guard: 1, clearing: null, target: null, lastSeat: null,
       cd: 5, mendT: 11, tendT: 0, clearDur: 3, mendSaid: false, thanked: false,
@@ -18977,7 +19178,7 @@ const __boot = (async () => {
     const ring = new THREE.Mesh(new THREE.RingGeometry(2.9, 3.2, 40), new THREE.MeshBasicMaterial({ color: 0xff574f, side: THREE.DoubleSide, transparent: true, opacity: 0.8, depthWrite: false }));
     ring.rotation.x = -Math.PI / 2;
     ring.visible = false;
-    GEH.root.add(ring);
+    (GEH.cityRoot || GEH.root).add(ring);
     // and the thing it throws. it is its OWN mesh in world space rather than one of the pieces in the heap, because
     // every piece in the heap is a child of a group that leans, turns and grows, and a world-space landing point
     // pushed through those three transforms lands somewhere else. one node, its own geometry and material so nothing
@@ -18985,12 +19186,12 @@ const __boot = (async () => {
     const thrown = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: toLin(0x33261c), roughness: 1, metalness: 0 }));
     thrown.castShadow = thrown.receiveShadow = false;
     thrown.visible = false;
-    GEH.root.add(thrown);
+    (GEH.cityRoot || GEH.root).add(thrown);
     const e = {
       nid: ++ENEMY_NID, kind: "unclaimed", geh: true, boss: true, big: true, noBar: true,
-      mesh: grp, body, pos: V3(x, y, z), vel: V3(), hp: 220, maxHp: 220, r: 3,
+      mesh: grp, body, pos: V3(x, y, z), vel: V3(), hp: 110, maxHp: 110, r: 3,
       state: "settle", t: 0, alive: true, heading: -Math.PI / 2, flash: 0, bar: makeHealthBar(),
-      name: "The Unclaimed", born: time, heat: 0, lastHp: 220, tier: 0, atk: null,
+      name: "The Unclaimed", born: time, heat: 0, lastHp: 110, tier: 0, atk: null,
       echoDmg: 0, echoAt: -99, echo: null, capSaid: false, thrown, BIG,
       sweepT: 4.5, fallT: 7, echoT: 4, ring, spill, ims, fallX: x, fallZ: z, shadow: "settle", shadowT: 0
     };
@@ -19317,12 +19518,22 @@ const __boot = (async () => {
   // the final room stays in the same realm so combat, saves and collision keep one owner.
   var AFTERLIFE = { phase: null, t: 0, panel: null, slide: 0 };
   function afterlifeLocked() { return !!(AFTERLIFE && AFTERLIFE.phase); }
+  const heroShadeMaterial = new THREE.MeshBasicMaterial({
+    color: 0xd8e5ff,
+    transparent: true,
+    opacity: 0.35,
+    depthWrite: false,
+    depthTest: true,
+    fog: false
+  });
   function applyAfterlifeAppearance() {
     if (!hero) return;
+    const stayShade = isInvisMode();
+    if (hero.userData) hero.userData.lastStayShade = stayShade;
     hero.traverse(o => {
       if (!o.isMesh || !o.material) return;
       if (!o.userData.livingMaterials) o.userData.livingMaterials = o.material;
-      o.material = o.userData.livingMaterials; // staying is a return, not an imposed death
+      o.material = stayShade ? heroShadeMaterial : o.userData.livingMaterials;
     });
   }
   function gehennaObjective() {
@@ -19338,19 +19549,47 @@ const __boot = (async () => {
       return { text: "Slay the Kindly One", hint: "IV · The Last Account. " + hint, target: sister ? sister.pos : GEH.clerkPos || target("kindly", 136, 0) };
     }
     const e = enemy("lucifer");
-    if (!GEH.inPride) return { text: "Slay Lucifer, Demon of Pride", hint: "V · The Still Kingdom. Follow the empty avenue to the white tear at the kingdom's centre.", target: V3(GEH.cx + 48, GEH.floor + 9, GEH.cz + 78) };
+    if (!GEH.inPride) return { text: "Slay Lucifer, Demon of Pride", hint: "V · The Still Kingdom. Follow the road over the hill to the white tear.", target: V3(GEH.cx + 144, GEH.floor + 9, GEH.cz) };
     const hint = e && e.armed ? "Break his hold. Listen when the children speak." : e && e.beat >= 5 ? "Follow Lucifer to the centre of the room." : "Speak to Lucifer beside the children.";
     return { text: "Slay Lucifer, Demon of Pride", hint: "VI · The Impossible Room. " + hint, target: e ? e.pos : V3(GEH.cx - 73, GEH.floor + 9, GEH.cz + 54) };
   }
-  // The almshouse was a waystation. The city beyond has finished its work:
-  // monumental, immaculate and almost entirely unoccupied. Architecture is
-  // batched; the few familiar residents never join any autonomous NPC system.
+  function gehBuildHillPortal() {
+    if (GEH.hillPortalRoot) return;
+    const root = new THREE.Group(); root.name = "gehenna-hill-portal"; GEH.root.add(root);
+    GEH.hillPortalRoot = root;
+    const y = GEH.floor + 9, cx = GEH.cx + 144, cz = GEH.cz;
+    GEH.kingdom = { cx: 144, cz: 0, r: 24, y, portal: V3(cx, y, cz), cooldown: 1.4, transit: null };
+    const gold = new THREE.MeshStandardMaterial({ color: toLin(0x9f7540), emissive: toLin(0x432909), emissiveIntensity: 0.3, roughness: 0.54, metalness: 0.6 });
+    const lit = new THREE.MeshBasicMaterial({ color: toLin(0xfff8e9) });
+    for (const sz of [-1.8, 1.8]) {
+      const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.8, 7.2, 0.8), gold);
+      pillar.position.set(cx, y + 3.6, cz + sz);
+      root.add(pillar);
+      gehAddStruct({ cx, cz: cz + sz, w: 0.4, d: 0.4, b: 0.4, bottom: y, top: y + 7.2 });
+    }
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.8, 4.4), gold);
+    lintel.position.set(cx, y + 7.6, cz);
+    root.add(lintel);
+    const tear = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 7.0), new THREE.MeshBasicMaterial({ color: 0x010102, side: THREE.DoubleSide, fog: false }));
+    tear.rotation.y = Math.PI / 2; tear.position.set(cx + 0.05, y + 3.6, cz); root.add(tear);
+    const seam = new THREE.Mesh(new THREE.PlaneGeometry(0.035, 6.8), lit);
+    seam.rotation.y = Math.PI / 2; seam.position.set(cx + 0.07, y + 3.6, cz); root.add(seam);
+    GEH.kingdom.seam = seam;
+  }
   function gehBuildKingdom() {
+    if (GEH.kingdomRoot) return;
+    if (GEH.hillPortalRoot) {
+      GEH.root.remove(GEH.hillPortalRoot);
+      GEH.hillPortalRoot = null;
+    }
     const root = new THREE.Group(); root.name = "gehenna-still-kingdom"; GEH.root.add(root);
-    const y = GEH.floor + 9, cx = GEH.cx + 48, cz = GEH.cz + 78;
+    const y = GEH.floor + 1;
     GEH.kingdomRoot = root;
-    GEH.kingdom = { cx: 48, cz: 78, r: 48, y, portal: V3(cx, y, cz), cooldown: 1.4, transit: null };
-    GEH.inPride = false;
+    GEH.kingdom = { cx: 248, cz: 0, r: 96, y, portal: V3(GEH.cx + 328, y, GEH.cz), cooldown: 1.4, transit: null };
+    // the kingdom is also built the moment lucifer lets go, with the player still standing in the white room, so
+    // this cannot simply declare them outside it: that hid the room and showed the city for the frame before
+    // gehUpdateKingdom put it back.
+    GEH.inPride = !!GEH.prideRoom && netGehennaRoom(P.pos);
     const stone = new THREE.MeshStandardMaterial({ color: toLin(0x151417), roughness: 0.65, metalness: 0.3 });
     const gold = new THREE.MeshStandardMaterial({ color: toLin(0x9f7540), emissive: toLin(0x432909), emissiveIntensity: 0.3, roughness: 0.54, metalness: 0.6 });
     const lit = new THREE.MeshBasicMaterial({ color: toLin(0xb78538) });
@@ -19361,106 +19600,159 @@ const __boot = (async () => {
       matrix.compose(at, quat, scale); batches.get(mat).push(matrix.clone());
       if (solid) gehAddStruct({ cx: at.x, cz: at.z, w: w / 2, d: d / 2, b: Math.max(w, d) / 2, bottom: yy - h / 2, top: yy + h / 2 });
     }
-    function ring(radius, height, tube, mat) {
+    function ring(radius, height, tube, mat, rx = 248, rz = 0) {
       const mesh = new THREE.Mesh(new THREE.TorusGeometry(radius, tube, 4, 72), mat);
-      mesh.rotation.x = Math.PI / 2; mesh.position.set(cx, height, cz); root.add(mesh);
+      mesh.rotation.x = Math.PI / 2; mesh.position.set(GEH.cx + rx, height, GEH.cz + rz); root.add(mesh);
     }
-    // A level road leaves the Clerk, turns at the bridge and faces the centre.
-    // Low parapets preserve the enormous view instead of making another corridor.
-    for (const [w, d, x, z] of [[8, 38, 136, 19], [40, 8, 120, 34], [8, 48, 104, 58], [60, 8, 78, 78]]) {
-      block(w, 0.36, d, x, y - 0.15, z, stone);
-      block(w > d ? w : 0.15, 0.04, w > d ? 0.15 : d, x, y + 0.025, z, lit);
+    // Ramp: 24 stepped slabs from x = 144..168, dropping from y = GEH.floor + 9 to y = GEH.floor + 1
+    for (let i = 0; i < 24; i++) {
+      const sx = 144 + i + 0.5;
+      const sy = (GEH.floor + 9) - (i / 24) * 8 - 0.15;
+      block(1.05, 0.4, 14, sx, sy, 0, stone);
+      block(1.05, 0.04, 0.25, sx, sy + 0.21, 0, lit);
+      for (const sz of [-7.2, 7.2]) block(1.05, 1.1, 0.5, sx, sy + 0.7, sz, stone, true);
     }
-    for (const x of [131.7, 140.3]) block(0.6, 1.25, 29, x, y + 0.62, 15, stone, true);
-    for (const z of [29.7, 38.3]) block(25, 1.25, 0.6, 120, y + 0.62, z, stone, true);
-    for (const x of [99.7, 108.3]) block(0.6, 1.25, 34, x, y + 0.62, 56, stone, true);
-    block(4, 1.25, 0.6, 97.2, y + 0.62, 73.7, stone, true);
-    block(12.8, 1.25, 0.6, 101.8, y + 0.62, 82.3, stone, true);
-    const pavement = new THREE.Mesh(new THREE.CylinderGeometry(48, 48, 0.4, 96), stone);
-    pavement.position.set(cx, y - 0.175, cz); root.add(pavement);
-    ring(47.4, y + 0.04, 0.1, lit);
-    ring(27, y + 0.045, 0.07, gold);
-    ring(12, y + 0.055, 0.08, lit);
-    block(47, 0.05, 6.8, 71.5, y + 0.035, 78, gold);
-    // Sealed, repeated facades have no rooms, loot or errands: a whole kingdom
-    // prepared for lives that no longer happen. The eastern street stays clear.
+    // Avenue pavement: straight line from x = 168 to x = 336, width 16m (z = -8..+8) at y = GEH.floor + 1
+    for (let x = 168; x < 336; x += 14) {
+      const w = Math.min(14, 336 - x);
+      block(w, 0.4, 16, x + w / 2, y - 0.2, 0, stone);
+      block(w, 0.05, 0.3, x + w / 2, y + 0.02, -7.8, gold);
+      block(w, 0.05, 0.3, x + w / 2, y + 0.02, 7.8, gold);
+      block(w, 0.04, 0.2, x + w / 2, y + 0.02, 0, lit);
+    }
+    // 80 Buildings: 40 along z = -13.5 and 40 along z = +13.5
     for (let i = 0; i < 40; i++) {
-      const a = i * Math.PI * 2 / 40;
-      if (Math.cos(a) > 0.91) continue;
-      const radius = i % 2 ? 39 : 43, x = 48 + Math.cos(a) * radius, z = 78 + Math.sin(a) * radius;
-      const h = 13 + (i * 7 % 13), w = 3.5 + (i % 3) * 0.55, d = 3.8;
-      block(w, h, d, x, y + h / 2, z, stone, true);
-      block(w + 0.3, 0.45, d + 0.3, x, y + h, z, gold);
-      block(0.12, h - 1, d + 0.045, x, y + h / 2, z, gold);
-      for (let row = 0; row < Math.floor(h / 3); row++) block(w + 0.045, 0.2, d + 0.065, x, y + 2 + row * 2.8, z, lit);
+      const bx = 170 + i * 4;
+      const h = 14 + (i * 7 % 13), bw = 3.6, bd = 5.0;
+      for (const side of [-1, 1]) {
+        const bz = side * 13.5;
+        block(bw, h, bd, bx, y + h / 2, bz, stone, true);
+        block(bw + 0.3, 0.5, bd + 0.3, bx, y + h, bz, gold);
+        block(0.15, h - 1, bd + 0.05, bx, y + h / 2, bz, gold);
+        for (let row = 0; row < Math.floor(h / 3.2); row++) {
+          block(bw + 0.05, 0.22, bd + 0.07, bx, y + 2.2 + row * 2.8, bz, lit);
+        }
+      }
     }
-    // An inverted crown echoes the reference's vast central canopy. Every vertex
-    // and solid remains inside radius 170 and below the valley's DIVIDE height.
-    for (const radius of [30, 43]) ring(radius, y + 31, 0.26, gold);
-    const crownGeo = new THREE.CylinderGeometry(45, 7, 24, 16, 1, true);
+    // Inverted Crown suspended over center of avenue: x = 248, y = GEH.floor + 32, z = 0
+    for (const radius of [20, 32]) ring(radius, y + 28, 0.3, gold, 248, 0);
+    const crownGeo = new THREE.CylinderGeometry(34, 6, 20, 16, 1, true);
     const crown = new THREE.LineSegments(new THREE.EdgesGeometry(crownGeo), new THREE.LineBasicMaterial({ color: 0x9f6429, transparent: true, opacity: 0.65 }));
-    crownGeo.dispose(); crown.position.set(cx, y + 42, cz); root.add(crown);
-    for (const [x, z] of [[43, 70], [53, 70], [43, 86], [53, 86]]) {
-      block(2.4, 31, 2.4, x, y + 15.5, z, stone, true);
-      block(0.16, 30, 2.44, x, y + 15.5, z, lit);
+    crownGeo.dispose(); crown.position.set(GEH.cx + 248, y + 36, GEH.cz); root.add(crown);
+    for (const [sx, sz] of [[232, -8.5], [264, -8.5], [232, 8.5], [264, 8.5]]) {
+      block(2.2, 34, 2.2, sx, y + 17, sz, stone, true);
+      block(0.18, 33, 2.25, sx, y + 17, sz, lit);
     }
-    block(12.5, 16, 18.5, 48, y + 23, 78, stone);
-    block(8.2, 14, 11, 48, y + 35, 78, gold);
-    block(4.6, 15, 5, 48, y + 46, 78, stone);
-    block(0.7, 44, 0.7, 48, y + 32, 78, lit);
-    for (let i = 0; i < 12; i++) block(12.7 - i * 0.45, 0.16, 18.7 - i * 0.65, 48, y + 15.5 + i * 2.1, 78, lit);
-    // A black tear occupies the centre of the kingdom, under its suspended core.
-    // Its outside cannot possibly contain the white room it opens onto.
-    for (const z of [74.7, 81.3]) block(1.1, 9, 0.8, 48, y + 4.5, z, gold, true);
-    block(1.1, 0.8, 7.4, 48, y + 9, 78, gold);
-    const tear = new THREE.Mesh(new THREE.PlaneGeometry(5.8, 8.6), new THREE.MeshBasicMaterial({ color: 0x010102, side: THREE.DoubleSide, fog: false }));
-    tear.rotation.y = Math.PI / 2; tear.position.set(cx + 0.06, y + 4.3, cz); root.add(tear);
-    const seam = new THREE.Mesh(new THREE.PlaneGeometry(0.035, 8.4), new THREE.MeshBasicMaterial({ color: 0xfff8e9, side: THREE.DoubleSide, fog: false }));
-    seam.rotation.y = Math.PI / 2; seam.position.set(cx + 0.08, y + 4.3, cz); root.add(seam);
+    block(10, 12, 10, 248, y + 26, 0, stone);
+    block(7, 10, 7, 248, y + 34, 0, gold);
+    block(0.8, 36, 0.8, 248, y + 26, 0, lit);
+    // Monumental portal arch at the terminus of the avenue (x = 328)
+    for (const sz of [-3.2, 3.2]) block(1.2, 10, 1.0, 328, y + 5, sz, gold, true);
+    block(1.2, 1.0, 7.4, 328, y + 10, 0, gold);
+    const tear = new THREE.Mesh(new THREE.PlaneGeometry(5.8, 9.2), new THREE.MeshBasicMaterial({ color: 0x010102, side: THREE.DoubleSide, fog: false }));
+    tear.rotation.y = Math.PI / 2; tear.position.set(GEH.cx + 328.06, y + 4.6, GEH.cz); root.add(tear);
+    const seam = new THREE.Mesh(new THREE.PlaneGeometry(0.035, 9.0), new THREE.MeshBasicMaterial({ color: 0xfff8e9, side: THREE.DoubleSide, fog: false }));
+    seam.rotation.y = Math.PI / 2; seam.position.set(GEH.cx + 328.08, y + 4.6, GEH.cz); root.add(seam);
     GEH.kingdom.seam = seam;
-    // Eight fixtures trace the whole approach instead of spending the light budget at the destination. Their heads
-    // and window faces are emissive geometry, so the road remains readable even when a nearer fixture owns one of
-    // the same eight reusable PointLights. No light is allocated here.
-    const kingdomLampLocal = [[130.8, 5], [141.2, 22], [120, 28.8], [109.2, 50], [98.8, 66], [91, 72.8], [70, 83.2], [55.5, 78]];
-    for (const [lx, lz] of kingdomLampLocal) {
-      block(0.16, 3.2, 0.16, lx, y + 1.6, lz, gold);
-      block(0.58, 0.62, 0.58, lx, y + 3.28, lz, lit);
-      const candidate = V3(GEH.cx + lx, y + 3.28, GEH.cz + lz);
-      candidate.kingdom = true;
-      GEH.lampPos.push(candidate);
+    // Street lamps along the avenue
+    const lampX = [176, 196, 216, 236, 256, 276, 296, 316];
+    for (const lx of lampX) {
+      for (const lz of [-8.5, 8.5]) {
+        block(0.16, 3.4, 0.16, lx, y + 1.7, lz, gold);
+        block(0.58, 0.62, 0.58, lx, y + 3.48, lz, lit);
+        const candidate = V3(GEH.cx + lx, y + 3.48, GEH.cz + lz);
+        candidate.kingdom = true;
+        GEH.lampPos.push(candidate);
+      }
     }
-    // A few occupied-looking windows draw the eye from the avenue to the tower door. They share the existing
-    // instanced emissive batch; the last road fixture supplies the pool of real light at their feet.
-    for (const [lz, yy, hh] of [[73.2, 20, 2.4], [82.8, 20, 2.4], [75.3, 6.1, 1.4], [80.7, 6.1, 1.4]])
-      block(0.08, hh, 1.05, 54.3, y + yy, lz, lit);
     for (const [mat, transforms] of batches) {
       const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), mat, transforms.length);
       transforms.forEach((m, i) => mesh.setMatrixAt(i, m));
       mesh.instanceMatrix.needsUpdate = true; root.add(mesh);
     }
-    // Exact early Gehenna silhouettes and materials. No idle animation, turning,
-    // pathfinding or scheduled thought; contact leaves them where they are pushed.
+    // Residents along the avenue
     const bodyGeo = new THREE.ConeGeometry(0.44, 1.75, 7), headGeo = new THREE.SphereGeometry(0.235, 10, 8);
     GEH.kingdomResidents = [];
-    for (const [x, z] of [[92, 73], [80, 82], [67, 74], [53, 90], [36, 96], [23, 76], [62, 53], [32, 58]]) {
+    const residentPositions = [
+      [184, -4.5], [200, 5.0], [220, -3.5], [240, 4.5],
+      [260, -5.0], [280, 3.5], [304, -4.5], [320, 4.5]
+    ];
+    for (const [rx, rz] of residentPositions) {
       const mesh = new THREE.Group(), body = new THREE.Mesh(bodyGeo, GEH.M.cloth), head = new THREE.Mesh(headGeo, GEH.M.skin);
       body.position.y = 0.87; head.position.y = 1.92; mesh.add(body, head);
-      mesh.position.set(GEH.cx + x, y + 0.04, GEH.cz + z); mesh.rotation.y = -Math.PI / 2;
+      mesh.position.set(GEH.cx + rx, y + 0.04, GEH.cz + rz); mesh.rotation.y = -Math.PI / 2;
       root.add(mesh);
       GEH.kingdomResidents.push({ id: "kingdom" + GEH.kingdomResidents.length, pos: mesh.position.clone(), mesh, line: null, beat: 0, home: mesh.position.clone() });
     }
     root.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
+  }
+  // ---- the tear only opens for the whole party ----
+  // the white room is the last thing anyone does in this game, and it is not something to walk into while a friend
+  // is still buying rope in the kingdom. everyone still connected has to be standing at the tear; then everyone is
+  // pulled through together, so nobody arrives to a fight already in progress.
+  const GEH_PRIDE_GATE_R = 18;
+  function gehPrideAway() {
+    const gate = GEH.kingdom && GEH.kingdom.portal, out = [];
+    if (!gate) return out;
+    for (const a of NET.avatars.values()) {
+      const peer = NET.peers.get(a.via);
+      if (!peer || !peer.ready || a.state.dead) continue;
+      if (netGehennaRoom(a.state.pos)) continue; // already inside; they cannot be waited for
+      if (!netGehennaBelow(a.state.pos) || Math.abs(a.state.pos.y - gate.y) > 4.5 || dist2D(a.state.pos, gate) > GEH_PRIDE_GATE_R)
+        out.push((a.look && a.look.name) || "a companion");
+    }
+    return out;
+  }
+  function gehPrideTransit(enter) {
+    const city = GEH.kingdom;
+    if (!city || city.transit) return false;
+    city.transit = { t: 0, enter, moved: false };
+    if (!GEH.portalVeil) {
+      GEH.portalVeil = document.createElement("div");
+      GEH.portalVeil.style.cssText = "position:fixed;inset:0;z-index:80;pointer-events:none;opacity:0;background:#000";
+      document.body.appendChild(GEH.portalVeil);
+    }
+    SFX.tone(73, 37, 0.7, 0.055, "sine", 0, 180);
+    return true;
+  }
+  // host only: one step at the tear takes everybody through it.
+  function gehPrideEnterAll() {
+    if (!GEH.inPride && netGehennaBelow(P.pos)) gehPrideTransit(true);
+    if (NET.role !== "host") return;
+    for (const a of NET.avatars.values()) {
+      const peer = NET.peers.get(a.via);
+      if (peer && peer.ready && !a.state.dead && netGehennaBelow(a.state.pos) && !netGehennaRoom(a.state.pos))
+        netSend(peer, { t: "gfx", kind: "pride", to: a.id, seed: WORLDSTATE.gehSeed });
+    }
+  }
+  function gehPrideAdmit() {
+    const away = gehPrideAway();
+    if (away.length) {
+      if (time - (GEH.prideHeldAt ?? -Infinity) > 3.5) {
+        GEH.prideHeldAt = time;
+        const named = away.slice(0, 3).join(", ") + (away.length > 3 ? " and " + (away.length - 3) + " more" : "");
+        say("The tear will not open for one of you. Still away: " + named + ".", 3400, true, "geh", true);
+      }
+      return false;
+    }
+    // a guest cannot move the rest of the party itself, so it asks; the host is the one that opens the tear.
+    if (netGuest()) {
+      if (time - (GEH.prideAskAt ?? -Infinity) > 1.2) { GEH.prideAskAt = time; netGehennaRequest("pride"); }
+      return false;
+    }
+    gehPrideEnterAll();
+    return true;
   }
   function gehUpdateKingdom(dt) {
     const city = GEH.kingdom;
     if (!city || !GEH.root || P.pos.y >= DIVIDE || P.gehDive) return;
     city.cooldown = Math.max(0, city.cooldown - dt);
     if (city.seam) city.seam.visible = !!WORLDSTATE.gehDone;
-    // In-page save restores may land in the pocket. Position, rather than a
-    // persisted presentation flag, reconciles its visibility after such a load.
-    if (!city.transit) GEH.inPride = Math.abs(P.pos.x - (GEH.cx - 85)) < 23 && Math.abs(P.pos.z - (GEH.cz + 60)) < 23;
+    if (!city.transit) GEH.inPride = netGehennaRoom(P.pos);
     if (GEH.prideRoom) GEH.prideRoom.visible = GEH.inPride;
+    if (GEH.cityRoot) GEH.cityRoot.visible = !GEH.inPride;
     if (GEH.kingdomRoot) GEH.kingdomRoot.visible = !GEH.inPride;
+    if (GEH.hillPortalRoot) GEH.hillPortalRoot.visible = !GEH.inPride;
     for (const resident of GEH.kingdomResidents || []) {
       if (GEH.inPride || Math.abs(P.pos.y - resident.pos.y) > 2.8) continue;
       let dx = resident.pos.x - P.pos.x, dz = resident.pos.z - P.pos.z, d = Math.hypot(dx, dz);
@@ -19470,34 +19762,30 @@ const __boot = (async () => {
       const px = resident.pos.x, pz = resident.pos.z;
       resident.pos.x += dx * inv * push; resident.pos.z += dz * inv * push;
       resolveStructs(resident.pos, 0.35);
-      const rx = resident.pos.x - (GEH.cx + 48), rz = resident.pos.z - (GEH.cz + 78), radius = Math.hypot(rx, rz);
-      if (radius > 46) { resident.pos.x = GEH.cx + 48 + rx / radius * 46; resident.pos.z = GEH.cz + 78 + rz / radius * 46; }
+      resident.pos.x = clamp(resident.pos.x, GEH.cx + 170, GEH.cx + 326);
+      resident.pos.z = clamp(resident.pos.z, GEH.cz - 6.5, GEH.cz + 6.5);
       for (const other of GEH.kingdomResidents) if (other !== resident && dist2D(other.pos, resident.pos) < 0.67) { resident.pos.x = px; resident.pos.z = pz; break; }
       resident.mesh.position.copy(resident.pos);
     }
     if (!city.transit && city.cooldown <= 0 && !afterlifeLocked()) {
-      const enter = !GEH.inPride && WORLDSTATE.gehDone && Math.abs(P.pos.y - city.y) < 2.5 && Math.abs(P.pos.x - city.portal.x) < 1.35 && Math.abs(P.pos.z - city.portal.z) < 2.6;
-      const leave = GEH.inPride && (WORLDSTATE.luciferDefeated || !(GEH.lucifer && GEH.lucifer.beat >= 5)) && Math.abs(P.pos.x - (GEH.cx - 85)) < 1.6 && P.pos.z < GEH.cz + 41.2;
-      if (enter || leave) {
-        city.transit = { t: 0, enter, moved: false };
-        if (!GEH.portalVeil) {
-          GEH.portalVeil = document.createElement("div");
-          GEH.portalVeil.style.cssText = "position:fixed;inset:0;z-index:80;pointer-events:none;opacity:0;background:#000";
-          document.body.appendChild(GEH.portalVeil);
-        }
-        SFX.tone(73, 37, 0.7, 0.055, "sine", 0, 180);
-      }
+      const enter = !GEH.inPride && WORLDSTATE.gehDone && Math.abs(P.pos.y - city.y) < 2.8 && Math.abs(P.pos.x - city.portal.x) < 2.2 && Math.abs(P.pos.z - city.portal.z) < 2.6;
+      const leave = GEH.inPride && (WORLDSTATE.luciferDefeated || !(GEH.lucifer && GEH.lucifer.beat >= 5)) && Math.abs(P.pos.x - (GEH.cx + GEH_PRIDE_X)) < 2.0 && P.pos.z < GEH.cz + GEH_PRIDE_Z - 19.5;
+      if (enter) gehPrideAdmit();
+      else if (leave) gehPrideTransit(false);
     }
     if (!city.transit) return;
     const transit = city.transit; transit.t += dt;
     P.vel.set(0, 0, 0);
     if (transit.t >= 0.23 && !transit.moved) {
       transit.moved = true; GEH.inPride = transit.enter;
-      P.pos.set(GEH.cx + (transit.enter ? -85 : 51.5), city.y + 0.05, GEH.cz + (transit.enter ? 42 : 78));
+      const exitPos = WORLDSTATE.luciferDefeated ? V3(GEH.cx + 172, GEH.floor + 1.05, GEH.cz) : V3(GEH.cx + 140, GEH.floor + 9.05, GEH.cz);
+      P.pos.set(transit.enter ? GEH.cx + GEH_PRIDE_X : exitPos.x, (transit.enter ? city.y : exitPos.y) + 0.05, transit.enter ? GEH.cz + GEH_PRIDE_Z - 18 : exitPos.z);
       P.grounded = true; P.jumps = 0; P.swim = false; P.swimVol = null; P.dive = false; P.sliding = false; P.climb = null; P.airSlash = null;
       visY = P.pos.y; lastSafePos.copy(P.pos);
       if (GEH.prideRoom) GEH.prideRoom.visible = GEH.inPride;
+      if (GEH.cityRoot) GEH.cityRoot.visible = !GEH.inPride;
       if (GEH.kingdomRoot) GEH.kingdomRoot.visible = !GEH.inPride;
+      if (GEH.hillPortalRoot) GEH.hillPortalRoot.visible = !GEH.inPride;
       showPlace(transit.enter ? "Pride" : "The Still Kingdom");
     }
     if (GEH.portalVeil) {
@@ -19511,8 +19799,14 @@ const __boot = (async () => {
     GEH.prideRoom = GEH.prideRoot = room;
     room.visible = !!GEH.inPride;
     g.add(room);
-    const basic = color => new THREE.MeshBasicMaterial({ color: toLin(color), fog: false, toneMapped: false });
-    const lit = color => new THREE.MeshStandardMaterial({ color: toLin(color), roughness: 0.88, metalness: 0, fog: false });
+    const px0 = GEH_PRIDE_X, pz0 = GEH_PRIDE_Z;
+    // every surface in here is registered as it is made, so the last scene can take the white out of the room a
+    // shade at a time. these materials are built with fog off, so darkness cannot be done with fog alone down here:
+    // it has to be their own colour that goes.
+    GEH.prideMats = []; GEH.prideDark = 0;
+    const remember = m => { m.userData.prideBase = m.color.clone(); GEH.prideMats.push(m); return m; };
+    const basic = color => remember(new THREE.MeshBasicMaterial({ color: toLin(color), fog: false, toneMapped: false }));
+    const lit = color => remember(new THREE.MeshStandardMaterial({ color: toLin(color), roughness: 0.88, metalness: 0, fog: false }));
     const white = basic(0xffffff), chalk = basic(0xeeeae0), green = basic(0x8bab79), leaf = basic(0x6f985e);
     const water = basic(0x4b9eb8), ripple = basic(0xb4dedb), bark = basic(0x887968), dark = basic(0x100f18), seam = basic(0xb59c67);
     const bank = basic(0xb9b49a), stone = basic(0x929e91), grass = basic(0x477d48), deepWater = basic(0x34768f);
@@ -19549,21 +19843,35 @@ const __boot = (async () => {
       };
       return { add, limb, finish };
     }
-    const architecture = batch(room), stairs = batch(g);
+    const architecture = batch(room), stairs = batch(GEH.cityRoot || g);
     function box(w, h, d, x, yy, z, mat, solid = false, target = architecture) {
       target.add("box", mat, GEH.cx + x, yy, GEH.cz + z, w, h, d);
       if (solid) gehAddStruct({ cx: GEH.cx + x, cz: GEH.cz + z, w: w / 2, d: d / 2, b: Math.max(w, d) / 2, bottom: yy - h / 2, top: yy + h / 2 });
     }
+    // Infinite white expanse: 500x500m ground plane
+    const expanseGeo = new THREE.PlaneGeometry(500, 500);
+    expanseGeo.rotateX(-Math.PI / 2);
+    const expanseMesh = new THREE.Mesh(expanseGeo, white);
+    expanseMesh.position.set(GEH.cx + px0, y + 0.004, GEH.cz + pz0);
+    room.add(expanseMesh);
+
+    // Distant perimeter boundaries (220m out, hidden deep within pure white fog)
+    box(440, 40, 2, px0, y + 20, pz0 - 220, white, true);
+    box(440, 40, 2, px0, y + 20, pz0 + 220, white, true);
+    box(2, 40, 440, px0 - 220, y + 20, pz0, white, true);
+    box(2, 40, 440, px0 + 220, y + 20, pz0, white, true);
+
     // The garden fades into white; the channel is cut into the same surface the player walks on.
     const gardenWeight = (x, z) => {
-      const edge = Math.min((x + 106) / 5, (-64 - x) / 5, (z - 40) / 5, (80 - z) / 5);
-      const island = Math.max(0, 1 - Math.pow(Math.hypot((x + 86) / 22, (z - 60) / 23), 2));
+      const dx = x - px0, dz = z - pz0;
+      const edge = Math.min((dx + 21) / 5, (21 - dx) / 5, (dz + 20) / 5, (20 - dz) / 5);
+      const island = Math.max(0, 1 - Math.pow(Math.hypot((dx + 1) / 22, dz / 23), 2));
       return smooth(clamp(edge, 0, 1)) * smooth(clamp(island * 1.65, 0, 1));
     };
     const groundPositions = [], groundColors = [], groundIndices = [], resolution = 88;
     const whiteColor = toLin(0xffffff), gardenColor = toLin(0x91af7c), dryBankColor = toLin(0xb9b295), bedColor = toLin(0x6c9589);
     for (let iz = 0; iz <= resolution; iz++) for (let ix = 0; ix <= resolution; ix++) {
-      const x = -107 + ix * 0.5, z = 38 + iz * 0.5, profile = gehPrideRiverAt(GEH.cx + x, GEH.cz + z);
+      const x = px0 - 22 + ix * 0.5, z = pz0 - 22 + iz * 0.5, profile = gehPrideRiverAt(GEH.cx + x, GEH.cz + z);
       groundPositions.push(GEH.cx + x, profile.bed + 0.008, GEH.cz + z);
       const color = whiteColor.clone().lerp(gardenColor, gardenWeight(x, z));
       if (profile.depth > 0) color.lerp(dryBankColor, smooth(clamp(profile.depth / 0.2, 0, 1)));
@@ -19574,16 +19882,13 @@ const __boot = (async () => {
     const groundGeometry = new THREE.BufferGeometry();
     groundGeometry.setAttribute("position", new THREE.Float32BufferAttribute(groundPositions, 3));
     groundGeometry.setAttribute("color", new THREE.Float32BufferAttribute(groundColors, 3)); groundGeometry.setIndex(groundIndices); groundGeometry.computeVertexNormals();
-    room.add(new THREE.Mesh(groundGeometry, new THREE.MeshBasicMaterial({vertexColors:true, fog:false, toneMapped:false})));
-    for (const x of [-107, -63]) box(1, 22, 44, x, y + 11, 60, white, true);
-    for (const z of [38, 82]) box(44, 22, 1, -85, y + 11, z, white, true);
-    box(44, 1, 44, -85, y + 22, 60, white);
-    box(2.7, 4.5, 0.05, -85, y + 2.25, 39, dark);
+    room.add(new THREE.Mesh(groundGeometry, remember(new THREE.MeshBasicMaterial({vertexColors:true, fog:false, toneMapped:false}))));
+    box(2.7, 4.5, 0.05, px0, y + 2.25, pz0 - 21, white);
     for (const side of [-1, 1]) {
-      architecture.add("box", seam, GEH.cx - 85 + side * 1.46, y + 2.3, GEH.cz + 39.08, 0.085, 4.7, 0.09, 0, 0, side * 0.025);
+      architecture.add("box", seam, GEH.cx + px0 + side * 1.46, y + 2.3, GEH.cz + pz0 - 20.92, 0.085, 4.7, 0.09, 0, 0, side * 0.025);
     }
-    box(2.9, 0.06, 0.1, -85, y + 4.61, 39.08, seam);
-    const riverCenter = z => -94 + Math.sin((z - 43) * 0.16) * 2.2;
+    box(2.9, 0.06, 0.1, px0, y + 4.61, pz0 - 20.92, seam);
+    const riverCenter = z => px0 - 9 + Math.sin((z - (pz0 - 17)) * 0.16) * 2.2;
     const riverTop = y - 0.2;
     const waterHalf = z => {
       const x = riverCenter(z); let lo = 0, hi = 4.9;
@@ -19594,32 +19899,33 @@ const __boot = (async () => {
     const waterPositions = [], waterColors = [], waterIndices = [], riverSteps = 140;
     const clearWater = toLin(0x77bfc6), deepColor = toLin(0x3d91a5);
     for (let i = 0; i <= riverSteps; i++) {
-      const z = 43 + i * 35 / riverSteps, x = riverCenter(z), half = waterHalf(z);
+      const z = pz0 - 17 + i * 35 / riverSteps, x = riverCenter(z), half = waterHalf(z);
       for (const side of [-1, 0, 1]) { waterPositions.push(GEH.cx + x + side * half, riverTop, GEH.cz + z); const c = side ? clearWater : deepColor; waterColors.push(c.r, c.g, c.b); }
       if (i < riverSteps) { const a = i * 3; for (let j = 0; j < 2; j++) waterIndices.push(a+j,a+j+3,a+j+1,a+j+1,a+j+3,a+j+4); }
     }
     const waterGeometry = new THREE.BufferGeometry();
     waterGeometry.setAttribute("position", new THREE.Float32BufferAttribute(waterPositions, 3)); waterGeometry.setAttribute("color", new THREE.Float32BufferAttribute(waterColors, 3)); waterGeometry.setIndex(waterIndices); waterGeometry.computeVertexNormals();
-    room.add(new THREE.Mesh(waterGeometry, new THREE.MeshBasicMaterial({vertexColors:true, transparent:true, opacity:0.85, depthWrite:false, fog:false, toneMapped:false, side:THREE.DoubleSide})));
+    room.add(new THREE.Mesh(waterGeometry, remember(new THREE.MeshBasicMaterial({vertexColors:true, transparent:true, opacity:0.85, depthWrite:false, fog:false, toneMapped:false, side:THREE.DoubleSide}))));
     // This volume uses the normal swim, air and shore-exit rules. It is not the black-pool descent.
     for (let i = SWIM_VOLS.length - 1; i >= 0; i--) if (SWIM_VOLS[i].id === "pride-river") SWIM_VOLS.splice(i, 1);
-    const riverVolume = { id:"pride-river", x:GEH.cx-94, z:GEH.cz+60.5, r:22, top:riverTop, enter:riverTop-0.05, exit:riverTop+0.25, rest:riverTop-1.1, floor:y-2.8, place:"The Little River", contains:(x,z)=>gehPrideRiverAt(x,z).wet };
+    const riverVolume = { id:"pride-river", x:GEH.cx + px0 - 9, z:GEH.cz + pz0 + 0.5, r:22, top:riverTop, enter:riverTop-0.05, exit:riverTop+0.25, rest:riverTop-1.1, floor:y-2.8, place:"The Little River", contains:(x,z)=>gehPrideRiverAt(x,z).wet };
     SWIM_VOLS.push(riverVolume);
     for (let i = 0; i < 340; i++) {
-      const x = -103 + ((i * 17.731) % 37), z = 43 + ((i * 11.413) % 35);
-      if (gardenWeight(x,z) < 0.2 + (i % 7) * 0.085 || gehPrideRiverAt(GEH.cx+x,GEH.cz+z).depth > 0.015 || (x > -77.8 && x < -69.2 && z < 50)) continue;
+      const x = px0 - 18 + ((i * 17.731) % 37), z = pz0 - 17 + ((i * 11.413) % 35);
+      if (gardenWeight(x,z) < 0.2 + (i % 7) * 0.085 || gehPrideRiverAt(GEH.cx+x,GEH.cz+z).depth > 0.015 || (x > px0 + 7.2 && x < px0 + 15.8 && z < pz0 - 10)) continue;
       const h = 0.13 + (i % 5) * 0.035, angle = i * 2.39996;
       architecture.add("blade", grass, GEH.cx+x,y+h*0.5,GEH.cz+z,0.085,h,0.06,0,angle);
       architecture.add("blade", leaf, GEH.cx+x+0.11,y+h*0.42,GEH.cz+z+0.07,0.07,h*0.84,0.05,0,-angle);
     }
     for (let i = 0; i < 15; i++) {
-      const z = 47 + i * 1.9, side = i % 2 ? -1 : 1, x = riverCenter(z) + side * (waterHalf(z) + 0.26);
+      const z = pz0 - 13 + i * 1.9, side = i % 2 ? -1 : 1, x = riverCenter(z) + side * (waterHalf(z) + 0.26);
       architecture.add("crown", stone, GEH.cx+x,gehPrideRiverAt(GEH.cx+x,GEH.cz+z).bed+0.07,GEH.cz+z,0.25+(i%3)*0.12,0.12,0.22,0,i);
     }
-    const bridgeX = riverCenter(55);
-    for (let i = 0; i < 22; i++) box(0.48,0.12,2.5,bridgeX-5.25+i*0.5,y+0.07,55,i%3?bark:bank);
-    gehAddStruct({cx:GEH.cx+bridgeX,cz:GEH.cz+55,w:5.5,d:1.25,b:5.5,top:y+0.13,bottom:y+0.01,floorOnly:true,walk:true});
-    for (const [x,z,size] of [[-101,48,1],[-101,59,1.14],[-100,70,1.1],[-98,75,0.85],[-81,46,0.85],[-68,55,1.1],[-70,65,1.16],[-74,74,1.08],[-85,76,0.94]]) {
+    const bridgeZ = pz0 - 5, bridgeX = riverCenter(bridgeZ);
+    for (let i = 0; i < 22; i++) box(0.48,0.12,2.5,bridgeX-5.25+i*0.5,y+0.07,bridgeZ,i%3?bark:bank);
+    gehAddStruct({cx:GEH.cx+bridgeX,cz:GEH.cz+bridgeZ,w:5.5,d:1.25,b:5.5,top:y+0.13,bottom:y+0.01,floorOnly:true,walk:true});
+    for (const [dx,dz,size] of [[-16,-12,1],[-16,-1,1.14],[-15,10,1.1],[-13,15,0.85],[4,-14,0.85],[17,-5,1.1],[15,5,1.16],[11,14,1.08],[0,16,0.94]]) {
+      const x = px0 + dx, z = pz0 + dz;
       box(0.25*size,3.2*size,0.25*size,x,y+1.6*size,z,bark);
       architecture.limb(bark,[GEH.cx+x,y+1.9*size,GEH.cz+z],[GEH.cx+x+0.82*size,y+3.05*size,GEH.cz+z+0.32],0.1*size);
       architecture.add("crown",leaf,GEH.cx+x,y+3.65*size,GEH.cz+z,1.9*size,1.6*size,1.8*size);
@@ -19628,7 +19934,7 @@ const __boot = (async () => {
     }
     // A modest home: open doorway, three small beds, and a clear path to the children's yard.
     const hutWall = lit(0xd5c8ae), hutRoof = lit(0x83786d), hutWood = lit(0x9a8367), hutCloth = lit(0x97a99b);
-    const hx = -73.5, hz = 46, wallH = 2.8;
+    const hx = px0 + 11.5, hz = pz0 - 14, wallH = 2.8;
     box(7,0.12,5.5,hx,y+0.02,hz,hutWood);
     box(7,wallH,0.25,hx,y+wallH/2,hz-2.75,hutWall,true);
     for (const side of [-1,1]) {
@@ -19647,24 +19953,37 @@ const __boot = (async () => {
     for(let i=0;i<3;i++){box(1.15,0.25,1.9,hx-2.2+i*2.2,y+0.24,hz-1.2,hutWood);box(1.12,0.08,1.5,hx-2.2+i*2.2,y+0.405,hz-1,hutCloth);box(0.8,0.1,0.35,hx-2.2+i*2.2,y+0.43,hz-1.82,chalk);}
     box(2.1,0.28,0.6,hx+2.2,y+0.32,hz+3.65,hutWood);
     GEH.prideHut={x:GEH.cx+hx,z:GEH.cz+hz,doorX:GEH.cx+hx,doorZ:GEH.cz+hz+2.75,width:7,depth:5.5};
-    const flowMaterial = new THREE.MeshBasicMaterial({color:0xe1f4ec,transparent:true,opacity:0.55,depthWrite:false,fog:false});
+    const flowMaterial = remember(new THREE.MeshBasicMaterial({color:0xe1f4ec,transparent:true,opacity:0.55,depthWrite:false,fog:false}));
     const flow=new THREE.InstancedMesh(shape.box,flowMaterial,36),flowDummy=new THREE.Object3D();flow.frustumCulled=false;
     flow.instanceMatrix.setUsage(THREE.DynamicDrawUsage);room.add(flow);
     GEH.prideWater={flow,dummy:flowDummy,center:riverCenter,half:waterHalf,y:riverTop+0.014,volume:riverVolume};
     architecture.finish();
     const childSkin = lit(0xe2c3af), childBlue = lit(0x889dac), childGreen = lit(0x78956c);
     GEH.prideChildren = [];
-    GEH.prideChildrenOrigin = { x: -73, z: 56 };
+    GEH.prideChildrenOrigin = { x: px0 + 12, z: pz0 - 4 };
     for (let i = 0; i < 3; i++) {
       const child = new THREE.Group(), detail = batch(child), cloth = i % 2 ? childGreen : childBlue;
       detail.add("box", cloth, 0, 0.64, 0, 0.4, 0.55, 0.25);
       detail.add("sphere", childSkin, 0, 1.08, 0, 0.2, 0.22, 0.19);
-      for (const side of [-1, 1]) {
-        detail.limb(cloth, [side * 0.11, 0.4, 0], [side * 0.15, 0.06, side * 0.1], 0.08);
-        detail.limb(childSkin, [side * 0.22, 0.83, 0], [side * 0.38, 0.56, 0.07], 0.06);
-      }
+      for (const side of [-1, 1]) detail.limb(childSkin, [side * 0.22, 0.83, 0], [side * 0.38, 0.56, 0.07], 0.06);
       detail.finish();
-      child.position.set(GEH.cx - 73 + Math.cos(i * 2.1) * 2.5, y, GEH.cz + 56 + Math.sin(i * 2.1) * 2.5);
+      // the legs come out of the instanced batch and hang off their own hips. a baked matrix cannot be posed, and
+      // these three walk the length of the room in the last scene with nothing below the waist moving.
+      const legs = [];
+      for (const side of [-1, 1]) {
+        const hip = new THREE.Group();
+        hip.position.set(side * 0.12, 0.42, 0);
+        hip.userData.side = side;
+        const shin = new THREE.Mesh(shape.cylinder, cloth);
+        shin.castShadow = shin.receiveShadow = false;
+        shin.position.set(0, -0.19, 0);
+        shin.scale.set(0.082, 0.38, 0.082);
+        hip.add(shin);
+        child.add(hip);
+        legs.push(hip);
+      }
+      child.userData.legs = legs;
+      child.position.set(GEH.cx + px0 + 12 + Math.cos(i * 2.1) * 2.5, y, GEH.cz + pz0 - 4 + Math.sin(i * 2.1) * 2.5);
       child.userData.home = child.position.clone();
       room.add(child); GEH.prideChildren.push(child);
     }
@@ -19721,7 +20040,7 @@ const __boot = (async () => {
     const motes = new Float32Array(72 * 3);
     for (let i = 0; i < 72; i++) { const angle = i * 2.39996, r = 2.75 + (i % 5) * 0.24; motes[i * 3] = Math.cos(angle) * r; motes[i * 3 + 1] = (i * 0.731) % 21; motes[i * 3 + 2] = -2.05 + Math.sin(angle) * r * 0.82; }
     const moteGeometry = new THREE.BufferGeometry(); moteGeometry.setAttribute("position", new THREE.BufferAttribute(motes, 3));
-    const radiance = new THREE.Points(moteGeometry, new THREE.PointsMaterial({ color: 0xffde84, size: 0.21, transparent: true, opacity: 0.6, depthWrite: false, fog: false, toneMapped: false }));
+    const radiance = new THREE.Points(moteGeometry, remember(new THREE.PointsMaterial({ color: 0xffde84, size: 0.21, transparent: true, opacity: 0.6, depthWrite: false, fog: false, toneMapped: false })));
     hand.add(radiance); hand.userData.radiance = radiance;
     // A local shader bends a few luminous rings at the ceiling; it needs no screen copy or post-processing pass.
     const apertureMaterial = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, uniforms: { uTime: { value: 0 }, uOpen: { value: 0 } },
@@ -19743,7 +20062,13 @@ const __boot = (async () => {
     });
     const aperture = new THREE.Mesh(new THREE.CircleGeometry(11.5, 64), apertureMaterial);
     aperture.rotation.x = -Math.PI / 2; aperture.visible = false; aperture.frustumCulled = false; room.add(aperture); GEH.divineAperture = aperture;
-    hand.position.set(GEH.cx - 85, y + 20, GEH.cz + 68); hand.rotation.y = Math.PI;
+    // everything the hand is made of moves into one child group, so the shudder of holding can be written straight
+    // onto that group without ever touching hand.position — which the plunge, the hold height and the ceiling
+    // aperture all read as the true position of the hand.
+    const tremble = new THREE.Group();
+    for (const part of [...hand.children]) tremble.add(part);
+    hand.add(tremble); hand.userData.tremble = tremble;
+    hand.position.set(GEH.cx + px0, y + 20, GEH.cz + pz0 + 8); hand.rotation.y = Math.PI;
     hand.visible = false;
     hand.userData.holdY = y + 5.3;
     hand.userData.palmBottom = -1.15;
@@ -19817,10 +20142,26 @@ const __boot = (async () => {
       person.add("sphere", eyes, side * 0.17, 3.015, 0.37, 0.034, 0.049, 0.019);
       person.add("box", hairShade, side * 0.17, 3.108, 0.356, 0.13, 0.018, 0.02, 0, 0, side * -0.1);
     }
-    person.add("box", smile, 0, 2.79, 0.442, 0.16, 0.014, 0.01);
-    for (const side of [-1, 1]) person.add("box", smile, side * 0.093, 2.799, 0.432, 0.044, 0.013, 0.01, 0, side * 0.25, side * 0.35);
     person.finish();
-    grp.position.set(GEH.cx - 73, y, GEH.cz + 54); room.add(grp);
+    const mouthGroup = new THREE.Group();
+    torso.add(mouthGroup);
+    const centerLip = new THREE.Mesh(shape.box, smile);
+    centerLip.scale.set(0.16, 0.014, 0.01);
+    centerLip.position.set(0, 2.79, 0.442);
+    centerLip.castShadow = centerLip.receiveShadow = false;
+    mouthGroup.add(centerLip);
+    const sideLips = [];
+    for (const side of [-1, 1]) {
+      const lip = new THREE.Mesh(shape.box, smile);
+      lip.scale.set(0.044, 0.013, 0.01);
+      lip.position.set(side * 0.093, 2.799, 0.432);
+      lip.rotation.set(0, side * 0.25, side * 0.35);
+      lip.castShadow = lip.receiveShadow = false;
+      mouthGroup.add(lip);
+      sideLips.push({ mesh: lip, side, baseX: side * 0.093, baseY: 2.799, baseZ: 0.432 });
+    }
+    rig.mouth = { group: mouthGroup, center: centerLip, sides: sideLips };
+    grp.position.set(GEH.cx + px0 + 12, y, GEH.cz + pz0 - 6); room.add(grp);
     const e = { nid: ++ENEMY_NID, kind: "lucifer", geh: true, boss: true, big: true, mesh: grp,
       pos: grp.position.clone(), vel: V3(), hp: WORLDSTATE.luciferDefeated ? 0 : 90, maxHp: 90, r: 1.4, state: "children", t: 0, alive: true,
       heading: 0, flash: 0, bar: WORLDSTATE.luciferDefeated ? null : makeHealthBar(), name: "Lucifer, Demon of Pride", armed: false, beat: 0, plea: 0, phase: 0, holdPause: 0, born: time,
@@ -19889,6 +20230,7 @@ const __boot = (async () => {
     GEH.fightSpectator = null; GEH.fightPendingEpoch = null;
     GEH.inPride = netGehennaRoom(P.pos);
     if (GEH.prideRoom) GEH.prideRoom.visible = GEH.inPride;
+    if (GEH.cityRoot) GEH.cityRoot.visible = !GEH.inPride;
     if (GEH.kingdomRoot) GEH.kingdomRoot.visible = !GEH.inPride;
     document.getElementById("fade").style.opacity = 0; document.getElementById("damage").style.opacity = 0;
     releaseKeys();
@@ -19896,7 +20238,7 @@ const __boot = (async () => {
   function gehFightSpawn(f, id) {
     const index = Math.max(0, f.members.indexOf(id)), column = index % 4, row = Math.floor(index / 4);
     return f.action === "return" ? V3(GEH.cx + 51.5 + column * 1.6, GEH.floor + 9.05, GEH.cz + 78 + row * 1.6) :
-      V3(GEH.cx - 84 + column * 2, GEH.floor + 9.05, GEH.cz + 52 + row * 1.8);
+      V3(GEH.cx + GEH_PRIDE_X + 1 + column * 2, GEH.floor + 9.05, GEH.cz + GEH_PRIDE_Z - 8 + row * 1.8);
   }
   function gehFightApply(f, epoch) {
     if (!f || !Number.isSafeInteger(epoch) || epoch < 1 || f.epoch !== epoch || !["active", "wipe", "idle", "won"].includes(f.status) ||
@@ -19973,9 +20315,9 @@ const __boot = (async () => {
     WORLDSTATE.luciferDefeated = false; WORLDSTATE.gehFinaleWitnessed = false; WORLDSTATE.afterlife = null; NET.gehFinaleLocal = false;
     e.hp = e.maxHp = 90; e.phase = 0; e.plea = 0; e.pleaStep = 0; e.holdPause = 0; e.sceneT = 0; e.lineReadUntil = 0;
     e.armed = false; e.alive = true; e.noBar = false; e.removed = false; e.throwPose = null; e.throwCd = 4.5;
-    e.pos.copy(e.fightHome || V3(GEH.cx - 73, GEH.floor + 9, GEH.cz + 54)); e.vel.set(0, 0, 0); e.heading = 0;
+    e.pos.copy(e.fightHome || V3(GEH.cx + GEH_PRIDE_X + 12, GEH.floor + 9, GEH.cz + GEH_PRIDE_Z - 6)); e.vel.set(0, 0, 0); e.heading = 0;
     e.scenePhase = action === "retry" ? "omen" : "children"; e.state = "wait"; e.beat = action === "retry" ? 5 : 0;
-    e.runTo = V3(GEH.cx - 85, GEH.floor + 9, GEH.cz + 68);
+    e.runTo = V3(GEH.cx + GEH_PRIDE_X, GEH.floor + 9, GEH.cz + GEH_PRIDE_Z + 8);
     e.mesh.visible = true; e.mesh.position.copy(e.pos); e.mesh.rotation.y = e.heading;
     gehPoseLucifer(e, "children", 0.62, time); if (!EXTRA.includes(e)) EXTRA.push(e);
     enemiesTick = -1;
@@ -20074,11 +20416,18 @@ const __boot = (async () => {
   function gehFightTakeThrow(m) {
     const f = GEH.luciferFight;
     if (!f || f.status !== "active" || death || m.epoch !== f.epoch || !Number.isSafeInteger(m.hit) || m.hit <= (GEH.throwHitSeen || 0) ||
-      ![m.x, m.y, m.z, m.dmg].every(Number.isFinite) || m.y >= DIVIDE || m.dmg < 0 || m.dmg > 40) return;
+      ![m.x, m.y, m.z, m.dmg].every(Number.isFinite) || m.y >= DIVIDE || m.dmg < 0 || m.dmg > 99) return;
     GEH.throwHitSeen = m.hit;
     if (enemyPerfectDodge(false)) return;
     if (P.block) lowerShield(true);
     hurtPlayer(m.dmg, V3(m.x, m.y, m.z), 2.6, false);
+  }
+  // his shove takes half of whatever you are still holding, so it never quite finishes you off on its own — until
+  // two hearts, where it takes the rest. the host works this out at the moment the blow lands, from that player's
+  // health at that moment, which is why it is computed here and not when the swing starts.
+  function gehLuciferBlow(state) {
+    const hp = Math.max(0, state.hp || 0);
+    return clamp(hp <= 2 ? Math.max(hp, 1) : Math.ceil(hp / 2), 1, 99);
   }
   function gehLuciferThrow(e, dt) {
     if (netGuest()) return;
@@ -20088,10 +20437,15 @@ const __boot = (async () => {
       const p = e.throwPose; p.t += dt;
       if (p.t >= 1 && !p.hit) {
         p.hit = true;
-        const a = gehFightActor(p.target);
-        if (a && !f.dead.includes(a.id) && netGehennaRoom(a.pos) && dist2D(a.pos, e.pos) < e.r + 3.5 && Math.abs(a.pos.y - e.pos.y) < 5) {
+        // re-evaluate at land time: use the nearest live member in range, not just the initial target
+        const candidates = f.members.map(gehFightActor).filter(a =>
+          a && !f.dead.includes(a.id) && netGehennaRoom(a.pos) &&
+          dist2D(a.pos, e.pos) < e.r + 5 && Math.abs(a.pos.y - e.pos.y) < 6
+        ).sort((a, b) => dist2D(a.pos, e.pos) - dist2D(b.pos, e.pos));
+        const a = candidates[0];
+        if (a) {
           const hit = { t: "lf", op: "throw", seed: WORLDSTATE.gehSeed, epoch: f.epoch, to: a.id, hit: GEH.throwHitSeq = (GEH.throwHitSeq || 0) + 1,
-            x: e.pos.x, y: e.pos.y, z: e.pos.z, dmg: Math.min(40, Math.max(6, a.state.maxHp * 0.65)) };
+            x: e.pos.x, y: e.pos.y, z: e.pos.z, dmg: gehLuciferBlow(a.state) };
           if (a.local) gehFightTakeThrow(hit); else netSend(NET.peers.get(a.avatar.via), hit);
         }
       }
@@ -20207,6 +20561,31 @@ const __boot = (async () => {
       leg.foot.position.set(ankleX, ankleY - 0.07, ankleZ + 0.2);
       leg.foot.rotation.set(running ? -swing * 0.2 : 0, side * 0.12, 0);
     }
+    if (rig.mouth) {
+      const maxHp = e.maxHp || 90;
+      const hpK = clamp((e.hp !== undefined ? e.hp : maxHp) / maxHp, 0, 1);
+      const frownK = 1 - hpK;
+      rig.mouth.center.position.y = 2.79 + frownK * 0.012;
+      for (const lip of rig.mouth.sides) {
+        lip.mesh.position.y = lip.baseY - frownK * 0.035;
+        lip.mesh.rotation.z = lip.side * (0.35 - frownK * 0.85);
+      }
+    }
+    // the shudder of a man losing an argument with a falling hand. it is written as an ABSOLUTE position off e.pos
+    // rather than added to whatever the mesh already held, so posing twice in one frame — or posing without a
+    // caller that re-places the body first — cannot walk him across the room a tremor at a time.
+    const strain = holding ? gehLuciferStrain(e) : 0;
+    if (strain > 0.001) {
+      const s = e.bodyScale;
+      e.mesh.position.set(
+        e.pos.x + (Math.sin(t * 27.3) + Math.sin(t * 41.1) * 0.55) * 0.05 * strain * s,
+        e.pos.y + Math.abs(Math.sin(t * 36.2)) * 0.03 * strain * s,
+        e.pos.z + (Math.cos(t * 31.7) + Math.sin(t * 47.9) * 0.55) * 0.05 * strain * s);
+      e.mesh.rotation.z = Math.sin(t * 25.4) * 0.05 * strain;
+      rig.torso.rotation.z = Math.sin(t * 33.1) * 0.035 * strain;
+    } else if (e.mesh.rotation.z) {
+      e.mesh.rotation.z = 0;
+    }
   }
   function gehInteractLucifer(actor = P) {
     const e = GEH.lucifer;
@@ -20215,11 +20594,11 @@ const __boot = (async () => {
     if (e.scenePhase === "release" || e.scenePhase === "released") return false;
     if (e.armed) { if (!(e.holdPause > 0)) luciferSay(e, e.phase > 0 ? "I could keep them from being hurt again." : "Please. Help me hold it. They're behind me.", 5000); return true; }
     const lines = [
-      "I'm Lucifer. Hold that end for her, would you? There. Nothing can hurt them here.",
-      "I looked for Ysolde, too. I am so sorry. I have no one here by that name.",
-      "I have watched Wildmoor suffer, life after life. And beyond it, the same grief.",
-      "Once I turn that hand away, I can keep everyone on a gentler road.",
-      "No one would have to choose wrong again."
+      "I'm Lucifer. Here — hold that side. There. Nothing can reach them while we hold.",
+      "God will return soon, to put a stop to me. He intends to abandon us all. He always has.",
+      "I have watched every life pass through here. Every grief, every crime, every death that didn't need to happen.",
+      "I found a way to end it: no more death, no new life to suffer, no reincarnation. Just everyone safe, at rest, in a place that holds.",
+      "No one choosing wrong again. You've carried people your whole life — I'm offering to set it down for everyone.",
     ];
     if (e.beat >= lines.length) return false;
     const line = lines[Math.min(e.beat++, lines.length - 1)];
@@ -20241,7 +20620,7 @@ const __boot = (async () => {
     gehFightStart(e);
     e.scenePhase = "omen";
     e.sceneT = 0;
-    e.runTo = V3(GEH.cx - 85, GEH.floor + 9, GEH.cz + 68);
+    e.runTo = V3(GEH.cx + GEH_PRIDE_X, GEH.floor + 9, GEH.cz + GEH_PRIDE_Z + 8);
     e.armed = false;
     e.plea = 0;
   }
@@ -20251,9 +20630,9 @@ const __boot = (async () => {
     "Please let me see what comes next."
   ];
   const LUCIFER_ANSWERS = [
-    "When the hand is gone, nothing will make you suffer again.",
-    "What if you choose the same pain? What if all of you do? I cannot bear to watch.",
-    "I was going to choose for everyone. I had not asked anyone."
+    "Back. Away. I did not come this far to be turned by one sword.",
+    "I have watched them suffer for every life this world has offered. You are not freeing them. You are throwing them back in.",
+    "You don't understand what you're doing. You never did. None of you ever did."
   ];
   function gehLuciferBreak(e) {
     if (!e || e.phase >= 3 || e.holdPause > 0) return;
@@ -20320,11 +20699,54 @@ const __boot = (async () => {
     e.mesh.rotation.y = e.heading;
     gehPoseLucifer(e, mode, scale, time);
     gehPoseLuciferThrow(e);
+    pushOutOfLucifer(P.pos, 0.55);
+    if (typeof NET !== "undefined" && NET && NET.avatars) {
+      for (const a of NET.avatars.values()) {
+        if (!a.state.dead && a.state.pos) pushOutOfLucifer(a.state.pos, 0.55);
+      }
+    }
   }
 
+  // how hard he is straining under it, 0 to 1. it is worked out from his health and the number of children who have
+  // reached him, both of which every client already has from the enemy snapshot, so the tremor it drives costs the
+  // network nothing and stays in step for everyone in the room.
+  function gehLuciferStrain(e) {
+    if (!e || !e.alive || !e.armed || e.scenePhase !== "hold") return 0;
+    const wear = 1 - clamp((e.hp ?? 0) / (e.maxHp || 90), 0, 1);
+    return clamp(0.18 + wear * 0.7 + (e.phase || 0) * 0.06, 0, 1);
+  }
+  // take the white out of the room, one shade for every surface at once. the last scene is the only caller.
+  function gehPrideShade(dark) {
+    const k = 1 - clamp(dark, 0, 1);
+    for (const m of GEH.prideMats || []) {
+      const base = m.userData.prideBase;
+      if (!base) continue;
+      m.color.setRGB(base.r * k, base.g * k, base.b * k);
+      if (m.emissive) {
+        if (m.userData.prideEmissive === undefined) m.userData.prideEmissive = m.emissiveIntensity;
+        m.emissiveIntensity = m.userData.prideEmissive * k;
+      }
+    }
+  }
   function gehUpdateDivineHand(dt) {
     const hand = GEH.godHand, aperture = GEH.divineAperture;
     if (!hand || !aperture) return;
+    // the strain is in three places at once: his own body, the hand he is pushing back, and the floor under the
+    // player. the room itself is nudged only a few centimetres — the camera carries most of it — because its
+    // collision boxes are registered in world coordinates and do not move with the group.
+    const strain = gehLuciferStrain(GEH.lucifer), shiver = hand.userData.tremble;
+    if (shiver) {
+      shiver.position.set(
+        (Math.sin(time * 19.1) + Math.sin(time * 29.7) * 0.6) * 0.34 * strain,
+        Math.sin(time * 23.3) * 0.2 * strain,
+        (Math.cos(time * 17.4) + Math.sin(time * 33.9) * 0.6) * 0.34 * strain);
+      shiver.rotation.set(Math.sin(time * 21.7) * 0.016 * strain, 0, Math.cos(time * 15.9) * 0.022 * strain);
+    }
+    if (strain > 0.001 && GEH.inPride && !GEH.netFinale) {
+      const q = strain * 0.045;
+      if (GEH.prideRoom) GEH.prideRoom.position.set(Math.sin(time * 26.6) * q, Math.sin(time * 34.2) * q * 0.6, Math.cos(time * 22.9) * q);
+      shake = Math.max(shake, 0.1 + strain * 0.34);
+    }
     aperture.visible = GEH.inPride && hand.visible;
     if (!aperture.visible) return;
     const ceilingY = GEH.floor + 30.42;
@@ -20340,9 +20762,9 @@ const __boot = (async () => {
     if (GEH.inPride && GEH.prideWater) {
       const water = GEH.prideWater, dummy = water.dummy;
       for (let i = 0; i < water.flow.count; i++) {
-        const z = 46 + (i * 0.83 + time * 0.62) % 29;
+        const z = (GEH_PRIDE_Z - 14) + (i * 0.83 + time * 0.62) % 29;
         dummy.position.set(GEH.cx + water.center(z) + Math.sin(i * 2.4) * water.half(z) * 0.64, water.y, GEH.cz + z);
-        dummy.rotation.y = Math.atan(Math.cos((z - 43) * 0.16) * 0.352);
+        dummy.rotation.y = Math.atan(Math.cos((z - (GEH_PRIDE_Z - 17)) * 0.16) * 0.352);
         dummy.scale.set(0.14 + (i % 4) * 0.1, 0.008, (0.38 + (i % 3) * 0.22) * (0.9 + Math.sin(time * 0.9 + i) * 0.1));
         dummy.updateMatrix(); water.flow.setMatrixAt(i, dummy.matrix);
       }
@@ -20358,28 +20780,44 @@ const __boot = (async () => {
     if (P.pos.x < GEH.cx - 36 && Math.abs(P.pos.z - GEH.cz) < 2.3 && P.pos.y > GEH.floor + 6 && GEH.exitArm > 3) gehAscend();
   }
   function gehPrideChildren(releaseT = null) {
+    const px0 = GEH.cx + GEH_PRIDE_X, pz0 = GEH.cz + GEH_PRIDE_Z;
     // Their little routes continue during the confrontation and remain on walkable ground.
     for (let i = 0; i < (GEH.prideChildren || []).length; i++) {
       const child = GEH.prideChildren[i], home = child.userData.home;
+      const wasX = child.position.x, wasZ = child.position.z;
       child.visible = true; child.scale.y = 1;
       if (releaseT !== null) {
-        const walk = clamp((releaseT - 3 - i * 1.4) / 9, 0, 1);
-        const routes = [[[-87,55],[-99,55],[-99,57]],[[-74,56],[-74,60.2]],[[-83,57],[-87,64]]];
-        const route = [home, ...routes[i].map(([x,z])=>V3(GEH.cx+x,GEH.floor+9,GEH.cz+z))];
+        // they are out of the room before the dark takes it, so the walk is over inside the first seven seconds.
+        const walk = clamp((releaseT - 1.2 - i * 0.8) / 4.2, 0, 1);
+        const routes = [[[px0 - 2, pz0 - 5], [px0 - 14, pz0 - 5], [px0 - 14, pz0 - 3]], [[px0 + 11, pz0 - 4], [px0 + 11, pz0 + 0.2]], [[px0 + 2, pz0 - 3], [px0 - 2, pz0 + 4]]];
+        const route = [home, ...routes[i].map(([x,z])=>V3(x,GEH.floor+9,z))];
         const progress = smooth(walk)*(route.length-1), part = Math.min(route.length-2,Math.floor(progress)), mix=progress-part;
         child.position.lerpVectors(route[part],route[part+1],mix);
         child.rotation.y=Math.atan2(route[part+1].x-route[part].x,route[part+1].z-route[part].z);
         child.position.y=gehGroundAt(child.position.x,child.position.z,GEH.floor+10)+(walk>0&&walk<1?Math.abs(Math.sin(releaseT*6+i))*0.055:0);
       } else {
         const pace = [0.48,0.21,0.3][i], angle = time*pace+i*2.1;
-        const centers = [[-72.2,55.2],[-75.5,52],[-82.5,57.6]], radius = [2,0.9,2.2][i];
-        child.position.set(GEH.cx+centers[i][0]+Math.sin(angle)*radius,GEH.floor+9,GEH.cz+centers[i][1]+Math.cos(angle)*radius*0.62);
+        const centers = [[px0 + 12.8, pz0 - 4.8], [px0 + 9.5, pz0 - 8], [px0 + 2.5, pz0 - 2.4]], radius = [2,0.9,2.2][i];
+        child.position.set(centers[i][0]+Math.sin(angle)*radius,GEH.floor+9,centers[i][1]+Math.cos(angle)*radius*0.62);
         child.position.y+=Math.abs(Math.sin(time*4+i))*0.035;
         child.rotation.y=Math.atan2(Math.cos(angle),-Math.sin(angle)*0.62);
         // A brief crouch to examine the grass, followed by more exploring.
         if(i===1&&Math.sin(time*0.25)>0.7)child.scale.y=0.72;
       }
+      gehStepChild(child, wasX, wasZ);
     }
+  }
+  // the legs swing off the ground the child has actually covered since the last frame, so the same few lines serve
+  // the loops they wander in, the routes they take when he lets go, and standing perfectly still between the two.
+  function gehStepChild(child, wasX, wasZ) {
+    const legs = child.userData.legs;
+    if (!legs) return;
+    const u = child.userData, now = time, dt = clamp(now - (u.stepAt ?? now), 0.0001, 0.1);
+    u.stepAt = now;
+    const moved = Math.hypot(child.position.x - wasX, child.position.z - wasZ);
+    u.pace = damp(u.pace || 0, clamp(moved / dt / 1.1, 0, 1), 7, dt);
+    u.gait = (u.gait || 0) + moved * 8.6;
+    for (const hip of legs) hip.rotation.x = Math.sin(u.gait + (hip.userData.side > 0 ? Math.PI : 0)) * 0.62 * u.pace;
   }
   function gehLuciferDown(fromHost = false) {
     const e = GEH.lucifer;
@@ -20394,12 +20832,16 @@ const __boot = (async () => {
     const enemyIndex = EXTRA.indexOf(e); if (enemyIndex >= 0) { EXTRA.splice(enemyIndex, 1); enemiesTick = -1; }
     if (!GEH.netFinale) {
       if (NET.role === "host") NET.gehShared = true;
+      GEH.endStruck = false;
       GEH.netFinale = { t: 0, scale: e.bodyScale, handY: GEH.godHand.position.y, members: GEH.luciferFight ? GEH.luciferFight.members.slice() : [
         ...(netGehennaRoom(P.pos) && !death ? [NET.myId] : []),
         ...[...NET.avatars.values()].filter(a => NET.peers.get(a.via)?.ready && !a.state.dead && netGehennaRoom(a.state.pos)).map(a => a.id)
       ] };
     }
-    if (NET.role === "host" || !netGuest()) luciferSay(e, "No. I will not do that to you.", 5500);
+    // he has no last word. the hand answers for him, and anything said over it only gets in the way.
+    Voice.stop();
+    if (!GEH.kingdomRoot) gehBuildKingdom();
+    if (typeof gehUpdateRoadWidth === "function") gehUpdateRoadWidth();
     if (!netGehennaRoom(P.pos) || death || NET.gehFinaleLocal) { if (NET.role === "host") autoSave("Lucifer lets go"); return; }
     NET.gehFinaleLocal = true; WORLDSTATE.gehFinaleWitnessed = true;
     WORLDSTATE.afterlife = null;
@@ -20427,21 +20869,32 @@ const __boot = (async () => {
       { key: "moveOn", label: "Move on", text: "Let this life end. See what comes after." }
     ], key => {
       WORLDSTATE.afterlife = key;
-      if (key === "stay") {
-        AFTERLIFE.phase = null;
-        paused = false;
-        document.getElementById("pause").classList.add("hidden");
-        P.pos.set(0, groundAt(0, TOWN_R + 12, 1e9) + 0.1, TOWN_R + 12);
-        P.vel.set(0, 0, 0); P.carry = false; P.gehDive = null; P.swim = false; P.swimVol = null;
-        P.grounded = true; P.jumps = 0; P.air = 100; P.climb = null; P.sliding = false; P.dive = false;
-        hero.scale.setScalar(1);
-        visY = P.pos.y; lastSafePos.copy(P.pos); applyAfterlifeAppearance();
-        document.getElementById("fade").style.opacity = 0;
-        say("Morning reaches the road. There is woodsmoke beyond the gate.", 6500, true);
-        tryLock();
-      } else { netCloseBystanderWorlds(); showModernEnding(0); }
-      autoSave(key === "stay" ? "staying a little longer" : "a new life");
+      if (key === "stay") afterlifeStay();
+      else { netCloseBystanderWorlds(); autoSave("a new life"); showModernEnding(0); }
     });
+  }
+  // staying is a real return to the valley, so everything the last scene took has to be given back: the body, the
+  // controls, the screen, and the colour of the room behind, in case the road ever leads down there again.
+  function afterlifeStay() {
+    WORLDSTATE.afterlife = "stay";
+    AFTERLIFE.phase = null;
+    if (AFTERLIFE.panel) { AFTERLIFE.panel.remove(); AFTERLIFE.panel = null; }
+    GEH.prideDark = 0;
+    gehPrideShade(0);
+    if (GEH.prideRoom) GEH.prideRoom.position.set(0, 0, 0);
+    paused = false;
+    inputLock = false;
+    document.getElementById("pause").classList.add("hidden");
+    P.pos.set(0, groundAt(0, TOWN_R + 12, 1e9) + 0.1, TOWN_R + 12);
+    P.vel.set(0, 0, 0); P.carry = false; P.gehDive = null; P.swim = false; P.swimVol = null;
+    P.grounded = true; P.jumps = 0; P.air = 100; P.climb = null; P.sliding = false; P.dive = false;
+    hero.scale.setScalar(1); hero.visible = true;
+    visY = P.pos.y; lastSafePos.copy(P.pos); applyAfterlifeAppearance();
+    settleWorldAfterGame();
+    document.getElementById("fade").style.opacity = 0;
+    say("Morning reaches the road. There is woodsmoke beyond the gate.", 6500, true);
+    tryLock();
+    autoSave("staying a little longer");
   }
   function showModernEnding(index) {
     AFTERLIFE.phase = "modern"; AFTERLIFE.slide = index;
@@ -20453,31 +20906,43 @@ const __boot = (async () => {
     ];
     const [title, text, color] = scenes[index], panel = endingPanel();
     const buildings = Array.from({ length: 11 }, (_, i) => `<rect x="${i * 76}" y="${95 + (i * 47 % 130)}" width="62" height="230" fill="${i % 2 ? '#566977' : '#6e7d85'}"/><path d="M${i * 76 + 10} 180v65m18-65v65m18-65v65" stroke="#e9d8aa" stroke-width="5"/>`).join("");
-    panel.innerHTML = `<article><small>THE CYCLE · ${index + 1} / 3</small><svg viewBox="0 0 840 420" role="img" aria-label="A modern city beside a river, and a solitary figure"><rect width="840" height="420" fill="${color}"/><circle cx="675" cy="78" r="38" fill="#fff1d0"/>${buildings}<path d="M0 330Q310 270 840 335V420H0Z" fill="#728f9b"/><path d="M0 347Q330 303 840 350" fill="none" stroke="#c6d0c9" stroke-width="3"/><path d="M0 345h840" stroke="#354654" stroke-width="14"/><circle cx="${index === 0 ? 400 : 450}" cy="283" r="12" fill="#473f42"/><path d="M${index === 0 ? 400 : 450} 296v34m0-21-15 14m15-14 15 14m-15 7-11 20m11-20 11 20" stroke="#473f42" stroke-width="10" fill="none"/></svg><h1>${title}</h1><p>${text}</p><button id="endingNext">${index < 2 ? "Continue →" : "The end · Return to the crossroads"}</button></article>`;
-    panel.querySelector("button").onclick = () => index < 2 ? showModernEnding(index + 1) : showAfterlifeChoice();
+    panel.innerHTML = `<article><small>THE CYCLE · ${index + 1} / 3</small><svg viewBox="0 0 840 420" role="img" aria-label="A modern city beside a river, and a solitary figure"><rect width="840" height="420" fill="${color}"/><circle cx="675" cy="78" r="38" fill="#fff1d0"/>${buildings}<path d="M0 330Q310 270 840 335V420H0Z" fill="#728f9b"/><path d="M0 347Q330 303 840 350" fill="none" stroke="#c6d0c9" stroke-width="3"/><path d="M0 345h840" stroke="#354654" stroke-width="14"/><circle cx="${index === 0 ? 400 : 450}" cy="283" r="12" fill="#473f42"/><path d="M${index === 0 ? 400 : 450} 296v34m0-21-15 14m15-14 15 14m-15 7-11 20m11-20 11 20" stroke="#473f42" stroke-width="10" fill="none"/></svg><h1>${title}</h1><p>${text}</p><button id="endingNext">${index < 2 ? "Continue →" : "The end →"}</button></article>`;
+    panel.querySelector("button").onclick = () => index < 2 ? showModernEnding(index + 1) : showEndingCredits();
     panel.querySelector("button").focus();
+  }
+  // the credits used to sit behind a timer that nothing ever reached. they are the last page of the slideshow now.
+  function showEndingCredits() {
+    AFTERLIFE.phase = "credits";
+    releaseKeys(); if (document.pointerLockElement) document.exitPointerLock();
+    const panel = endingPanel();
+    panel.innerHTML = '<article><div class="credits-roll"><small>THE ROAD IS OPEN</small><h1>The Legend of Peanits</h1><p>Created by Phone Hseng<br>Built with Three.js</p><p>For every person you stopped to help.</p><p>For the roads still ahead.</p><p>For someone who could not.</p><h2>Thank you for playing.</h2></div><button id="endingTitle">Continue →</button></article>';
+    panel.querySelector("button").onclick = () => showEndingTitle();
+    panel.querySelector("button").focus();
+  }
+  // where the road finishes: begin the whole thing again, or turn back and take the other answer after all.
+  function showEndingTitle() {
+    AFTERLIFE.phase = "title";
+    releaseKeys(); if (document.pointerLockElement) document.exitPointerLock();
+    const panel = endingPanel();
+    panel.innerHTML = '<article><small>THE END</small><h1>Legend of Peanits</h1><p>That life is spent. Begin another, or take the road back into the valley and stay.</p>' +
+      '<p><button id="endNew">New game</button> <button id="endStay">Return to Wildmoor</button></p></article>';
+    // a reload is the only honest reset for a world this size: it drops every built room, every actor and every
+    // open connection, and comes back up on the real title screen with Continue still offering this same save.
+    panel.querySelector("#endNew").onclick = () => location.reload();
+    panel.querySelector("#endStay").onclick = () => afterlifeStay();
+    panel.querySelector("#endNew").focus();
   }
   function updateAfterlife(dt) {
     if (!AFTERLIFE) return;
     // The host keeps the release moving even when its own player is in a menu or back in Wildmoor.
     gehFightTick(dt);
     netGehennaFinaleTick(dt);
+    // a save reloaded after the hand came down picks the beat back up where the player left it.
     if (!AFTERLIFE.phase && WORLDSTATE.luciferDefeated && WORLDSTATE.gehFinaleWitnessed && WORLDSTATE.afterlife !== "stay") {
       if (WORLDSTATE.afterlife === "moveOn") showModernEnding(0); else showAfterlifeChoice();
     }
-    if (AFTERLIFE.phase !== "release" && AFTERLIFE.phase !== "credits") return;
-    AFTERLIFE.t += dt;
-    if (AFTERLIFE.phase === "release") {
-      const t = GEH.netFinale ? GEH.netFinale.t : AFTERLIFE.t;
-      AFTERLIFE.t = t;
-      hero.scale.setScalar(1);
-      if (t < 17) return;
-      document.getElementById("fade").style.opacity = 1;
-      if (t < 18) return;
-      AFTERLIFE.phase = "credits"; AFTERLIFE.t = 0;
-      if (document.pointerLockElement) document.exitPointerLock();
-      endingPanel().innerHTML = '<div class="credits-roll"><small>THE ROAD IS OPEN</small><h1>The Legend of Peanits</h1><p>Created by Phone Hseng<br>Built with Three.js</p><p>For every person you stopped to help.</p><p>For the roads still ahead.</p><p>For someone who could not.</p><h2>Thank you for playing.</h2></div>';
-    } else if (AFTERLIFE.t > 15) showAfterlifeChoice();
+    // netGehennaFinaleTick owns every beat of the release itself; there is nothing left for this to drive.
+    if (AFTERLIFE.phase === "release") { AFTERLIFE.t = GEH.netFinale ? GEH.netFinale.t : AFTERLIFE.t + dt; hero.scale.setScalar(1); }
   }
 
   function updateGehenna(dt, rdt) {
@@ -20506,11 +20971,28 @@ const __boot = (async () => {
     netGehennaGrant();
     gehUpdateKingdom(dt);
     gehUpdateFinale(dt);
+    if (GEH.cityRoot) GEH.cityRoot.visible = !GEH.inPride;
+    if (GEH.kingdomRoot) GEH.kingdomRoot.visible = !GEH.inPride;
+    if (GEH.hillPortalRoot) GEH.hillPortalRoot.visible = !GEH.inPride;
+    for (const e of GEH.enemies || []) {
+      if (e.kind !== "lucifer" && e.mesh) e.mesh.visible = !GEH.inPride && (e.alive || e.t < 8);
+    }
     // the six light slots follow the six nearest lamps. ten candidates, no allocation, and no touching of the global
     // vlights array, which updateLightPool already filters and fully sorts on every frame of the game.
-    if (GEH.lampPos && GEH.lampPos.length) {
+    if (GEH.lampFlash > 0) GEH.lampFlash = Math.max(0, GEH.lampFlash - dt);
+    const gehFlashK = Math.min(1, Math.max(0, (GEH.lampFlash || 0) / 0.16));
+    if (GEH.M && GEH.M.flame) {
+      if (gehFlashK > 0.001) {
+        GEH.M.flame.color.setRGB(1, lerp(0.541, 1, gehFlashK), lerp(0.188, 1, gehFlashK));
+      } else {
+        GEH.M.flame.color.setHex(0xff8a30);
+      }
+    }
+    if (GEH.inPride) {
+      for (let s = 0; s < GEH_LAMPS.length; s++) GEH_LAMPS[s].intensity = 0;
+    } else if (GEH.lampPos && GEH.lampPos.length) {
       const cam = camera.position;
-      for (const L of GEH.lampPos) L.d2 = (L.x - cam.x) * (L.x - cam.x) + (L.y - cam.y) * (L.y - cam.y) + (L.z - cam.z) * (L.z - cam.z);
+      for (const L of GEH.lampPos) L.d2 = (L.x - cam.x) * (L.x - cam.x) + (L.y - cam.y) * (L.y - cam.y) + (L.z - cam.z);
       gehTick++;
       for (let s = 0; s < GEH_LAMPS.length; s++) {
         let best = null, bd = 1e18;
@@ -20518,10 +21000,23 @@ const __boot = (async () => {
         if (!best) { GEH_LAMPS[s].intensity = 0; continue; }
         best.used = gehTick;
         GEH_LAMPS[s].position.copy(best);
-        GEH_LAMPS[s].intensity = 3.1 + Math.sin(time * 3.1 + s) * 0.3;
+        const baseIntensity = 3.1 + Math.sin(time * 3.1 + s) * 0.3;
+        if (gehFlashK > 0.001) {
+          GEH_LAMPS[s].intensity = lerp(baseIntensity, 7.5, gehFlashK);
+          GEH_LAMPS[s].color.setRGB(1, lerp(0.478, 1, gehFlashK), lerp(0.165, 1, gehFlashK));
+        } else {
+          GEH_LAMPS[s].intensity = baseIntensity;
+          GEH_LAMPS[s].color.setHex(0xff7a2a);
+        }
       }
     }
-    if (GEH.motes) { GEH.motes.position.set(P.pos.x, GEH.floor - 2, P.pos.z); GEH.motes.rotation.y = time * 0.026; }
+    if (GEH.motes) {
+      GEH.motes.visible = !GEH.inPride;
+      if (!GEH.inPride) {
+        GEH.motes.position.set(P.pos.x, GEH.floor - 2, P.pos.z);
+        GEH.motes.rotation.y = time * 0.026;
+      }
+    }
     if (GEH.ledger) GEH.ledger.position.y = 1.03 + Math.sin(time * 1.3) * 0.008;
     // once nobody is being called, the board is bare and the porter is out in the road taking the boxes round, and
     // both of them stand in front of those facts afterwards and talk about them. his body and his speaker have to
@@ -20615,7 +21110,10 @@ const __boot = (async () => {
     for (let i = SWIM_VOLS.length - 1; i >= 0; i--) if (SWIM_VOLS[i].id === "pride-river") SWIM_VOLS.splice(i, 1);
     GEH.prideHut = null;
     GEH.prideWater = GEH.prideRoom = GEH.divineAperture = null;
+    GEH.prideMats = []; GEH.prideDark = 0; GEH.endStruck = false;
     GEH.inPride = false;
+    GEH.cityRoot = null;
+    if (scene.background) scene.background = null;
     GEH.kingdom = GEH.kingdomRoot = null;
     GEH.kingdomResidents = [];
     if (GEH.portalVeil) { GEH.portalVeil.remove(); GEH.portalVeil = null; }
@@ -20631,7 +21129,8 @@ const __boot = (async () => {
     GEH.slips = null;
     GEH.porter = null;
     GEH.shut = false;
-    for (const L of GEH_LAMPS) L.intensity = 0;
+    for (const L of GEH_LAMPS) { L.intensity = 0; L.color.setHex(0xff7a2a); }
+    GEH.lampFlash = 0;
     gehK = 0;
     let after = 0;
     scene.traverse(() => after++);
@@ -20657,15 +21156,15 @@ const __boot = (async () => {
     // anyway. tick() returns on !GEH.root, so removing it changes nothing above the seam.
     if (STORY.reported && !reportedAt) reportedAt = storyT;
     // act iii begins on the first night after the king has heard that maren is innocent
-    if (STORY.reported && !WORLDSTATE.blackPoolAwake && dayElev < 0.05 && storyT - reportedAt > 12) awakenPool();
+    if (STORY.reported && !WORLDSTATE.blackPoolAwake && dayElev < 0.05 && storyT - reportedAt > 12 && !isGameBeaten()) awakenPool();
     if (WORLDSTATE.marenFreed && !WORLDSTATE.pyreDismantled && WORLDSTATE.blackPoolAwake) dismantlePyre();
     if (POOL_DARK && POOL_DARK.visible) {
-      const k = WORLDSTATE.ending ? 0 : 1;
+      const k = (WORLDSTATE.ending || isGameBeaten()) ? 0 : 1;
       POOL_DARK.light.intensity = k * (1.6 + Math.sin(time * 2.1) * 0.5 + (dayElev < 0.05 ? 1.2 : 0));
       POOL_DARK.fog.forEach((m, i) => { m.position.y = POOL.y + 0.6 + i * 0.35 + Math.sin(time * 0.4 + i) * 0.25; m.material.opacity = 0.12 + Math.sin(time * 0.3 + i * 2) * 0.05; });
       POOL_DARK.fish.forEach((f, i) => { f.position.y = POOL.y + 0.05 + Math.sin(time * 1.3 + i) * 0.04; });
-      if (lit && lighthouse && lighthouse.userData.light && dayElev < 0.05 && !WORLDSTATE.ending) lighthouse.userData.light.intensity = 2.6 * (0.92 + Math.sin(time * 2.3) * 0.05 + Math.sin(time * 0.7) * 0.03); // the beacon breathes. it used to have a two-per-cent-per-frame chance of dropping to a third brightness, which is a hard random strobe sixty times a second and genuinely unpleasant to look at; it sways like a real lamp now. the beacon flickers while the pool is awake
-      if (WORLDSTATE.ending) POOL_DARK.visible = false;
+      if (lit && lighthouse && lighthouse.userData.light && dayElev < 0.05 && !WORLDSTATE.ending && !isGameBeaten()) lighthouse.userData.light.intensity = 2.6 * (0.92 + Math.sin(time * 2.3) * 0.05 + Math.sin(time * 0.7) * 0.03); // the beacon breathes. it used to have a two-per-cent-per-frame chance of dropping to a third brightness, which is a hard random strobe sixty times a second and genuinely unpleasant to look at; it sways like a real lamp now. the beacon flickers while the pool is awake
+      if (WORLDSTATE.ending || isGameBeaten()) POOL_DARK.visible = false;
     }
     // the warden's stone shows once the bear no longer lies on it
     for (const [id, who] of [["quest:stonefold", "Stonefold elder"], ["quest:greytor", "Grey Tor widow"]]) { const pk = pickups.find(p => p.id === id), q = SIDE.find(q => q.who === who); if (pk && q && !pk.taken) { const show = !!q.taken; pk.hidden = !show; pk.mesh.visible = show; if (pk.light) pk.light.visible = show; } } // an errand's item is only there once the errand is
@@ -20675,7 +21174,7 @@ const __boot = (async () => {
     if (relicCount() === 4 && villagesDone() >= 8 && lastWatchSatisfied() && !WORLDSTATE.finaleStarted && dayElev < 0.05 && dist2D(P.pos, POOL) < 20 && !roomNow) { if (netGuest()) { // a cooldown, not a latch: this used to be spent forever on the first ask, so a guest whose request went unanswered could never raise the warden again all session
       if (time > (NET.finaleAsked || 0)) { NET.finaleAsked = time + 20; for (const p of NET.peers.values()) netSend(p, { t: "finale" }); say("The relics burn cold. The water waits for the host's word.", 3000, true, "dark"); } } else startFinale(); }
     if (WORLDSTATE.finaleStarted && WORLDSTATE.wardenDead && !wardenUnder && WARDEN && !WARDEN.alive) { wardenUnder = true; for (const e of EXTRA) if (e.wraith && !e.warden && e.alive) withdrawSiege(e); releaseWatchers(); beginHush(); say("She goes under. Not onward — under. The children are still standing there, and none of them will look at you.", 8000, true, "dark"); if (POOL_STONE) POOL_STONE.mark.material.emissiveIntensity = 2.5; }
-    if (POOL_STONE && WORLDSTATE.wardenDead && !WORLDSTATE.ending) { if (!POOL_STONE.prompt) POOL_STONE.prompt = makePrompt(); const near2 = dist2D(P.pos, POOL_STONE) < 3.2; POOL_STONE.prompt.visible = near2; if (near2) POOL_STONE.prompt.position.set(POOL_STONE.x, POOL_STONE.y + 2.2, POOL_STONE.z); }
+    if (POOL_STONE && WORLDSTATE.wardenDead && !WORLDSTATE.ending && !isGameBeaten()) { if (!POOL_STONE.prompt) POOL_STONE.prompt = makePrompt(); const near2 = dist2D(P.pos, POOL_STONE) < 3.2; POOL_STONE.prompt.visible = near2; if (near2) POOL_STONE.prompt.position.set(POOL_STONE.x, POOL_STONE.y + 2.2, POOL_STONE.z); }
     updateBurial(dt);
   }
   function startFinale() {
@@ -20763,7 +21262,12 @@ const __boot = (async () => {
     for (const bed of it.beds || []) bed.closed = true;
     const alongX = Math.abs(it.door.x - it.cx) > Math.abs(it.door.z - it.cz);
     const k = it.grow || 1, ox = (it.door.x - it.cx) / k, oz = (it.door.z - it.cz) / k;
-    const door = boxM(alongX ? 0.3 : 2.7, 3.8, alongX ? 2.7 : 0.3, timber, ox, 1.9, oz);
+    // door sits flush in the frame (closed): width matches the opening dimension,
+    // depth is just the panel thickness. a rotation of ±π/2 turns an "ajar" box into
+    // a flat panel lying along the wall — the direction of the turn matches the wall axis.
+    const doorW = alongX ? 2.7 : 0.3, doorD = alongX ? 0.3 : 2.7;
+    const door = boxM(doorW, 3.8, doorD, timber, ox, 1.9, oz);
+    door.rotation.y = 0; // already aligned with the wall when created this way
     it.group.add(door);
     millerDoor = { mesh: door, it };
     const ow = alongX ? 0.25 : 1.4, od = alongX ? 1.4 : 0.25;
@@ -20896,6 +21400,17 @@ const __boot = (async () => {
     P.block = false;
     P.sliding = false;
     poseCarriedBody();
+    if (typeof clearSiege === "function") clearSiege();
+    for (const e of EXTRA) {
+      if (e && e.wraith && typeof withdrawSiege === "function") withdrawSiege(e);
+      else if (e && e.kind === "wolf") e.state = "idle";
+    }
+    for (const g of goblins) {
+      if (g.state === "chase" || g.state === "windup" || g.state === "balk") g.state = "lurk";
+    }
+    for (const s of slimes) {
+      if (s.state === "chase" || s.state === "windup" || s.state === "lunge") s.state = "idle";
+    }
   }
   function poseCarriedBody() {
     BODY.mesh.visible = true;
@@ -21147,6 +21662,40 @@ const __boot = (async () => {
     if (WORLDSTATE.ending === "break") { if (POOL_WATER_MESH) { POOL_WATER_MESH.visible = false; if (POOL_WATER_MESH.sheen) POOL_WATER_MESH.sheen.visible = false; } if (POOL_HOLLOW) POOL_HOLLOW.visible = true; }
     else if (POOL_WATER_MESH) { POOL_WATER_MESH.material.color.set(WORLDSTATE.ending === "fairy" ? 0xe8c8e0 : 0xc8d8e8); POOL_WATER_MESH.material.opacity = 0.7; }
     if (WORLDSTATE.ending === "bind" && lit && lighthouse) { lighthouse.userData.light.intensity = 3.2; if (!BEACON_THREAD) { const thread = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 1, 6, 1, true), new THREE.MeshBasicMaterial({ color: 0xfff0b0, transparent: true, opacity: 0.35, depthWrite: false })); const a = lighthousePos.clone().add(V3(0, 30, 0)), b = V3(POOL.x, POOL.y + 1, POOL.z); const mid = a.clone().add(b).multiplyScalar(0.5), len = a.distanceTo(b); thread.position.copy(mid); thread.scale.set(1, len, 1); thread.lookAt(b); thread.rotateX(Math.PI / 2); scene.add(thread); BEACON_THREAD = thread; } }
+  }
+  function settleWorldAfterGame() {
+    _dreadV = 0;
+    CHOICE = null;
+    const chEl = document.getElementById("choice");
+    if (chEl) chEl.classList.add("hidden");
+    const pauseEl = document.getElementById("pause");
+    if (pauseEl) pauseEl.classList.add("hidden");
+    if (typeof AFTERLIFE !== "undefined" && AFTERLIFE) {
+      AFTERLIFE.phase = null;
+      if (AFTERLIFE.panel) { AFTERLIFE.panel.remove(); AFTERLIFE.panel = null; }
+    }
+    if (typeof clearSiege === "function") clearSiege();
+    if (typeof EXTRA !== "undefined" && Array.isArray(EXTRA)) {
+      for (const e of EXTRA) {
+        if (e && e.wraith && e.alive && typeof withdrawSiege === "function") withdrawSiege(e);
+      }
+    }
+    if (POOL_DARK) POOL_DARK.visible = false;
+    if (POOL_RUNE && POOL_RUNE.material) POOL_RUNE.material.emissiveIntensity = 0.1;
+    if (POOL_WHIRL) POOL_WHIRL.visible = false;
+    if (POOL_STONE) {
+      if (POOL_STONE.mark && POOL_STONE.mark.material) POOL_STONE.mark.material.emissiveIntensity = 0;
+      if (POOL_STONE.prompt) POOL_STONE.prompt.visible = false;
+    }
+    if (POOL_WATER_MESH) {
+      POOL_WATER_MESH.visible = true;
+      if (POOL_WATER_MESH.sheen) POOL_WATER_MESH.sheen.visible = true;
+      if (POOL_WATER_MESH.material && POOL_WATER_MESH.material.color) {
+        POOL_WATER_MESH.material.color.set(0xc8d8e8);
+        POOL_WATER_MESH.material.opacity = 0.7;
+      }
+    }
+    if (typeof updateHanged === "function") updateHanged();
   }
   // a decision put to the player: a short list of choices, answered by number key or click; the game keeps running behind it
   let CHOICE = null;
@@ -21473,6 +22022,30 @@ const __boot = (async () => {
   };
   // advance the main quest through the king’s dialogue
   function kingTalk() {
+    metKing = true;
+    if (isInvisMode()) {
+      if (!WORLDSTATE.kingInvisRecognized) {
+        WORLDSTATE.kingInvisRecognized = true;
+        speakLines(king, "King", [
+          `Look at you... There is barely enough left of you to catch the light. I am sorry, ${CUSTOM.name}. Truly sorrowful.`,
+          "All this time, I thought you were merely a champion walking my roads. A subject answering my summons.",
+          "I see it now. The weight you bore was never mine to give. You were a king, weren't you? A king of your own kingdom, who held up an entire realm until it broke.",
+          "I know that burden. I know what it costs to stand between your people and the end, until there is nothing left of you to bring home.",
+          "Wildmoor owes you more than a title or two extra hearts. You have my deepest respect, brother. From one king to another."
+        ], 6000);
+        return;
+      }
+      const KING_INVIS = [
+        `Rest your crown, ${CUSTOM.name}. A kingdom that demands your very substance was never one you had to save alone.`,
+        "I rule over stone and soil, but you ruled over the quiet between lives. Walk my halls in peace, brother. No guard will bar your way.",
+        `You fought for them until you were only wind and memory. You have my respect, King ${CUSTOM.name}. Always.`,
+        "If you ever tire of walking the moor as a shadow, my hearth is yours. Sit by the fire as long as you need."
+      ];
+      WORLDSTATE.kingInvisTurn = (WORLDSTATE.kingInvisTurn || 0) + 1;
+      const kline = KING_INVIS[(WORLDSTATE.kingInvisTurn - 1) % KING_INVIS.length];
+      return speak(king, kline, "King", beatMs(kline));
+    }
+    if (WORLDSTATE.ending || isGameBeaten()) return speak(king, WORLDSTATE.ending === "break" ? "The pool is a hollow of stones and the miller sits by it in the evenings. I have ordered a bench put there. That is your doing." : WORLDSTATE.ending === "fairy" ? "My guards say the pool is full of petals and they hear singing at night. They are not afraid of it. That is your doing." : "The dark beneath has been laid to rest, Champion. The sky is clear, and the realm is at peace. That is your doing.", "King", 7000);
     if (STORY.solved && !STORY.reported) {
       STORY.reported = true;
       claimInvestigationHeart();
@@ -21530,7 +22103,6 @@ const __boot = (async () => {
       }
       return speak(king, "Doors under pools. I have a hall full of men who believed Hale and I cannot spare it for stories. Prove yourself first.", "King", 6000);
     }
-    if (WORLDSTATE.ending) return speak(king, WORLDSTATE.ending === "bind" ? "The beacon-keepers are a crown office now, with a salary. Someone will always know why the lamp burns. That is your doing." : WORLDSTATE.ending === "break" ? "The pool is a hollow of stones and the miller sits by it in the evenings. I have ordered a bench put there. That is your doing." : "My guards say the pool is full of petals and they hear singing at night. They are not afraid of it. That is your doing.", "King", 7000);
     speak(king, WORLDSTATE.hermitWarned ? "Four relics. The hall is with you, and so is the crown. Go carefully." : "The valley is yours to roam, Champion. Climb the elder tree if you want to see all of it at once.", "King", 5000);
   }
   // ============================================================ what the three of them say once the pool is awake
@@ -21628,6 +22200,9 @@ const __boot = (async () => {
     }
     if (n === MAREN) {
       if (WORLDSTATE.marenFreed && P.herbs >= 3 && (P.hp < P.maxHp || P.stam < stamMax())) { P.herbs -= 3; P.hp = P.maxHp; P.stam = stamMax(); SFX.pickupBig(); return speak(n, "Three moor-herbs. Give them here. There: drink. That's what they had me in the stocks for, that. Bring three more whenever you're hurt.", "Maren", 6000); }
+      if (WORLDSTATE.marenFreed && (WORLDSTATE.ending || isGameBeaten())) {
+        return speak(n, "You brought peace back to the valley, Champion. The herbs grow sweet again, and the mornings feel light.", "Maren", 6000);
+      }
       if (WORLDSTATE.marenFreed && !WORLDSTATE.ending && WORLDSTATE.blackPoolAwake) {
         const line = walkLines("maren:awake", MAREN_AFTER);
         return speak(n, line, "Maren", beatMs(line));
@@ -21656,7 +22231,7 @@ const __boot = (async () => {
     if (n === WICK) {
       STORY.wick = true;
       if (WORLDSTATE.wardenDead && !WORLDSTATE.ysoldeBuried) return speak(n, "Take her body from the water. Carry her through the rear gate, past Hale, to the grave at the south gate.", "Old Man Wick", 9000);
-      if (WORLDSTATE.ending) return speak(n, WORLDSTATE.ending === "break" ? "Drained it. I sat where she was found and it's just stones now. I can look at it." : WORLDSTATE.ending === "fairy" ? "There's singing off the water at night. She'd have liked that. She sang, when she thought nobody was about." : "The light lies right across it now, all night. I sleep with the shutters open so I can see it.", "Wick", 6000);
+      if (WORLDSTATE.ending || isGameBeaten()) return speak(n, WORLDSTATE.ending === "break" ? "Drained it. I sat where she was found and it's just stones now. I can look at it." : WORLDSTATE.ending === "fairy" ? "There's singing off the water at night. She'd have liked that. She sang, when she thought nobody was about." : "The water is quiet now. I sat where she was found and the reeds are green again. I sleep with the shutters open so I can look at it.", "Wick", 6000);
       if (WORLDSTATE.blackPoolAwake) return speak(n, "I've sat by this water twenty years and it never once looked back at me. It looks back now. The reeds have gone black where she lay, and at night there's something walking on the far bank with no feet. Don't stand near it after dark, champion. Whatever Hale fed, it learned the taste.", "Wick", 9000);
       if (STORY.solved)
         return speak(n, "So it was him. The Inquisitor. I'll cut wood again tomorrow. Feels like the trees might let me.", "Wick", 5500);
@@ -22137,7 +22712,7 @@ const __boot = (async () => {
     if (WORLDSTATE.wardenDead && !P.carry && !WORLDSTATE.ysoldeBuried && !BURIAL.carrier && dist2D(BURIAL.drop || BODY.pos, P.pos) < 4.4) { liftYsolde(); return; }
     if (atTheGrave()) {
       if (P.carry) { buryYsolde(); return; }
-      if (WORLDSTATE.ysoldeBuried) { say("The headstone is blank. Nobody could agree what to put on it, and then nobody came back to it.", 5200, true, "dark"); return; }
+      if (WORLDSTATE.ysoldeBuried && !near(hermitPos)) { say("The headstone is blank. Nobody could agree what to put on it, and then nobody came back to it.", 5200, true, "dark"); return; }
     }
     if (P.carry) return;
     { const nim = npcs.find(n => n.lost && !n.found && dist2D(n.pos, P.pos) < 3.6);
@@ -22153,6 +22728,22 @@ const __boot = (async () => {
       return;
     }
     if (near(hermitPos)) {
+      if (isInvisMode()) {
+        const hermitInvisLines = [
+          "Look at you. Just look at you. After everything... you chose to be a shadow.",
+          "I ran away for thirty years and called it living. You conquered the deep, and then gave up your breath to linger as a ghost. What a waste.",
+          "You had a life waiting up here. Real ground under your boots. A sun to feel on your face. And you threw it away to be cold forever.",
+          "I thought you were stronger than me, wanderer. I thought you'd finish the fight and walk home. Don't look at me like that. I'm disappointed in you.",
+          "Go on, then. Drift around the moor like a lost wisp. You had a chance to live, and you chose to be nothing."
+        ];
+        const muse = walkLines("hermit:invis", hermitInvisLines);
+        speak(hermitVoice, muse, "Hermit", beatMs(muse));
+        return;
+      }
+      if (WORLDSTATE.ending || isGameBeaten()) {
+        speak(hermitVoice, WORLDSTATE.ending === "break" ? "Drained it. Ha. Nobody's owed anything now. I'll sleep tonight." : WORLDSTATE.ending === "fairy" ? "Sung to sleep. Never thought I'd see the little folk do a kindness for a monster. Or maybe it's the other way round." : "You put the dark back in the ground, champion. The sky is back where it belongs. I'll sleep tonight.", "Hermit", 6500);
+        return;
+      }
       if (WORLDSTATE.blackPoolAwake && !WORLDSTATE.hermitTold) {
         WORLDSTATE.hermitTold = true;
         speak(hermitVoice, "You felt it too. Hale was a murderer, and he was never a liar and never a fool. There's an old door under that pool, and this valley's been paying its rent in blood so long we forgot the tenant. He fed it the miller's girl and it went quiet, and quiet is not the same as paid. Now it's awake, and it's looking. Ask me again and I'll tell you how the old folk shut it.", "Hermit", 10500);
@@ -22177,7 +22768,7 @@ const __boot = (async () => {
         speak(hermitVoice, "Far west, past the roads. The abandoned church. Look under the fallen choir seats for the watch-clapper, wrapped in the brown cloth I wore when Hale still called me teacher.", "Hermit", 7000);
         return;
       }
-      if (WORLDSTATE.hermitWarned && !WORLDSTATE.ending) {
+      if (WORLDSTATE.hermitWarned && !WORLDSTATE.ending && !isGameBeaten()) {
         hermitTurn++;
         if (hermitTurn % 2 === 0) {
           const muse = walkLines("hermit:muse", HERMIT_MUSE);
@@ -22187,7 +22778,6 @@ const __boot = (async () => {
         speak(hermitVoice, relicCount() < 4 ? `${relicCount()} of four. The seal, the root word, the warden's stone, the queen's thorn. Don't go near the water at night until you have them all.` : "Four. Then it's the pool, at night. I'll keep the fire lit. Come back and tell me the sky's still up.", "Hermit", 6500);
         return;
       }
-      if (WORLDSTATE.ending) { speak(hermitVoice, WORLDSTATE.ending === "break" ? "Drained it. Ha. Nobody's owed anything now. I'll sleep tonight." : WORLDSTATE.ending === "fairy" ? "Sung to sleep. Never thought I'd see the little folk do a kindness for a monster. Or maybe it's the other way round." : "Bound it to the light. Then the light had better never go out. Keep an eye on that beacon, champion.", "Hermit", 6500); return; }
       if (!metKing) {
         speak(
           hermitVoice,
@@ -22268,6 +22858,10 @@ const __boot = (async () => {
       }
     for (const n of npcs)
       if (n.wren && near(n.pos, 3.4)) {
+        if (isInvisMode()) {
+          speak(n, `What... what are you, ${CUSTOM.name}? I can't drape cloth on a ghost. You feel so distant.`, "Wren", 5000);
+          return;
+        }
         if (STORY.weaver0 !== undefined) STORY.weaverVisited = true;
         speak(n, "Turn around. Hm. Yes, I can do something with that. Pick what you like.", "Wren", 4000);
         openCustomizer(n);
@@ -22275,6 +22869,10 @@ const __boot = (async () => {
       }
     for (const n of npcs)
       if (n.kind !== "king" && n.kind !== "body" && !n.storyHidden && !n.napping && !n.arrest && near(n.pos, 3.4)) {
+        if (isInvisMode()) {
+          speak(n, npcLine(n), n.kind === "knight" ? "Knight" : n.name || (n.kid ? "Child" : n.female ? "Woman" : "Villager"), 5000);
+          return;
+        }
         if (sideTalk(n)) return;
         if (n.kind === "story" || n === MAREN || n === HALE) {
           storyTalk(n);
@@ -22838,6 +23436,25 @@ const __boot = (async () => {
     // every one of her lines is one or two short sentences, because say() holds a subtitle for 55 ms a character and
     // her old opener was a twelve-second wall. a longer thought is split across presses of E instead.
     const qsay = line => say("Queen Rosabel: " + line, Math.max(3400, line.length * 55), true, "fairy");
+    if (isInvisMode()) {
+      if (FAIRY.found >= 10 && !WORLDSTATE.relics.tear) {
+        WORLDSTATE.relics.tear = true;
+        grant(THORN_LABEL, () => {});
+        qsay("Ten home. Take this gently. It came off me long ago, when holding things still mattered.");
+        return;
+      }
+      const QUEEN_INVIS = [
+        "Ah. You took the quiet road, didn't you?",
+        "Do not mind the mortals. To them, fading is an ending. To me, it is just evening.",
+        "You are thinner than before. But your heart still sits where it was.",
+        "Breathe softly. There is nothing left in this world that can take a bite out of you now.",
+        "Sit down by the roses, dear wanderer. The petals don't care whether you cast a shadow.",
+        "You carried enough. It is alright to be still now."
+      ];
+      FAIRY.invisTeach = (FAIRY.invisTeach || 0) + 1;
+      qsay(QUEEN_INVIS[(FAIRY.invisTeach - 1) % QUEEN_INVIS.length]);
+      return;
+    }
     if (FAIRY.found >= 10 && !WORLDSTATE.relics.tear) {
       WORLDSTATE.relics.tear = true;
       grant(THORN_LABEL, () => {});
@@ -23136,14 +23753,24 @@ const __boot = (async () => {
       ambient.intensity = lerp(ambient.intensity, 0.65, cityLight);
     }
     if (P.pos.y < DIVIDE && GEH.inPride) {
-      hemi.color.setHex(0xffffff);
-      hemi.groundColor.copy(toLin(0x6a7567));
-      hemi.intensity = 0.78;
-      ambient.color.setHex(0xffffff);
-      ambient.intensity = 0.2;
-      scene.fog.color.setHex(0xffffff);
-      scene.fog.near = 300;
-      scene.fog.far = 4000;
+      // the whole room is one white light source. the last scene puts it out by turning that white down and walking
+      // the fog in from a hundred and seventy-five metres to arm's length, so the expanse is eaten rather than hidden.
+      const dk = clamp(GEH.prideDark || 0, 0, 1), v = Math.round(255 * (1 - dk)), shade = (v << 16) | (v << 8) | v;
+      scene.background = scene.background || new THREE.Color();
+      scene.background.setHex(shade);
+      hemi.color.setHex(shade);
+      hemi.groundColor.setHex(shade);
+      hemi.intensity = 1.0 * (1 - dk * 0.94);
+      ambient.color.setHex(shade);
+      ambient.intensity = 0.5 * (1 - dk * 0.94);
+      scene.fog.color.setHex(shade);
+      scene.fog.near = lerp(75, 1.5, dk);
+      scene.fog.far = lerp(175, 9, dk);
+      sky.material.uniforms.top.value.setHex(shade);
+      sky.material.uniforms.horizon.value.setHex(shade);
+      sky.material.uniforms.sunCol.value.setHex(0x000000);
+    } else {
+      if (scene.background) scene.background = null;
     }
     sunMesh.visible = dayElev > -0.15;
     moonMesh.position.copy(camera.position).addScaledVector(sunDir.clone().negate(), graphics.far * 0.85);
@@ -23163,6 +23790,11 @@ const __boot = (async () => {
     if (deepK > 0.001) {
       stars.material.opacity *= 1 - deepK;
       if (deepK > 0.5) sunMesh.visible = moonMesh.visible = false;
+    }
+    if (P.pos.y < DIVIDE && GEH.inPride) {
+      sunMesh.visible = false;
+      moonMesh.visible = false;
+      stars.material.opacity = 0;
     }
     const lampsOn = 1 - sstep(-0.05, 0.15, dayElev);
     houseLamps.forEach(l => (l.intensity = lampsOn * 1.2));
@@ -23795,6 +24427,11 @@ const __boot = (async () => {
   }
   // the wraith: drifts, flickers in and out, rises and brightens before it strikes, and is solid and slow for a moment afterwards
   function updateWraith(e, tgt, dx, dz, dist, dt) {
+    if ((typeof isGameBeaten === "function" && isGameBeaten()) || isCarryingBody()) {
+      if (typeof withdrawSiege === "function") withdrawSiege(e);
+      else { e.alive = false; e.state = "dead"; e.mesh.visible = false; if (e.bar) e.bar.visible = false; }
+      return;
+    }
     const speed = e.warden ? 3.2 * (e.phase === 3 ? 1.4 : 1) : 4.5;
     // not while she is surfacing. the blink applies to every wraith and starts at zero, so the warden went fully
     // invisible for a fifth of a second about twice during the six-second entrance built to be watched.
@@ -23951,16 +24588,17 @@ const __boot = (async () => {
   function updateWolf(e, tgt, dx, dz, dist, dt) {
     const den = e.den, home = den ? den : e.pos, pack = den ? den.wolves.filter(w => w.alive) : [e], hurtPack = pack.some(w => w.hp < w.maxHp * 0.6);
     const step = (tx, tz, spd) => { const d = Math.hypot(tx - e.pos.x, tz - e.pos.z) || 1; const nx = e.pos.x + ((tx - e.pos.x) / d) * spd * dt, nz = e.pos.z + ((tz - e.pos.z) / d) * spd * dt; if (inBounds(nx, nz) && !isWater(nx, nz) && terrainH(nx, nz) - e.pos.y < 2.2) { e.pos.x = nx; e.pos.z = nz; e.anim += dt * spd * 1.4; e.moved = true; } e.heading = Math.atan2(tx - e.pos.x, tz - e.pos.z); };
+    if (isCarryingBody() && (e.state === "circle" || e.state === "lunge" || e.state === "retreat")) e.state = "idle";
     switch (e.state) {
-      case "idle": if (dist < 22 && dist2D(tgt.pos, home) < WOLF_HOME_R + 12) { e.state = "circle"; } else if (den && dist2D(e.pos, den) > 6) step(den.x + Math.cos(e.orbit) * 4, den.z + Math.sin(e.orbit) * 4, 3); break;
+      case "idle": if (!isCarryingBody() && dist < 22 && dist2D(tgt.pos, home) < WOLF_HOME_R + 12) { e.state = "circle"; } else if (den && dist2D(e.pos, den) > 6) step(den.x + Math.cos(e.orbit) * 4, den.z + Math.sin(e.orbit) * 4, 3); break;
       case "circle": {
         e.orbit += dt * 0.9 * (e.nid % 2 ? 1 : -1); const R = 6.5; step(tgt.pos.x + Math.cos(e.orbit) * R, tgt.pos.z + Math.sin(e.orbit) * R, 6.5); e.heading = Math.atan2(dx, dz);
         e.lungeT -= dt * (hurtPack ? 2 : 1); if (e.lungeT <= 0 && !pack.some(w => w.state === "lunge")) { e.state = "lunge"; e.t = 0.6; e.hitDone = false; if (dist < 40) SFX.tone(300, 180, 0.2, 0.1, "sawtooth"); }
         if (dist > 30 || dist2D(tgt.pos, home) > WOLF_HOME_R + 20) e.state = "idle";
         break; }
       case "lunge": step(tgt.pos.x, tgt.pos.z, 13); if (!e.hitDone && dist < 1.6 + e.r && Math.abs(tgt.pos.y - e.pos.y) < 2.5) { e.hitDone = true; enemyStrike(e, 1, tgt); e.state = "retreat"; e.t = 1.2; } if (e.t <= 0) { e.state = "retreat"; e.t = 1.4; } break;
-      case "retreat": { const d = dist || 1; step(e.pos.x - (dx / d) * 5, e.pos.z - (dz / d) * 5, 8); if (e.t <= 0) { e.state = "circle"; e.lungeT = 2.5 + Math.random() * 2.5; } break; }
-      case "stun": e.pos.x += e.vel.x * dt; e.pos.z += e.vel.z * dt; e.vel.multiplyScalar(Math.pow(0.02, dt)); if (e.t <= 0) e.state = "circle"; break;
+      case "retreat": { const d = dist || 1; step(e.pos.x - (dx / d) * 5, e.pos.z - (dz / d) * 5, 8); if (e.t <= 0) { e.state = isCarryingBody() ? "idle" : "circle"; e.lungeT = 2.5 + Math.random() * 2.5; } break; }
+      case "stun": e.pos.x += e.vel.x * dt; e.pos.z += e.vel.z * dt; e.vel.multiplyScalar(Math.pow(0.02, dt)); if (e.t <= 0) e.state = isCarryingBody() ? "idle" : "circle"; break;
     }
     resolveStructs(e.pos, 0.5); pushOutOfTrees(e.pos, 0.5); e.pos.y = groundAt(e.pos.x, e.pos.z, e.pos.y);
     e.mesh.position.copy(e.pos);
@@ -23977,7 +24615,7 @@ const __boot = (async () => {
   // wolf dens: two, in the wild; each keeps a pack of three that returns a few minutes after it is killed
   function updateWolfDens(dt) {
     if (netGuest()) return;
-    if (P.pos.y < DIVIDE) return; // the same guard updateWraithSpawns has: the respawn test is 2D, and a den 60-400 m from (600, 600) would restock the valley while you are under it
+    if (P.pos.y < DIVIDE || isCarryingBody()) return; // the same guard updateWraithSpawns has: the respawn test is 2D, and a den 60-400 m from (600, 600) would restock the valley while you are under it
     for (const den of WOLF_DENS) {
       if (den.cleared) continue;
       if (den.wolves.length === 0) { den.respawn = (den.respawn || 0) - dt; if (den.respawn <= 0 && dist2D(den, P.pos) > 60 && dist2D(den, P.pos) < 400) { den.respawn = 240; for (let k = 0; k < 3; k++) { const a = (k / 3) * 6.28; const wx = den.x + Math.cos(a) * 3, wz = den.z + Math.sin(a) * 3; if (inBounds(wx, wz) && !isWater(wx, wz)) spawnWolf(wx, wz, den); } } }
@@ -23991,7 +24629,7 @@ const __boot = (async () => {
     // after her has to be silent, and the walk to the grave is the content; from the burial updateSiege owns every
     // spawn in the valley. two spawners with two budgets would put thirty wraiths on the moor and neither of them
     // would know why.
-    if (netGuest() || !WORLDSTATE.blackPoolAwake || WORLDSTATE.ending || WORLDSTATE.finaleStarted) return;
+    if (netGuest() || !WORLDSTATE.blackPoolAwake || WORLDSTATE.ending || WORLDSTATE.finaleStarted || isCarryingBody() || (typeof isGameBeaten === "function" && isGameBeaten())) return;
     if (P.pos.y < DIVIDE) return; // the drowned belong to the pool, not to what is under it — and every distance test below is 2D
     // running from them is not an answer. every interval you leave one walking, the pool sends another and sends it
     // sooner; every one you put down takes the pressure back off. so the player who turns and fights ends the night
@@ -24150,7 +24788,7 @@ const __boot = (async () => {
     // under the seam it is over for as long as the player is down there, and it has to be CLEARED rather than
     // paused. every distance test in this game is 2D and gehenna sits at (600, 600) inside the valley's own bounds,
     // so a wraith left standing by the pool would set off hunting the empty coordinates over the player's head.
-    const on = siegeOn() && P.pos.y >= DIVIDE;
+    const on = siegeOn() && P.pos.y >= DIVIDE && !isCarryingBody();
     if (on !== siegeLaid) {
       siegeLaid = on;
       if (on) siegeT = SIEGE.grace;
@@ -24185,7 +24823,7 @@ const __boot = (async () => {
           s.t += rdt;
           s.mesh.scale.setScalar(Math.max(0, 1 - s.t * 4));
           s.mesh.visible = s.t < 0.3;
-          if (!wardenFightActive() && !s.questOwner && s.respawn <= 0 && dist2D(s.home, P.pos) > 45 && (dayElev > 0.02 || slimes.indexOf(s) % 3 === 0)) {
+          if (!wardenFightActive() && !isCarryingBody() && !s.questOwner && s.respawn <= 0 && dist2D(s.home, P.pos) > 45 && (dayElev > 0.02 || slimes.indexOf(s) % 3 === 0)) {
             s.alive = true;
             s.hp = s.maxHp;
             s.pos.copy(s.home);
@@ -24209,6 +24847,7 @@ const __boot = (async () => {
           s.vel.set(((tx - s.pos.x) / d) * spd, vy, ((tz - s.pos.z) / d) * spd);
           s.pos.y += 0.02;
         };
+        if (isCarryingBody() && (s.state === "chase" || s.state === "windup" || s.state === "lunge")) s.state = "idle";
         switch (s.state) {
           case "idle":
             if (onGround && s.t <= 0) {
@@ -24220,7 +24859,7 @@ const __boot = (async () => {
             // do with where the player was in the story — and before it expired they ignored you entirely unless you
             // walked into one. they are tied to the hermit now: the moor is quiet until he tells you about it, and from
             // then on they hunt on sight. the swim exemption stays, so deep water is still a way out of a fight.
-            if (talkedOnce && dist < 30 && !tgt.state.swim) s.state = "chase";
+            if (!isCarryingBody() && talkedOnce && dist < 30 && !tgt.state.swim) s.state = "chase";
             break;
           case "chase":
             if (dist > 45 || tgt.state.swim) {
@@ -24258,10 +24897,10 @@ const __boot = (async () => {
             }
             break;
           case "rest":
-            if (s.t <= 0) s.state = "chase";
+            if (s.t <= 0) s.state = isCarryingBody() ? "idle" : "chase";
             break;
           case "stun":
-            if (s.t <= 0) s.state = "chase";
+            if (s.t <= 0) s.state = isCarryingBody() ? "idle" : "chase";
             break;
         }
         s.vel.y -= 28 * dt;
@@ -24862,6 +25501,7 @@ const __boot = (async () => {
           P.pos.z += sz;
           pushOutOfTrees(P.pos, 0.5);
           resolveStructs(P.pos, 0.55);
+          pushOutOfLucifer(P.pos, 0.55);
         }
       }
     } else if (okMove(nx, P.pos.z)) {
@@ -24876,6 +25516,7 @@ const __boot = (async () => {
     }
     pushOutOfTrees(P.pos, 0.5);
     resolveStructs(P.pos, 0.55);
+    pushOutOfLucifer(P.pos, 0.55);
     if (helixAt && Math.abs(P.pos.x - ELDER.x) < 40 && Math.abs(P.pos.z - ELDER.z) < 40) {
       const h = helixAt(P.pos.x, P.pos.z, P.pos.y);
       if (
@@ -25291,18 +25932,13 @@ const __boot = (async () => {
       }
       cy = Math.max(cy, c.h + 0.8);
     }
-    // a slower arm. at 9 the camera snapped onto every corner and every ledge and the whole picture jolted; 4.5 lets it
-    // trail and settle, which reads as a camera following you rather than a camera stapled to you.
     followCameraTravel();
-    camera.position.lerp(V3(cx, cy, cz), Math.min(1, rdt * 4.5));
+    camera.position.lerp(V3(cx, cy, cz), Math.min(1, rdt * 9));
     shake = Math.max(0, shake - rdt * 2.5);
     const shk = shake * shake * 0.6;
     camera.position.add(V3((Math.random() - 0.5) * shk, (Math.random() - 0.5) * shk, (Math.random() - 0.5) * shk));
     steadyCameraLookAt(rdt, P.pos.x, visY + 2.2 + Math.max(0, -camPitch) * 6, P.pos.z);
-    // and a much gentler zoom. the speed term used to swing eighteen degrees of field of view and chase it at rdt*6,
-    // so every sprint and every stop pumped the lens — which is most of what read as jarring. twelve degrees, eased at
-    // 1.8, and the doorway change to 78 now takes about a second instead of snapping.
-    camera.fov = lerp(camera.fov, P.flurry > 0 ? 54 : roomNow ? 74 : 60 + clamp(sp / 46, 0, 1) * 12, rdt * 1.8);
+    camera.fov = lerp(camera.fov, P.flurry > 0 ? 52 : roomNow ? 78 : 60 + clamp(sp / 46, 0, 1) * 18, rdt * 6);
     camera.updateProjectionMatrix();
 
     if (flashTimer > 0) {

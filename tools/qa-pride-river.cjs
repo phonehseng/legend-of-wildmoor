@@ -13,13 +13,13 @@ async function main(){
     const evaluate=s=>page.evaluate(async s=>await window.__gameQa.run(s),s);
     results.push(await evaluate(fs.readFileSync(path.join(__dirname,'qa-pride-river.js'),'utf8')));
     const shot=async(name,setup)=>{results.push({shot:name,value:await evaluate(setup)});await page.waitForTimeout(400);await page.screenshot({path:path.join(out,name+'.png')});};
-    await shot('01-river-swimming',`(()=>{const q=window.__riverQa;q.move(GEH.prideWater.center(63)+3.1,63,GEH.floor+8.6);q.tick(.5);return{swim:P.swim,volume:P.swimVol?.id,air:P.air,pos:P.pos};})()`);
-    await shot('02-hut-and-yard',`(()=>{const q=window.__riverQa;q.move(-76,53);q.tick(.2);return{hut:GEH.prideHut,children:GEH.prideChildren.map(c=>({x:c.position.x,y:c.position.y,z:c.position.z}))};})()`);
-    await shot('03-river-bank',`(()=>{const q=window.__riverQa;q.move(-88,61);q.tick(.2);return{swim:P.swim,pos:P.pos};})()`);
+    await shot('01-river-swimming',`(()=>{const q=window.__riverQa;q.move(GEH.prideWater.center(q.PZ+63)+3.1,q.PZ+63,GEH.floor+8.6);q.tick(.5);return{swim:P.swim,volume:P.swimVol?.id,air:P.air,pos:P.pos};})()`);
+    await shot('02-hut-and-yard',`(()=>{const q=window.__riverQa;q.move(q.PX-76,q.PZ+53);q.tick(.2);return{hut:GEH.prideHut,children:GEH.prideChildren.map(c=>({x:c.position.x,y:c.position.y,z:c.position.z}))};})()`);
+    await shot('03-river-bank',`(()=>{const q=window.__riverQa;q.move(q.PX-88,q.PZ+61);q.tick(.2);return{swim:P.swim,pos:P.pos};})()`);
     results.push(await evaluate(`(()=>{
       const q=window.__riverQa,checks=[],check=(v,s)=>{if(!v)throw Error(s);checks.push(s);};
-      for(const [x,z] of [[576,510],[600,600],[648,678],[GEH.cx-82,GEH.cz+68]])check(swimVolAt(x,z,GEH.floor+9).dry,'non-river Gehenna remains dry');
-      q.move(GEH.prideWater.center(63),63,GEH.floor+8.6);q.tick(.5);check(P.swim,'return test starts swimming');
+      for(const [x,z] of [[576,510],[600,600],[648,678],[GEH.cx+q.PX-82,GEH.cz+q.PZ+68]])check(swimVolAt(x,z,GEH.floor+9).dry,'non-river Gehenna remains dry');
+      q.move(GEH.prideWater.center(q.PZ+63),q.PZ+63,GEH.floor+8.6);q.tick(.5);check(P.swim,'return test starts swimming');
       const save=parseSaveKey(makeSaveKey());check(save&&save.pos[1]<DIVIDE,'ordinary portable save accepts river depth');
       gehAscend();check(P.pos.y>DIVIDE&&!P.swim&&!P.swimVol&&P.air===100,'ascend resets swim, volume and air');q.tick(2.3);
       check(!GEH.root&&!SWIM_VOLS.some(v=>v.id==='pride-river'),'teardown removes river volume');
