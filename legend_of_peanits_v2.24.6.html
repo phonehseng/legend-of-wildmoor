@@ -19644,27 +19644,23 @@ const __boot = (async () => {
     // straight linear drop over a fixed nine metres against a hill whose actual height varies with fbm noise, so
     // the blocks either floated clear of the ground or punched into it depending on where you stood. removed:
     // the hill alone is the ramp now.
-    // The avenue starts as the narrow alley from the first build. Each outer boss opens it and enlarges the
-    // houses; the flags are sampled when the kingdom is built so a saved progression is reflected immediately.
-    const bossProgress = [WORLDSTATE.gehAlmonerDown, WORLDSTATE.gehMatronDown, WORLDSTATE.gehHeapDown].filter(Boolean).length;
-    const alleyHalf = 5.5 + bossProgress * 3.5;
-    const houseLane = 8.2 + bossProgress * 4.5;
-    const houseWidth = 2.4 + bossProgress * 0.45;
-    const houseDepth = 3.2 + bossProgress * 0.6;
-    // Avenue pavement: straight line from x = 168 to x = 336 at the current progression width.
+    // Avenue pavement: straight line from x = 168 to x = 336, width 16m (z = -8..+8) at y = GEH.floor + 1
     for (let x = 168; x < 336; x += 14) {
       const w = Math.min(14, 336 - x);
-      block(w, 0.4, alleyHalf * 2, x + w / 2, y - 0.2, 0, stone);
-      block(w, 0.05, 0.3, x + w / 2, y + 0.02, -alleyHalf + 0.2, gold);
-      block(w, 0.05, 0.3, x + w / 2, y + 0.02, alleyHalf - 0.2, gold);
+      block(w, 0.4, 16, x + w / 2, y - 0.2, 0, stone);
+      block(w, 0.05, 0.3, x + w / 2, y + 0.02, -7.8, gold);
+      block(w, 0.05, 0.3, x + w / 2, y + 0.02, 7.8, gold);
       block(w, 0.04, 0.2, x + w / 2, y + 0.02, 0, lit);
     }
-    // 80 houses: initially a tight alley, then progressively larger and farther apart after each boss.
+    // The houses move outward as each outer boss falls, opening the avenue one ring at a time.
+    const bossProgress = [WORLDSTATE.gehAlmonerDown, WORLDSTATE.gehMatronDown, WORLDSTATE.gehHeapDown].filter(Boolean).length;
+    const houseSpread = bossProgress * 4.5;
+    // 80 Buildings: 40 along each side of the avenue.
     for (let i = 0; i < 40; i++) {
       const bx = 170 + i * 4;
-      const h = 10 + bossProgress * 2 + (i * 7 % (8 + bossProgress * 3)), bw = houseWidth, bd = houseDepth;
+      const h = 14 + (i * 7 % 13), bw = 3.6, bd = 5.0;
       for (const side of [-1, 1]) {
-        const bz = side * houseLane;
+        const bz = side * (13.5 + houseSpread);
         block(bw, h, bd, bx, y + h / 2, bz, stone, true);
         block(bw + 0.3, 0.5, bd + 0.3, bx, y + h, bz, gold);
         block(0.15, h - 1, bd + 0.05, bx, y + h / 2, bz, gold);
