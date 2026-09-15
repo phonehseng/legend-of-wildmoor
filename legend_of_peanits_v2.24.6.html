@@ -2125,8 +2125,45 @@ const __boot = (async () => {
       }
       return w;
     },
-    rowX0: 36, rowStep: 6, rowN: 11, rowZ: 10.5,
-    houseW: 2.5, houseD: 2.2, houseH: 3.1,
+    rowX0: 36, rowStep: 6, rowN: 11,
+    // The early Gehenna rows begin as a narrow alley. Each outer boss killed opens the road and pushes both
+    // house rows outward; these are getters so every build and minimap sample sees the saved progression.
+    get rowZ() {
+      let z = 10.5;
+      if (typeof WORLDSTATE !== "undefined") {
+        if (WORLDSTATE.gehAlmonerDown) z += 2.5;
+        if (WORLDSTATE.gehMatronDown) z += 2.5;
+        if (WORLDSTATE.gehHeapDown) z += 2.5;
+      }
+      return z;
+    },
+    get houseW() {
+      let w = 2.5;
+      if (typeof WORLDSTATE !== "undefined") {
+        if (WORLDSTATE.gehAlmonerDown) w += 0.35;
+        if (WORLDSTATE.gehMatronDown) w += 0.35;
+        if (WORLDSTATE.gehHeapDown) w += 0.35;
+      }
+      return w;
+    },
+    get houseD() {
+      let d = 2.2;
+      if (typeof WORLDSTATE !== "undefined") {
+        if (WORLDSTATE.gehAlmonerDown) d += 0.3;
+        if (WORLDSTATE.gehMatronDown) d += 0.3;
+        if (WORLDSTATE.gehHeapDown) d += 0.3;
+      }
+      return d;
+    },
+    get houseH() {
+      let h = 3.1;
+      if (typeof WORLDSTATE !== "undefined") {
+        if (WORLDSTATE.gehAlmonerDown) h += 0.35;
+        if (WORLDSTATE.gehMatronDown) h += 0.35;
+        if (WORLDSTATE.gehHeapDown) h += 0.35;
+      }
+      return h;
+    },
     sweeperX: 24, benchX: 70, stillX: 92,
     yardX: 104, yardR: 11,
     hillX: 136, hillR: 20, hillH: 9,
