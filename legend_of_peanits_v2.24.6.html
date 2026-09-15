@@ -19883,7 +19883,11 @@ const __boot = (async () => {
       resident.mesh.position.copy(resident.pos);
     }
     if (!city.transit && city.cooldown <= 0 && !afterlifeLocked()) {
-      const enter = !GEH.inPride && WORLDSTATE.gehDone && Math.abs(P.pos.y - city.y) < 2.8 && Math.abs(P.pos.x - city.portal.x) < 2.2 && Math.abs(P.pos.z - city.portal.z) < 2.6;
+      // The centered circular gate is a broad doorway, not a single two-metre trigger point. Keep the progression
+      // and floor checks, but cover the full visible opening so collision-radius and camera alignment cannot strand
+      // the player just outside the impossible room.
+      const enter = !GEH.inPride && WORLDSTATE.gehDone && Math.abs(P.pos.y - city.y) < 3.5 &&
+        Math.abs(P.pos.x - city.portal.x) < 8 && Math.abs(P.pos.z - city.portal.z) < 8;
       const leave = GEH.inPride && (WORLDSTATE.luciferDefeated || !(GEH.lucifer && GEH.lucifer.beat >= 5)) && Math.abs(P.pos.x - (GEH.cx + GEH_PRIDE_X)) < 2.0 && P.pos.z < GEH.cz + GEH_PRIDE_Z - 19.5;
       if (enter) gehPrideAdmit();
       else if (leave) gehPrideTransit(false);
