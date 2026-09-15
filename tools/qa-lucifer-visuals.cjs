@@ -6,7 +6,7 @@ async function main(){
  const start=source.indexOf('  function gehBuildFinale() {'),end=source.indexOf('  function gehInteractLucifer(',start);assert.ok(start>0&&end>start);
  const beginPose=source.indexOf('  function gehPoseLuciferThrow('),endPose=source.indexOf('  function gehPoseLucifer(',beginPose);
  const throwHelper=beginPose>0&&beginPose<start?source.slice(beginPose,endPose):'';
- const divineStart=source.indexOf('  function gehUpdateDivineHand('),divineEnd=source.indexOf('  function gehUpdateFinale(',divineStart);
+ const divineStart=source.indexOf('  function gehLuciferStrain('),divineEnd=source.indexOf('  function gehUpdateFinale(',divineStart);
  const divineHelper=divineStart>0?source.slice(divineStart,divineEnd):'';
  const riverStart=source.indexOf('  function gehPrideRiverAt(x, z) {'),riverEnd=source.indexOf('  function gehH(x, z) {',riverStart);
  const riverHelper=riverStart>0?source.slice(riverStart,riverEnd):'';
@@ -17,7 +17,8 @@ async function main(){
   await page.addScriptTag({content:`
 const scene=new THREE.Scene();scene.background=new THREE.Color(0xe9e5df);
 const GEH={root:new THREE.Group(),cx:600,cz:600,floor:-280,inPride:true,enemies:[]};scene.add(GEH.root);
-const WORLDSTATE={},EXTRA=[],structs=[],SWIM_VOLS=[];let ENEMY_NID=0,time=0;const V3=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z);
+const WORLDSTATE={},EXTRA=[],structs=[],SWIM_VOLS=[];let ENEMY_NID=0,time=0,shake=0;
+const GEH_PRIDE_X=-800,GEH_PRIDE_Z=800;const damp=(a,b,k,dt)=>b+(a-b)*Math.exp(-k*dt);const V3=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z);
 const P={pos:V3(527,-271,654)},dist2D=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z),clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),lerp=(a,b,t)=>a+(b-a)*t,smooth=t=>t*t*(3-2*t);
 const toLin=c=>new THREE.Color(c).convertSRGBToLinear(),makeHealthBar=()=>null,makePrompt=()=>new THREE.Group(),gehAddStruct=s=>structs.push(s);
 ${riverHelper}

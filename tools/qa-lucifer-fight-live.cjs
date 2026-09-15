@@ -22,7 +22,7 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
         WORLDSTATE.gehUnlocked = true; WORLDSTATE.gehSeed = GEH.seed = 77119;
         WORLDSTATE.gehAlmonerDown = WORLDSTATE.gehMatronDown = WORLDSTATE.gehHeapDown = WORLDSTATE.gehDone = true;
         WORLDSTATE.luciferDefeated = false; WORLDSTATE.afterlife = null;
-        P.pos.set(GEH.cx - ${i === 2 ? '-48' : '73'}, GEH.floor + 9, GEH.cz + ${i === 2 ? '78' : '56'});
+        P.pos.set(GEH.cx + ${i === 2 ? '48' : 'GEH_PRIDE_X + ' + (i ? 4 : -4)}, GEH.floor + 9, GEH.cz + ${i === 2 ? '78' : 'GEH_PRIDE_Z - 6'});
         P.gehDive = null; P.hp = P.maxHp = 20; P.vel.set(0,0,0); P.lying = false; sleepT = 0; inputLock = false;
         await window.gehBuildWorld();
         if (${i} > 0) { netBeginGehennaSession(); NET.gehApplied = true; NET.gehEntered = true; }

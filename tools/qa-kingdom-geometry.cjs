@@ -1,26 +1,36 @@
+// The Still Kingdom, built in a sandbox with no browser: the straight road down to it is level and unobstructed,
+// its residents are static until you walk into them, and the tear at the end of it only opens for the whole party.
 const fs = require('fs');
 const vm = require('vm');
 const assert = require('assert');
-const html = fs.readFileSync(process.argv[2] || 'legend_of_peanits_v2.24.3.html', 'utf8');
+const html = fs.readFileSync(process.argv[2] || 'legend_of_peanits_v2.24.5.html', 'utf8');
 const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(m => m[1]);
 const context = vm.createContext({ console });
 vm.runInContext(scripts.find(s => s.includes('REVISION') && s.length > 500000), context);
 const THREE = context.THREE;
 const checks = [];
 const check = (ok, label) => { assert(ok, label); checks.push(label); };
+const CX = 600, CZ = 600, FLOOR = -280, PRIDE_X = -800, PRIDE_Z = 800;
 Object.assign(context, {
-  GEH: { root: new THREE.Group(), cx: 600, cz: 600, floor: -280, seed: 1, mats: [], lampPos: [], structs: new Map(), M: { cloth: new THREE.MeshBasicMaterial(), skin: new THREE.MeshBasicMaterial() } },
+  GEH: { root: new THREE.Group(), cx: CX, cz: CZ, floor: FLOOR, seed: 1, mats: [], lampPos: [], structs: new Map(), M: { cloth: new THREE.MeshBasicMaterial(), skin: new THREE.MeshBasicMaterial() } },
   V3: (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z),
   toLin: x => new THREE.Color(x).convertSRGBToLinear(),
   skey: (i, j) => (i + 2000) * 8192 + j + 2000,
   SCELL: 32, _nostruct: [], DIVIDE: -200, GEH_VOID: -1400,
+  GEH_PRIDE_X: PRIDE_X, GEH_PRIDE_Z: PRIDE_Z,
+  gehPrideRiverAt: () => ({ bed: 0, depth: 0, wet: false }),
   GEH_L: { dishR: 17, dishD: 1.35, yardX: 104, yardR: 11, hillX: 136, hillR: 20, hillH: 9 },
   fbm: () => 0.5, lerp: (a, b, t) => a + (b - a) * t,
   smooth: t => t * t * (3 - 2 * t), clamp: (v, lo, hi) => Math.max(lo, Math.min(hi, v)),
   dist2D: (a, b) => Math.hypot(a.x - b.x, a.z - b.z),
-  P: { pos: new THREE.Vector3(736, -271, 600), vel: new THREE.Vector3(), gehDive: null },
-  WORLDSTATE: { gehDone: false }, visY: -271, lastSafePos: new THREE.Vector3(),
+  P: { pos: new THREE.Vector3(CX + 136, FLOOR + 9, CZ), vel: new THREE.Vector3(), gehDive: null },
+  WORLDSTATE: { gehDone: false }, visY: FLOOR + 9, lastSafePos: new THREE.Vector3(),
   afterlifeLocked: () => false, SFX: { tone() {} }, showPlace() {},
+  // the party gate reaches for the network, the clock and the subtitle line; none of them need to be real here.
+  NET: { avatars: new Map(), peers: new Map(), role: null, myId: 'qa' },
+  netGuest: () => false, netSend: () => {}, netGehennaRequest: () => {}, say: () => null, time: 0,
+  netGehennaBelow: p => p.y < -200,
+  netGehennaRoom: p => p.y < -200 && Math.abs(p.x - (CX + PRIDE_X)) < 240 && Math.abs(p.z - (CZ + PRIDE_Z)) < 240,
   document: { createElement: () => ({ style: {}, remove() {} }), body: { appendChild() {} } }
 });
 function extract(start, end) { return html.slice(html.indexOf(start), html.indexOf(end, html.indexOf(start))); }
@@ -31,19 +41,25 @@ vm.runInContext(extract('  function gehBuildKingdom(', '  function gehBuildFinal
 context.gehBuildKingdom();
 const { GEH, P, WORLDSTATE } = context;
 check(GEH.kingdomResidents.length === 8, 'Eight sparse static residents');
-let routeSamples = 0;
-const route = [[136, 0], [136, 34], [104, 34], [104, 78], [48, 78]];
-for (let k = 1; k < route.length; k++) {
-  const [ax, az] = route[k - 1], [bx, bz] = route[k], count = Math.ceil(Math.hypot(bx - ax, bz - az));
-  for (let i = 0; i <= count; i++) {
-    const p = new THREE.Vector3(GEH.cx + ax + (bx - ax) * i / count, GEH.floor + 9, GEH.cz + az + (bz - az) * i / count);
-    assert(Math.abs(context.gehH(p.x, p.z) - p.y) < 0.001, `Level street at ${p.x}, ${p.z}`);
-    const before = p.clone(); context.resolveStructs(p, 0.52);
-    assert(p.distanceTo(before) < 0.001, `Street collision at ${p.x}, ${p.z}`);
-    routeSamples++;
-  }
+
+// The road is one straight line on the kingdom's own lower level, from the foot of the ramp to the tear.
+let roadSamples = 0;
+for (let x = 172; x <= 326; x += 0.5) {
+  const p = new THREE.Vector3(GEH.cx + x, GEH.floor + 1, GEH.cz);
+  assert(Math.abs(context.gehH(p.x, p.z) - p.y) < 0.001, `Level street at ${x}`);
+  const before = p.clone(); context.resolveStructs(p, 0.52);
+  assert(p.distanceTo(before) < 0.001, `Street collision at ${x}`);
+  roadSamples++;
 }
-checks.push(`Clerk-to-portal street: ${routeSamples} level, unobstructed samples`);
+checks.push(`Ramp-to-tear street: ${roadSamples} level, unobstructed samples`);
+// And the ramp down to it never asks the player to climb: no step is steeper than one metre per metre.
+let worstStep = 0;
+for (let x = 118; x <= 172; x += 0.5) {
+  const a = context.gehH(GEH.cx + x, GEH.cz), b = context.gehH(GEH.cx + x + 0.5, GEH.cz);
+  worstStep = Math.max(worstStep, Math.abs(b - a) / 0.5);
+}
+check(worstStep <= 1, `Ramp down to the kingdom is walkable: steepest grade ${worstStep.toFixed(2)}`);
+
 GEH.root.updateMatrixWorld(true);
 let maxRadius = 0, maxY = -Infinity, vertices = 0;
 const p = new THREE.Vector3(), instance = new THREE.Matrix4(), world = new THREE.Matrix4();
@@ -59,7 +75,8 @@ GEH.root.traverse(o => {
     }
   }
 });
-check(maxRadius <= 170 && maxY < -200, `${vertices} vertices remain within realm: radius ${maxRadius.toFixed(2)}, top ${maxY.toFixed(2)}`);
+check(maxRadius <= 360 && maxY < -200, `${vertices} vertices remain within realm: radius ${maxRadius.toFixed(2)}, top ${maxY.toFixed(2)}`);
+
 const resident = GEH.kingdomResidents[1], origin = resident.pos.clone();
 P.pos.set(GEH.cx + 60, GEH.floor + 9, GEH.cz + 78);
 context.gehUpdateKingdom(20);
@@ -68,11 +85,20 @@ P.pos.copy(origin); P.pos.x -= 0.5; context.gehUpdateKingdom(0.016);
 check(resident.pos.distanceTo(origin) > 0.4, 'Player contact pushes the resident');
 const pushed = resident.pos.clone(); P.pos.set(GEH.cx + 60, GEH.floor + 9, GEH.cz + 78); context.gehUpdateKingdom(20);
 check(resident.pos.equals(pushed), 'Pushed resident does not walk back');
+
 P.pos.copy(GEH.kingdom.portal); context.gehUpdateKingdom(2);
 check(!GEH.kingdom.transit && !GEH.inPride, 'Portal respects Gehenna completion');
-WORLDSTATE.gehDone = true; context.gehUpdateKingdom(0.25);
-check(GEH.inPride && Math.abs(P.pos.x - 515) < 0.01 && Math.abs(P.pos.z - 642) < 0.01 && P.pos.y < -200, 'Portal enters the white pocket without crossing realms');
+WORLDSTATE.gehDone = true;
+// A companion still out on the road holds the tear shut, however long the player stands in it.
+context.NET.role = 'host';
+context.NET.peers.set('p1', { id: 'p1', ready: true });
+context.NET.avatars.set('mate', { id: 'mate', via: 'p1', look: { name: 'Mate' }, state: { pos: new THREE.Vector3(GEH.cx + 200, GEH.floor + 1, GEH.cz), dead: false, hp: 20, maxHp: 20 } });
+for (let i = 0; i < 12; i++) { context.time += 0.25; context.gehUpdateKingdom(0.25); }
+check(!GEH.kingdom.transit && !GEH.inPride && context.gehPrideAway().length === 1, 'The tear will not open while a companion is away');
+context.NET.avatars.get('mate').state.pos.copy(GEH.kingdom.portal);
+context.gehUpdateKingdom(0.25);
+check(GEH.inPride && Math.abs(P.pos.x - (GEH.cx + PRIDE_X)) < 0.01 && Math.abs(P.pos.z - (GEH.cz + PRIDE_Z - 18)) < 0.01 && P.pos.y < -200, 'The whole party at the tear enters the white pocket without crossing realms');
 context.gehUpdateKingdom(2); context.gehUpdateKingdom(2);
-P.pos.set(515, -270.95, 640.5); context.gehUpdateKingdom(0.25);
-check(!GEH.inPride && Math.abs(P.pos.x - 651.5) < 0.01, 'Unarmed return portal returns to the central road');
+P.pos.set(GEH.cx + PRIDE_X, GEH.floor + 9.05, GEH.cz + PRIDE_Z - 20); context.gehUpdateKingdom(0.25);
+check(!GEH.inPride && Math.abs(P.pos.x - (GEH.cx + 140)) < 0.01, 'Unarmed return portal returns to the central road');
 console.log(JSON.stringify({ checks, maxRadius, maxY }, null, 2));
