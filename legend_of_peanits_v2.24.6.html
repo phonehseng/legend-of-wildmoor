@@ -19752,7 +19752,9 @@ const __boot = (async () => {
     block(4.6, 15, 5, roundCityX, y + 46, 0, stone);
     block(0.7, 44, 0.7, roundCityX, y + 32, 0, lit);
     // Center gate, matching the earlier circular platform structure.
-    for (const sz of [-3.3, 3.3]) block(1.1, 9, 0.8, roundCityX, y + 4.5, sz, gold, true);
+    // The gateposts are visual trim only. The portal's proximity check owns entry; solid posts here can catch a
+    // player approaching a little off-centre and make the apparently open gate impossible to cross.
+    for (const sz of [-3.3, 3.3]) block(1.1, 9, 0.8, roundCityX, y + 4.5, sz, gold);
     block(1.1, 0.8, 7.4, roundCityX, y + 9, 0, gold);
     const roundTear = new THREE.Mesh(new THREE.PlaneGeometry(5.8, 8.6), new THREE.MeshBasicMaterial({ color: 0x010102, side: THREE.DoubleSide, fog: false }));
     roundTear.rotation.y = Math.PI / 2; roundTear.position.set(GEH.cx + roundCityX + 0.06, y + 4.3, GEH.cz); root.add(roundTear);
