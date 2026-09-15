@@ -19702,9 +19702,9 @@ const __boot = (async () => {
       for (let row = 0; row < Math.floor(h / 3); row++) block(w + 0.045, 0.2, d + 0.065, bx, y + 2 + row * 2.8, bz, lit);
     }
     for (const radius of [30, 43]) ring(radius, y + 31, 0.26, gold, roundCityX, 0);
-    const crownGeo = new THREE.CylinderGeometry(45, 7, 24, 16, 1, true);
-    const crown = new THREE.LineSegments(new THREE.EdgesGeometry(crownGeo), new THREE.LineBasicMaterial({ color: 0x9f6429, transparent: true, opacity: 0.65 }));
-    crownGeo.dispose(); crown.position.set(GEH.cx + roundCityX, y + 42, GEH.cz); root.add(crown);
+    const roundCrownGeo = new THREE.CylinderGeometry(45, 7, 24, 16, 1, true);
+    const roundCrown = new THREE.LineSegments(new THREE.EdgesGeometry(roundCrownGeo), new THREE.LineBasicMaterial({ color: 0x9f6429, transparent: true, opacity: 0.65 }));
+    roundCrownGeo.dispose(); roundCrown.position.set(GEH.cx + roundCityX, y + 42, GEH.cz); root.add(roundCrown);
     for (const [sx, sz] of [[roundCityX - 5, -8], [roundCityX + 5, -8], [roundCityX - 5, 8], [roundCityX + 5, 8]]) {
       block(2.4, 31, 2.4, sx, y + 15.5, sz, stone, true);
       block(0.16, 30, 2.44, sx, y + 15.5, sz, lit);
@@ -19716,11 +19716,11 @@ const __boot = (async () => {
     // Center gate, matching the earlier circular platform structure.
     for (const sz of [-3.3, 3.3]) block(1.1, 9, 0.8, roundCityX, y + 4.5, sz, gold, true);
     block(1.1, 0.8, 7.4, roundCityX, y + 9, 0, gold);
-    const tear = new THREE.Mesh(new THREE.PlaneGeometry(5.8, 8.6), new THREE.MeshBasicMaterial({ color: 0x010102, side: THREE.DoubleSide, fog: false }));
-    tear.rotation.y = Math.PI / 2; tear.position.set(GEH.cx + roundCityX + 0.06, y + 4.3, GEH.cz); root.add(tear);
-    const seam = new THREE.Mesh(new THREE.PlaneGeometry(0.035, 8.4), new THREE.MeshBasicMaterial({ color: 0xfff8e9, side: THREE.DoubleSide, fog: false }));
-    seam.rotation.y = Math.PI / 2; seam.position.set(GEH.cx + roundCityX + 0.08, y + 4.3, GEH.cz); root.add(seam);
-    GEH.kingdom.seam = seam;
+    const roundTear = new THREE.Mesh(new THREE.PlaneGeometry(5.8, 8.6), new THREE.MeshBasicMaterial({ color: 0x010102, side: THREE.DoubleSide, fog: false }));
+    roundTear.rotation.y = Math.PI / 2; roundTear.position.set(GEH.cx + roundCityX + 0.06, y + 4.3, GEH.cz); root.add(roundTear);
+    const roundSeam = new THREE.Mesh(new THREE.PlaneGeometry(0.035, 8.4), new THREE.MeshBasicMaterial({ color: 0xfff8e9, side: THREE.DoubleSide, fog: false }));
+    roundSeam.rotation.y = Math.PI / 2; roundSeam.position.set(GEH.cx + roundCityX + 0.08, y + 4.3, GEH.cz); root.add(roundSeam);
+    GEH.kingdom.seam = roundSeam;
     // Street lamps along the avenue
     const lampX = [176, 196, 216, 236, 256, 276, 296, 316];
     for (const lx of lampX) {
