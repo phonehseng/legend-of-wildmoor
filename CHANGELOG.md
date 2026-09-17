@@ -58,10 +58,10 @@ checked and **not** true, so they do not need checking again:
 - `gehUpdateVillage` is not per-frame work. it runs on a boss death, where its cost is hidden by the death sequence.
 - the white room's four ground strips cost nothing per frame.
 - the gameplay simulation is not the bottleneck anywhere: the whole of `update()` is 1.46 ms of a 17–22 ms frame, and the rest is inside `renderer.render`.
+- the pvp shield facing test is not broken. the multiplayer soak accused it of letting a rear-facing shield block, and the fault was in the soak: it slept a fixed 300 ms for the defender to leave gehenna, and state travels on a deliberately unordered channel with no retransmits, so about one run in five the host still had the defender at the old depth, judged the blow to be across the realm seam and never sent it. the suite waits for the host's own view now, and 12 runs in a row are green.
 
 ### still open
 
-- `qa-multiplayer-soak` fails its rear-facing-shield pvp check and reports no activity events in the same run. it fails the same way on a build from before any of these changes, so it is not a regression from them; whether the game or the harness is wrong is not yet settled.
 - measured and not acted on: villagers are about 27 draw calls and 27 materials each (4,349 materials in the scene, which stops three.js batching anything); 56% of drawn meshes sit past 70 m inside 170 m fog; the instanced foliage is never frustum-culled because one instanced mesh spans the whole map; two 1600 m terrain planes are both drawn every frame; the second render pass walks all 15,980 nodes to find the 193 that are birds.
 
 ### housekeeping

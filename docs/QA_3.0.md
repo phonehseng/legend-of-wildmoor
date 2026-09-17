@@ -14,16 +14,14 @@ what was run against `legend_of_peanits_v3.0.html`, on the machine the game is b
 | `qa-lucifer-visuals` | 134 checks, 33 meshes / 53 draw calls / 11,758 triangles |
 | `qa-party-load` | one host and fifteen clients over local webrtc |
 | `qa-network-live` | 18 / 18 |
-| `qa-multiplayer-soak --minutes 2` | 15 / 15 combat checks; see below |
+| `qa-multiplayer-soak --minutes 2` | green: 152 checks, 15 / 15 combat, 22 pvp / 44 quest / 3 pressure / 1 reconnect events, 0 errors |
 
 two checks added to the kingdom suite this release, both of which fail on 2.24.6 and pass on 3.0:
 
 - **standing where the tear puts you does not drag you back in.** the exit used to land inside the entry trigger.
 - **the tear waits for the host as well as the guests.** one guest at the tear used to pull the host through from anywhere in gehenna.
 
-## known open
-
-`qa-multiplayer-soak` fails its `PvP still damages a rear-facing shield` check, and reports zero events for every activity counter in the same run. it fails identically on a build taken from before any of this release's changes, so it is not a regression from them; whether the fault is in the game's pvp facing test or in the harness's own setup is still open.
+the soak suite itself had a race that made it accuse the game of a pvp shield bug. it slept a fixed 300 ms waiting for the defender to come back out of gehenna, and player state travels on a channel that is deliberately unordered with no retransmits, so about one run in five the host still held the old position, judged the blow to be across the realm seam and never sent it. it waits for the host's own view now; twelve consecutive runs are green.
 
 ## performance
 
