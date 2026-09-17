@@ -2,6 +2,73 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.0 — the still kingdom
+
+[test notes](docs/QA_3.0.md)
+
+this release is the 2.24.6 build reviewed end to end — correctness, multiplayer and save, performance — and then cleaned up. everything below was found in that build and is fixed here unless it says otherwise.
+
+### the road into the still kingdom
+
+- the avenue now ends in a walled circular city with a ring road, radial towers and one central gate.
+- the stepped staircase down off the hill is gone. it was a straight linear drop over a fixed nine metres laid on top of a hill whose real height comes out of noise, so its slabs either floated clear of the ground or punched into it depending on where you stood. the hill's own slope is the ramp now.
+- **fixed: the gate you could see and could not reach.** the tower ring's one gap faced east while the avenue arrives from the west, and one tower stood solid on the avenue's centre line with 2.3 m slits either side of it. towers in the approach are skipped now, and the gateposts and the plaza floor are no longer solid.
+- **fixed: entering the white room put you under its floor.** the arrival used the kingdom's height, which is 7.95 m below the white room's own ground — beneath an opaque white plane, inside white fog, with nothing to walk to and no error. the fall-through net only fires 8 m under the ground, so it missed by five centimetres and nothing ever recovered you. the height is read off the room now, and the room has a net of its own.
+- **fixed: leaving the white room dropped you back inside the doorway.** the entry trigger was widened to ±8 m to cover the whole gate, but the exit was placed 3.5 m from the portal — inside it. only the 1.6 second cooldown separated them, so standing still, opening the map or turning to look at the city pulled you straight back through. the exit is twelve metres clear now.
+- **fixed: one step backwards threw you out of the room again.** you arrived a metre and a half from the exit test; it is four metres now, facing the bridge with the tear behind you.
+- **fixed: a second visit to gehenna in one session killed the portal.** teardown left the hill portal's root pointer set, so the next build returned early — before assigning the descriptor that every portal update reads. no transit, no room, no city, for the rest of the session.
+- **fixed: two invisible gateposts left standing in the road.** when the still kingdom replaces the hill portal its meshes are detached, but the collision records had no removal path, and on roughly half of all seeds the ground at the crest is high enough for them to be solid — flanking the centre line of the only road out of gehenna.
+- **fixed: the village and the road never actually grew as the demons fell.** the two functions that re-lay them were declared inside the world build, so at all five call sites the name was not in scope — and every call was written `typeof fn === "function"`, which turns an out-of-scope name into silence instead of an error. the minimap read the live numbers and moved the rows; the houses, their colliders and the road never did.
+- the avenue's towers no longer widen per boss, which had turned the approach into an open plain. that opening belongs to the starter village at the top of gehenna.
+- the white expanse is built as four strips with a hole for the garden: one 500 m sheet lay over the river and drew it as a white band.
+- gehenna's rim is capped so it can never reach the seam, the realm's bounds follow the new corridor, the fall is 8.5 seconds, and the world starts building the morning the whirlpool wakes rather than when you dive.
+
+### the valley
+
+- **fixed: the king never got to mourn her.** the burial itself set the flag that means "the king has heard it from you", so "tell the king it is done" ticked off in the same frame as the burial, his four-line scene was unreachable in every run, and sleeping straight afterwards opened the way down without ever speaking to him. talking to him is the only thing that sets it now, and the prompt after the burial names him.
+- **fixed: a child standing near you could make E do nothing.** the post-burial gate returned out of the whole interact handler instead of skipping that one villager, so the herbs, the flint, the beacon and the examine lines all went dead, silently, whenever a child was within three and a half metres.
+- **fixed: a dive attack hit wildlife once per frame.** the player and enemy paths both end the dive on a hit; the wildlife path had no such gate, so a dive through a boar was one attack per frame for the whole fall.
+- **fixed: the abandoned church was being built in the east.** the siting band lost its minus signs — the comment above it still said "between x -650 and -550" while the code read 550 to 650 — so the hermit's voiceline and the quest hint sent you west while the gold arrow pointed east. it is back on the west apron, and it draws on the map now.
+- the church also has two last-resort sites. on a seed where the apron has nothing legal it used to be skipped entirely, with only a console warning.
+
+### playing together
+
+- **fixed: a player who left lucifer's room was frozen on the host for the rest of the session.** a client that has torn its own gehenna down reports no fight epoch, and the host read that as a mismatch and dropped every position packet from them, permanently. they stood still in gehenna on everyone else's screen, every co-operative gate that tests where they are refused them, and because the fight roster only ever grew they still counted as alive — so after a real party kill the wipe never fired and the retry menu never appeared. the roster lets people go now when they leave gehenna.
+- **fixed: one guest at the tear pulled the host through from anywhere.** the wait-for-everyone rule only looked at the other players. that is enough on the local path, which only runs when you are standing in the gate, but a request relayed from a guest was checked against the guest's position and then took everybody.
+- **fixed: re-joining left the last session's players in the room.** a guest always reconnects under the same peer name, and the old connection's players were only cleaned up by a callback that arrives too late to recognise them. they looked alive to everything, including the rule that holds the tear shut until everyone is present.
+- **fixed: the save key button wrote the host's story over yours.** joining someone rolls your own shared errands and burial back on purpose, and the autosave refuses to write that down — but the save key button next to it wrote it anyway, silently, under a note explaining that nothing was being saved. it says so plainly now.
+- lucifer's arm takes everyone standing in its arc rather than only the nearest, and his shove no longer switches itself off as you level: its cooldown only ticked while he was not speaking, and damage is blocked for that whole pause, so anyone doing more than about seven a second reached the next phase inside it and was never thrown once.
+- the shove's replay guard is kept per fight, so a guest who changes host is not silently immune to the first dozen shoves, and the host's ten-a-second snapshots no longer reset it.
+- mirrored goblins are validated like every other kind; the king's line to a shade survives a reload; a guest's quest-slimes are released when they leave, which used to lock the ninth guest of a session out of that errand.
+
+### speed
+
+the town was the slowest place in the game and it is where everyone starts.
+
+- **the inside of every house was drawn from anywhere in the valley.** 75 interiors, 1,687 meshes — beds, dressers and furniture, drawn straight through the back of their own walls, 867 of them still inside the frustum standing at the south gate. rooms are drawn now only for whoever is in one or near its door. measured at the spawn: 19.1 ms a frame down to 14.6 ms, and 21.6 ms down to 13.1 ms on a colder run.
+- the three children's walk out of the white room no longer rebuilds its route table, its closures and its vectors for every child on every frame of the finale.
+
+### refuted
+
+checked and **not** true, so they do not need checking again:
+
+- shadow maps are not costing anything. the 4096 map size and `shadowMap.enabled = true` are both dead — the one surviving quality preset sets `shadow: 0`, and at runtime the map is 512 and disabled. (the 4096 literal is still a trap for anyone who re-adds a shadow preset.)
+- `allEnemies()` does not rebuild its list per call. it memoises for the whole of an update tick.
+- the new circular city is not a performance problem: it batches into one instanced mesh per material, builds in 2.7 ms, and adds 24 meshes and no new geometry. it is the model the rest of the world should follow.
+- `gehUpdateVillage` is not per-frame work. it runs on a boss death, where its cost is hidden by the death sequence.
+- the white room's four ground strips cost nothing per frame.
+- the gameplay simulation is not the bottleneck anywhere: the whole of `update()` is 1.46 ms of a 17–22 ms frame, and the rest is inside `renderer.render`.
+
+### still open
+
+- `qa-multiplayer-soak` fails its rear-facing-shield pvp check and reports no activity events in the same run. it fails the same way on a build from before any of these changes, so it is not a regression from them; whether the game or the harness is wrong is not yet settled.
+- measured and not acted on: villagers are about 27 draw calls and 27 materials each (4,349 materials in the scene, which stops three.js batching anything); 56% of drawn meshes sit past 70 m inside 170 m fog; the instanced foliage is never frustum-culled because one instanced mesh spans the whole map; two 1600 m terrain planes are both drawn every frame; the second render pass walks all 15,980 nodes to find the 193 that are birds.
+
+### housekeeping
+
+- the densest lines in the file are broken out into readable blocks with the reasoning written down: the enemy death animation's six near-identical branches are one table now, and the story places, the side-quest wiring, the falling rock, the guest hit handler, the warden's blink and surge, and the wraith spawn all read top to bottom.
+- the test tools no longer hardcode a path to a bundled playwright runtime; set `QA_PLAYWRIGHT` to the folder holding it if node cannot find one on its own.
+
 ## 2.24.5 — the hand comes down
 
 - lucifer shakes harder the closer he is to losing his hold. the hand he is holding back shakes with him, and the room and the camera shake with both.

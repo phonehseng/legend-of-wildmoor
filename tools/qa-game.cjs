@@ -2,13 +2,16 @@ const fs = require("fs");
 const http = require("http");
 const path = require("path");
 
-const RUNTIME_MODULES = path.join(require("os").homedir(), ".cache", "qa-runtimes", "qa-primary-runtime", "dependencies", "node", "node_modules");
+// playwright is not a dependency of this project — the suites use whatever copy the machine already has.
+// set QA_PLAYWRIGHT to the folder that CONTAINS the playwright package (its node_modules directory) when it
+// is not installed where node would normally find it.
+const RUNTIME_MODULES = process.env.QA_PLAYWRIGHT || "";
 const EDGE = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
 const CHROME = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 
 function parseArgs(argv) {
   const options = {
-    html: "legend_of_peanits_v2.24.3.html",
+    html: "legend_of_peanits_v3.0.html",
     browser: "edge",
     timeout: 90000,
     headed: false,
@@ -37,7 +40,7 @@ function parseArgs(argv) {
 function usage() {
   return [
     "Usage: node tools/qa-game.cjs [options]",
-    "  --html FILE          game HTML (default: legend_of_peanits_v2.24.3.html)",
+    "  --html FILE          game HTML (default: legend_of_peanits_v3.0.html)",
     "  --browser edge|chrome|PATH",
     "  --timeout MS         real wall-clock timeout (default: 90000)",
     "  --headed             show the browser window",
@@ -54,7 +57,8 @@ function usage() {
 function loadPlaywright() {
   try {
     return require("playwright");
-  } catch (_) {
+  } catch (err) {
+    if (!RUNTIME_MODULES) throw new Error("playwright not found. install it, or set QA_PLAYWRIGHT to the node_modules folder holding it.");
     return require(path.join(RUNTIME_MODULES, "playwright"));
   }
 }

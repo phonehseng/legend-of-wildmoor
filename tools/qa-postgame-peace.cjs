@@ -3,10 +3,10 @@ const path = require('path');
 const assert = require('assert');
 const vm = require('vm');
 
-const htmlPath = path.join(__dirname, '..', 'legend_of_peanits_v2.24.5.html');
+const htmlPath = path.resolve(process.argv[2] || path.join(__dirname, '..', 'legend_of_peanits_v3.0.html'));
 const html = fs.readFileSync(htmlPath, 'utf8');
 
-console.log('Testing legend_of_peanits_v2.24.5.html post-game peaceful state...');
+console.log('Testing ' + path.basename(htmlPath) + ' post-game peaceful state...');
 
 // 1. Check settleWorldAfterGame body
 const start = html.indexOf('function settleWorldAfterGame() {');

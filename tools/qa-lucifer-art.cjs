@@ -1,14 +1,18 @@
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 function loadPlaywright() {
+  // playwright is not a dependency of this project; QA_PLAYWRIGHT points at the node_modules folder holding it
+  // when the machine keeps its copy somewhere node would not look on its own.
   try { return require('playwright'); }
-  catch (_) { return require(path.join(os.homedir(), '.cache', 'qa-runtimes', 'qa-primary-runtime', 'dependencies', 'node', 'node_modules', 'playwright')); }
+  catch (_) {
+    if (!process.env.QA_PLAYWRIGHT) throw new Error('playwright not found. install it, or set QA_PLAYWRIGHT to the node_modules folder holding it.');
+    return require(path.join(process.env.QA_PLAYWRIGHT, 'playwright'));
+  }
 }
 const { chromium } = loadPlaywright();
 
 async function main() {
-  const source = fs.readFileSync(path.resolve(process.argv[2] || 'legend_of_peanits_v2.24.3.html'), 'utf8');
+  const source = fs.readFileSync(path.resolve(process.argv[2] || 'legend_of_peanits_v3.0.html'), 'utf8');
   const scripts = [...source.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]);
   scripts.forEach(script => new Function(script));
   const start = source.indexOf('  function gehBuildFinale() {');

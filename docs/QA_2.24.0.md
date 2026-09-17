@@ -16,7 +16,7 @@ the browser runs reported no javascript or shader errors. these are focused stat
 
 ## run them
 
-the game needs nothing installed. the optional checks need node, playwright, and edge (or `--browser` plus a browser path). `qa-game.cjs` can use the bundled playwright runtime too.
+the game needs nothing installed. the optional checks need node, playwright, and edge (or `--browser` plus a browser path). if playwright lives somewhere node cannot find on its own, point `QA_PLAYWRIGHT` at the `node_modules` folder holding it.
 
 ```powershell
 node tools/qa-game.cjs --state-test tools/qa-progression.js

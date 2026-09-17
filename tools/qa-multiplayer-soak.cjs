@@ -3,7 +3,7 @@ const fs = require('node:fs'), path = require('node:path'), crypto = require('no
 const assert = require('node:assert/strict');
 const {instrument,serve,loadPlaywright,browserPath} = require('./qa-game.cjs');
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
-const html = path.resolve(process.argv[2] || 'legend_of_peanits_v2.24.3.html');
+const html = path.resolve(process.argv[2] || 'legend_of_peanits_v3.0.html');
 const combatOnly = process.argv.includes('--combat-only');
 const minutesAt = process.argv.indexOf('--minutes');
 const minutes = minutesAt < 0 ? 10 : Number(process.argv[minutesAt + 1]);
@@ -32,6 +32,19 @@ async function main() {
   const resetDefender = async (opts={}) => run(1,`death=null;P.hp=P.maxHp=20;P.pos.set(0,${opts.geh?-350:20},4);P.vel.set(0,0,0);P.inv=${opts.inv??0.3};P.dodge=${opts.dodge??0.3};P.flurry=0;P.block=${!!opts.block};P.heading=${opts.heading??Math.PI};P.carry=false;WORLDSTATE.gehSeed=777;`);
   const state = () => run(1,'({hp:P.hp,flurry:P.flurry,inv:P.inv,blocks:P.blocks})');
   const combat = async(name,setup,attack,predicate)=>{await resetDefender(setup);await wait(120);await run(0,attack);await wait(160);const value=await state();report.combat.push({name,ok:!!predicate(value),value});console.log(`${report.combat.at(-1).ok?'PASS':'KNOWN FAIL'}: ${name}`);};
+  // The PvP checks are the only ones that route through netHostHit, and netHostHit judges the blow against the
+  // HOST's copy of the defender (`a.target`), not against the defender's own live position. State travels on the
+  // motion channel, which is deliberately unordered with maxRetransmits 0, so a fixed sleep is not a guarantee that
+  // the host has caught up — and the check right before this one leaves the defender at y=-350 in Gehenna. When the
+  // host still held that y, netSameRealm failed, netHostHit returned false, no `hit` was ever sent, and the suite
+  // blamed the shield. Wait for the host's own view instead of sleeping. (~1 run in 5 failed on the sleep.)
+  const hostSees = async (id,predicate,label) => {
+    for(let i=0;i<80;i++){
+      if(await run(0,`(()=>{const a=NET.avatars.get('${id}');return !!a&&(${predicate});})()`))return;
+      await wait(50);
+    }
+    throw new Error(`host never saw ${label} for ${id}`);
+  };
   const valley = pierce => `enemyStrike({kind:'warden',pos:V3(0,20,2),big:true},2,{id:'soak1',pos:V3(0,20,4)},2.1,${pierce})`;
   const geh = (pierce=false,nonlethal=false) => `netSend(NET.peers.get('guest1'),{t:'gfx',to:'soak1',seed:777,kind:'strike',x:0,y:-350,z:2,dmg:2,kb:1,pierce:${pierce},nonlethal:${nonlethal}})`;
   try {
@@ -67,10 +80,15 @@ async function main() {
     await combat('remote Gehenna pierce damages a dodging player',{geh:true},geh(true),s=>s.hp<20&&s.flurry===0);
     await combat('remote Gehenna dodge outside invulnerability grants no flurry',{geh:true,inv:0},geh(),s=>s.hp<20&&s.flurry===0);
     await combat('remote Gehenna dodge precedes active shield',{geh:true,block:true},geh(),s=>s.hp===20&&s.flurry===1.7);
-    await resetDefender({inv:0,dodge:0,block:true,heading:0});await run(0,`netSetPvp(true);P.pos.set(0,20,2);P.heading=0;P.hp=20;P.inv=0;P.dodge=0;`);await wait(300);
+    await resetDefender({inv:0,dodge:0,block:true,heading:0});await run(0,`netSetPvp(true);P.pos.set(0,20,2);P.heading=0;P.hp=20;P.inv=0;P.dodge=0;`);
+    await hostSees('soak1','a.target.y>DIVIDE&&Math.abs(a.target.z-4)<0.2&&a.state.hp===20&&!a.state.dead','the defender back in the valley');
+    await pages[1].waitForFunction(()=>window.__gameQa.run('NET.pvp'),null,{timeout:5000});
+    check('host pvp rule reached the defender',await run(1,'NET.pvp'));
     await run(0,`netHostHit(null,{to:'soak1',from:NET.myId,swing:1,dmg:1,kb:0})`);await wait(200);
     check('PvP still damages a rear-facing shield',await run(1,'P.hp<20'));
-    await resetDefender({inv:0,dodge:0,block:true});await wait(250);await run(0,`netHostHit(null,{to:'soak1',from:NET.myId,swing:2,dmg:1,kb:0})`);await wait(200);
+    await resetDefender({inv:0,dodge:0,block:true});
+    await hostSees('soak1','a.target.y>DIVIDE&&a.state.hp===20','the defender restored for the facing blow');
+    await run(0,`netHostHit(null,{to:'soak1',from:NET.myId,swing:2,dmg:1,kb:0})`);await wait(200);
     check('PvP still blocks with a front-facing shield',await run(1,'P.hp===20'));await run(0,'netSetPvp(false)');
     if(combatOnly){
       if(process.argv.includes('--screenshot')){

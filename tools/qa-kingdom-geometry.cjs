@@ -3,7 +3,7 @@
 const fs = require('fs');
 const vm = require('vm');
 const assert = require('assert');
-const html = fs.readFileSync(process.argv[2] || 'legend_of_peanits_v2.24.5.html', 'utf8');
+const html = fs.readFileSync(process.argv[2] || 'legend_of_peanits_v3.0.html', 'utf8');
 const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(m => m[1]);
 const context = vm.createContext({ console });
 vm.runInContext(scripts.find(s => s.includes('REVISION') && s.length > 500000), context);
@@ -24,7 +24,8 @@ Object.assign(context, {
   smooth: t => t * t * (3 - 2 * t), clamp: (v, lo, hi) => Math.max(lo, Math.min(hi, v)),
   dist2D: (a, b) => Math.hypot(a.x - b.x, a.z - b.z),
   P: { pos: new THREE.Vector3(CX + 136, FLOOR + 9, CZ), vel: new THREE.Vector3(), gehDive: null },
-  WORLDSTATE: { gehDone: false }, visY: FLOOR + 9, lastSafePos: new THREE.Vector3(),
+  CUSTOM: { name: 'Mirabel' },
+  WORLDSTATE: { gehDone: false }, visY: FLOOR + 9, lastSafePos: new THREE.Vector3(), lastSafeGeh: new THREE.Vector3(), camYaw: 0, death: null,
   afterlifeLocked: () => false, SFX: { tone() {} }, showPlace() {},
   // the party gate reaches for the network, the clock and the subtitle line; none of them need to be real here.
   NET: { avatars: new Map(), peers: new Map(), role: null, myId: 'qa' },
@@ -44,7 +45,7 @@ check(GEH.kingdomResidents.length === 8, 'Eight sparse static residents');
 
 // The road is one straight line on the kingdom's own lower level, from the foot of the ramp to the tear.
 let roadSamples = 0;
-for (let x = 172; x <= 326; x += 0.5) {
+for (let x = 172; x <= 364; x += 0.5) {
   const p = new THREE.Vector3(GEH.cx + x, GEH.floor + 1, GEH.cz);
   assert(Math.abs(context.gehH(p.x, p.z) - p.y) < 0.001, `Level street at ${x}`);
   const before = p.clone(); context.resolveStructs(p, 0.52);
@@ -75,7 +76,7 @@ GEH.root.traverse(o => {
     }
   }
 });
-check(maxRadius <= 360 && maxY < -200, `${vertices} vertices remain within realm: radius ${maxRadius.toFixed(2)}, top ${maxY.toFixed(2)}`);
+check(maxRadius <= 420 && maxY < -200, `${vertices} vertices remain within realm: radius ${maxRadius.toFixed(2)}, top ${maxY.toFixed(2)}`);
 
 const resident = GEH.kingdomResidents[1], origin = resident.pos.clone();
 P.pos.set(GEH.cx + 60, GEH.floor + 9, GEH.cz + 78);
@@ -95,10 +96,22 @@ context.NET.peers.set('p1', { id: 'p1', ready: true });
 context.NET.avatars.set('mate', { id: 'mate', via: 'p1', look: { name: 'Mate' }, state: { pos: new THREE.Vector3(GEH.cx + 200, GEH.floor + 1, GEH.cz), dead: false, hp: 20, maxHp: 20 } });
 for (let i = 0; i < 12; i++) { context.time += 0.25; context.gehUpdateKingdom(0.25); }
 check(!GEH.kingdom.transit && !GEH.inPride && context.gehPrideAway().length === 1, 'The tear will not open while a companion is away');
+// and the local player is one of the people it waits for. a guest's request is validated against the GUEST's
+// position and then takes everybody, so without this the host could be pulled through from anywhere in Gehenna.
+context.NET.avatars.get('mate').state.pos.copy(GEH.kingdom.portal);
+const standing = P.pos.clone();
+P.pos.set(GEH.cx - 300, GEH.floor + 1, GEH.cz - 300);
+check(context.gehPrideAway().length === 1, 'The tear waits for the host as well as the guests');
+P.pos.copy(standing);
+context.NET.avatars.get('mate').state.pos.set(GEH.cx + 200, GEH.floor + 1, GEH.cz);
 context.NET.avatars.get('mate').state.pos.copy(GEH.kingdom.portal);
 context.gehUpdateKingdom(0.25);
-check(GEH.inPride && Math.abs(P.pos.x - (GEH.cx + PRIDE_X)) < 0.01 && Math.abs(P.pos.z - (GEH.cz + PRIDE_Z - 18)) < 0.01 && P.pos.y < -200, 'The whole party at the tear enters the white pocket without crossing realms');
+check(GEH.inPride && Math.abs(P.pos.x - (GEH.cx + PRIDE_X - 14)) < 0.01 && Math.abs(P.pos.z - (GEH.cz + PRIDE_Z - 5)) < 0.01 && P.pos.y < -200, 'The whole party at the tear enters the white pocket without crossing realms');
 context.gehUpdateKingdom(2); context.gehUpdateKingdom(2);
-P.pos.set(GEH.cx + PRIDE_X, GEH.floor + 9.05, GEH.cz + PRIDE_Z - 20); context.gehUpdateKingdom(0.25);
-check(!GEH.inPride && Math.abs(P.pos.x - (GEH.cx + 140)) < 0.01, 'Unarmed return portal returns to the central road');
+P.pos.set(GEH.cx + PRIDE_X - 20, GEH.floor + 9.05, GEH.cz + PRIDE_Z - 5); context.gehUpdateKingdom(0.25);
+check(!GEH.inPride && Math.abs(P.pos.x - (GEH.cx + 356)) < 0.01, 'Unarmed return portal returns to the kingdom plaza');
+// and it puts you down OUTSIDE the doorway it just brought you out of: the entry trigger is a broad box, so an
+// exit inside it pulled the player straight back through the tear as soon as the cooldown lapsed.
+for (let i = 0; i < 24; i++) { context.time += 0.25; context.gehUpdateKingdom(0.25); }
+check(!GEH.inPride && !GEH.kingdom.transit, 'Standing where the tear put you does not drag you back in');
 console.log(JSON.stringify({ checks, maxRadius, maxY }, null, 2));

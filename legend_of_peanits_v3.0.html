@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 2.24.5</title>
+<title>Legend of Peanits 3.0</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#1b1626, #0d0a14); --edge: #6c583a; --hi: #8a6a3e; }
@@ -534,7 +534,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">2.24.5</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.0</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -604,7 +604,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 2.24.5</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 3.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -632,7 +632,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
       <!-- resume: game interface element -->
       <button id="resume" class="btn">Resume</button><button id="saveBtn" class="btn">Save key</button><button id="loadBtn" class="btn">Load key</button><button id="restartBtn" class="btn">Restart</button>
       <p id="autoNote" style="font-size:12px;margin:12px 0 0;opacity:.8;line-height:1.55"></p>
-      <div id="saveBox" class="hidden" style="margin-top:10px"><p style="font-size:13px">Copy this key somewhere safe. Paste it back with <b>Load key</b> to resume.</p><textarea id="saveKey" style="width:100%;height:70px;font-size:11px;user-select:text;-webkit-user-select:text"></textarea></div>
+      <div id="saveBox" class="hidden" style="margin-top:10px"><p style="font-size:13px">Copy this key somewhere safe. Paste it back with <b>Load key</b> to resume.</p><p id="saveKeyWarn" class="hidden" style="font-size:12px;color:#ff658c;line-height:1.5"></p><textarea id="saveKey" style="width:100%;height:70px;font-size:11px;user-select:text;-webkit-user-select:text"></textarea></div>
       </div><div>
       <label>Play with a friend — no server, straight between your browsers</label>
       <p style="font-size:12px;opacity:.85;margin:0 0 6px">One of you presses <b>Host</b> and gets a four-digit code; the other types it and presses <b>Join</b>. The two browsers meet on a public message board just long enough to find each other, then talk directly — no game server anywhere. Share story quests and boss fights with up to 16 players. The finder returns quest items. Story rewards go to everyone; optional errands and skills stay personal. The host can turn PvP on.</p>
@@ -2125,8 +2125,45 @@ const __boot = (async () => {
       }
       return w;
     },
-    rowX0: 36, rowStep: 6, rowN: 11, rowZ: 10.5,
-    houseW: 2.5, houseD: 2.2, houseH: 3.1,
+    rowX0: 36, rowStep: 6, rowN: 11,
+    // The early Gehenna rows begin as a narrow alley. Each outer boss killed opens the road and pushes both
+    // house rows outward; these are getters so every build and minimap sample sees the saved progression.
+    get rowZ() {
+      let z = 10.5;
+      if (typeof WORLDSTATE !== "undefined") {
+        if (WORLDSTATE.gehAlmonerDown) z += 2.5;
+        if (WORLDSTATE.gehMatronDown) z += 2.5;
+        if (WORLDSTATE.gehHeapDown) z += 2.5;
+      }
+      return z;
+    },
+    get houseW() {
+      let w = 2.5;
+      if (typeof WORLDSTATE !== "undefined") {
+        if (WORLDSTATE.gehAlmonerDown) w += 0.35;
+        if (WORLDSTATE.gehMatronDown) w += 0.35;
+        if (WORLDSTATE.gehHeapDown) w += 0.35;
+      }
+      return w;
+    },
+    get houseD() {
+      let d = 2.2;
+      if (typeof WORLDSTATE !== "undefined") {
+        if (WORLDSTATE.gehAlmonerDown) d += 0.3;
+        if (WORLDSTATE.gehMatronDown) d += 0.3;
+        if (WORLDSTATE.gehHeapDown) d += 0.3;
+      }
+      return d;
+    },
+    get houseH() {
+      let h = 3.1;
+      if (typeof WORLDSTATE !== "undefined") {
+        if (WORLDSTATE.gehAlmonerDown) h += 0.35;
+        if (WORLDSTATE.gehMatronDown) h += 0.35;
+        if (WORLDSTATE.gehHeapDown) h += 0.35;
+      }
+      return h;
+    },
     sweeperX: 24, benchX: 70, stillX: 92,
     yardX: 104, yardR: 11,
     hillX: 136, hillR: 20, hillH: 9,
@@ -2268,7 +2305,7 @@ const __boot = (async () => {
     inBounds = (x, z) => (P && P.pos && P.pos.y < DIVIDE) ?
       (typeof GEH !== "undefined" && (GEH.inPride || (Math.abs(x - (GEH.cx + GEH_PRIDE_X)) < 250 && Math.abs(z - (GEH.cz + GEH_PRIDE_Z)) < 250)) ?
         (Math.abs(x - (GEH.cx + GEH_PRIDE_X)) < 240 && Math.abs(z - (GEH.cz + GEH_PRIDE_Z)) < 240) :
-        (Math.abs(x - GEH.cx) < 360 && Math.abs(z - GEH.cz) < 360)) :
+        (Math.hypot(x - GEH.cx, z - GEH.cz) < 165 || (x - GEH.cx > 130 && x - GEH.cx < 422 && Math.abs(z - GEH.cz) < 50))) :
       (Math.abs(x) < HALF - 4 && Math.abs(z) < HALF - 4);
   // ---- 3.0 phase 2: water you can be inside ----
   // swimming used to be a surface float pinned to one global waterline, so there was no such thing as a body of water
@@ -2370,9 +2407,12 @@ const __boot = (async () => {
     if (yd < GEH_L.yardR + 4) h = lerp(h, GEH.floor + 0.1, 1 - smooth(clamp((yd - GEH_L.yardR) / 4, 0, 1))); // the yard is dead flat because it is swept
     const hd = Math.hypot(dx - GEH_L.hillX, dz);
     if (hd < GEH_L.hillR) h += GEH_L.hillH * Math.pow(Math.cos((hd / GEH_L.hillR) * Math.PI * 0.5), 1.5); // and the one hill, with the one desk on it
-    if (r > 150 && !(dx >= 140 && dx <= 340 && Math.abs(dz) <= 26)) h += (r - 150) * 1.4; // the room closes in around you rather than ending at an edge you can walk off
+    if (r > 150 && !(dx >= 140 && dx <= 400 && Math.abs(dz) <= 26)) h += Math.min((r - 150) * 1.4, 60); // capped: gehenna's rim must never reach the seam at DIVIDE (floor + 80), or climbing it hands the player to the valley // the room closes in around you rather than ending at an edge you can walk off
     // The Still Kingdom straight avenue and buildings, on their own level one metre above the floor.
     if (dx >= 168 && dx <= 336 && Math.abs(dz) <= 24) return GEH.floor + 1;
+    // The avenue opens into a circular city at its far end. Keep the straight approach intact, but give the
+    // terminus its own level so the ring road and radial buildings remain walkable.
+    if (Math.hypot(dx - 368, dz) <= 48) return GEH.floor + 1;
     // And the ramp down to it off the hill. It has to start from whatever the hill ACTUALLY is at its lip rather
     // than from a fixed nine metres: the hill crests at 6.69 there, so the fixed version put a 2.3 m wall across the
     // only road to the kingdom, and a six-metre drop off either side of the ramp. Blending from h fixes both seams.
@@ -5977,13 +6017,13 @@ const __boot = (async () => {
     if (isInvisMode()) {
       return pick([
         `What... what are you? You feel so distant, ${CUSTOM.name}.`,
-        `I can barely hear your footsteps... What are you? You feel distant, ${CUSTOM.name}.`,
-        `You look like a shadow cast by nothing. What are you, ${CUSTOM.name}? You feel distant.`,
-        `There's a chill where you stand. What are you? You feel so distant, ${CUSTOM.name}.`,
-        `I can see right through your hands... What are you, ${CUSTOM.name}? You feel distant.`,
-        `Looking at you feels like trying to hold onto smoke. What are you? You feel so distant, ${CUSTOM.name}.`,
-        `Your voice sounds like it's coming from across the water. What are you, ${CUSTOM.name}? You feel distant.`,
-        `Are you still walking among us, ${CUSTOM.name}? What are you now? You feel so distant.`
+        `I can barely hear your footsteps, ${CUSTOM.name}. Are you even here?`,
+        `You look like a shadow cast by nothing. What are you, ${CUSTOM.name}?`,
+        `There's a chill where you stand. What happened to you, ${CUSTOM.name}?`,
+        `I can see right through your hands, ${CUSTOM.name}. That isn't right.`,
+        `Looking at you feels like trying to hold onto smoke, ${CUSTOM.name}.`,
+        `Your voice sounds like it's coming from across the water, ${CUSTOM.name}.`,
+        `Are you still walking among us, ${CUSTOM.name}? You don't feel like it.`
       ]);
     }
     // this sits at the very top on purpose. the trainee below and the hall guard under him both return without a
@@ -6923,7 +6963,7 @@ const __boot = (async () => {
       } else if (!n.fight && distToPlayer < 4.5 && n.kind !== "stocks" && (n.holdT = (n.holdT || 0) + dt) < TUNE.people.holdForPlayer) {
         if (n.job !== "wagoner") n.target = null;
         else n.t = Math.max(n.t || 0, 1.2);
-        n.heading = Math.atan2(P.pos.x - n.pos.x, P.pos.z - n.pos.z);
+        n.heading = Math.atan2(P.pos.x - n.pos.x, P.pos.z - n.pos.z) + (WORLDSTATE.ysoldeBuried && n.kid && !n.watching && n.name !== "Pip" ? Math.PI : 0);
       } else if (!n.fight && n.job === "wagoner") {
         const wp = n.route[n.ri];
         if (arrive(wp, 3)) {
@@ -8840,7 +8880,21 @@ const __boot = (async () => {
   // pip, the boy who trains against a straw dummy behind the keep, on the left as you come up the avenue
   {
     const px = -26, pz = -44, spot = V3(px, PLATEAU, pz), dummyPos = V3(px + 2.8, PLATEAU, pz);
-    const dm = new THREE.Group(); dm.add(cyl(0.12, 0.14, 2.2, timber, 0, 1.1, 0, 8), boxM(1.4, 0.12, 0.12, timber, 0, 1.5, 0), sphere(0.34, lam(0xd8c070), 0, 2.35, 0, 1, 1.15, 1), boxM(0.7, 0.9, 0.5, lam(0xc8b060), 0, 1.35, 0), sphere(0.05, lam(0x141210), 0.12, 2.42, 0.3), sphere(0.05, lam(0x141210), -0.12, 2.42, 0.3)); dm.position.copy(dummyPos); dm.rotation.y = Math.atan2(spot.x - dummyPos.x, spot.z - dummyPos.z); scene.add(dm); addCircle(dummyPos.x, dummyPos.z, 0.5, dummyPos.y + 2.4);
+    // the training dummy by the yard: a post with a crossbar, a straw head with two black eyes, and a padded body.
+    // it faces whoever comes at it from the practice spot.
+    const dm = new THREE.Group();
+    dm.add(
+      cyl(0.12, 0.14, 2.2, timber, 0, 1.1, 0, 8), // the post
+      boxM(1.4, 0.12, 0.12, timber, 0, 1.5, 0), // the crossbar it hangs its arms from
+      sphere(0.34, lam(0xd8c070), 0, 2.35, 0, 1, 1.15, 1), // the head
+      boxM(0.7, 0.9, 0.5, lam(0xc8b060), 0, 1.35, 0), // and the padded torso
+      sphere(0.05, lam(0x141210), 0.12, 2.42, 0.3),
+      sphere(0.05, lam(0x141210), -0.12, 2.42, 0.3)
+    );
+    dm.position.copy(dummyPos);
+    dm.rotation.y = Math.atan2(spot.x - dummyPos.x, spot.z - dummyPos.z);
+    scene.add(dm);
+    addCircle(dummyPos.x, dummyPos.z, 0.5, dummyPos.y + 2.4);
     const pip = addNPC(spot.clone(), { robe: 0x6a7fa8, hair: 0x2a1a10, skin: 0xe8c8a8, seed: 777, kid: true, woodSword: true, style: "short", name: "Pip" }, "villager", 0, "trainee");
     pip.dummy = dummyPos; pip.trainStart = spot.clone(); pip.hut = null; pip.post = true; pip.stay = true; pip.allowInside = true;
   }
@@ -10181,7 +10235,7 @@ const __boot = (async () => {
     // the heap holds one entry per relaxation, and a relaxation is an edge: sized for the worst case, it never grows
     ROADNET.heapK = new Float64Array(edges + nodes.length + 8);
     ROADNET.heapV = new Int32Array(edges + nodes.length + 8);
-    console.info("roads:", nodes.length, "nodes,", edges, "edges,", piece, "connected pieces, over", polylines.length, "roads");
+    console.log("roads:", nodes.length, "nodes,", edges, "edges,", piece, "connected pieces, over", polylines.length, "roads");
   }
 
   // the road node nearest a point, or -1 when every road is further off than maxR. a piece other than 0 restricts the
@@ -10932,17 +10986,106 @@ const __boot = (async () => {
         Object.assign(DISCOVERIES.northwatch, { x: bx, z: bz, y: by });
       }
     }
-    // the shepherd's grave, the drowned chapel, the hollow: places with a story and nothing to do but stand in them
+    // the shepherd's grave, the drowned chapel, the trapper's camp, the broken cart, the hut with the made bed:
+    // places with a story and nothing to do but stand in them. every one is the same three steps — find a spot,
+    // build the props, leave something to read — so the pickup arguments they all share live in one helper.
+    // `noCount` keeps them out of the three clues that expose hale; `book` is the page icon they are drawn with.
+    const storyClue = (pos, text) => addPickup(pos, "clue", text, () => {}, { noCount: true, shape: "book" });
     {
+      // orrin's grave: a headstone with a crook leaning on it and two sheep lying in the grass beside it
       const g1 = findSpot(villages[1].center.x - 40, villages[1].center.z + 25, 3, 200, 5, 2);
-      if (g1) { const g = new THREE.Group(); g.add(boxM(0.9, 1.1, 0.2, stoneDarkM, 0, 0.55, 0), cyl(0.05, 0.05, 1.8, timber, 0.9, 0.9, 0.3, 5), sphere(0.22, lam(0xe8e0d0), -0.8, 0.2, 0.6, 1, 0.6, 1.3), sphere(0.22, lam(0xe8e0d0), -1.3, 0.2, -0.4, 1, 0.6, 1.3)); g.children[1].rotation.z = 0.3; g.position.copy(g1); scene.add(g); addPickup(V3(g1.x + 0.8, g1.y, g1.z - 0.8), "clue", "A grave with a crook planted beside it and two sheep laid out in the grass like they were waiting. Cut in the stone: 'ORRIN. THE WOLVES CAME AND HE STOOD.'", () => {}, { noCount: true, shape: "book" }); Object.assign(DISCOVERIES.shepherdsGrave, { x: g1.x, z: g1.z }); }
-      let lake = null; for (let a = 0; a < 6.28 && !lake; a += 0.2) for (let r = 60; r < 400 && !lake; r += 20) { const x = Math.cos(a) * r, z = 200 + Math.sin(a) * r; if (terrainH(x, z) < 0.3 && terrainH(x + 12, z) > 0.8 && Math.hypot(x, z) > TOWN_R + 40) lake = { x, z }; }
-      if (lake) { const g = new THREE.Group(); const stone = texMat(cloneTex(TEX.rock, 2, 2), 0x6a6a62); for (const [ox, oz, h] of [[-3, 0, 3.5], [3, 0, 2.2], [0, -3, 4], [0, 3, 1.6]]) g.add(boxM(1.2, h, 1.2, stone, ox, h / 2 - 1.2, oz)); const arch = new THREE.Mesh(new THREE.TorusGeometry(1.8, 0.35, 6, 12, Math.PI), stone); arch.position.set(0, 1.6, -3); g.add(arch); g.position.set(lake.x, 0, lake.z); scene.add(g); addPickup(V3(lake.x + 12, terrainH(lake.x + 12, lake.z), lake.z), "clue", "A chapel, drowned to the eaves, with a bell still in its arch. The kingdom's histories do not mention a chapel here. The lake does.", () => {}, { noCount: true, shape: "book" }); Object.assign(DISCOVERIES.drownedChapel, { x: lake.x, z: lake.z }); }
+      if (g1) {
+        const crook = cyl(0.05, 0.05, 1.8, timber, 0.9, 0.9, 0.3, 5);
+        crook.rotation.z = 0.3; // propped against the stone rather than standing in the ground
+        const g = new THREE.Group();
+        g.add(
+          boxM(0.9, 1.1, 0.2, stoneDarkM, 0, 0.55, 0),
+          crook,
+          sphere(0.22, lam(0xe8e0d0), -0.8, 0.2, 0.6, 1, 0.6, 1.3),
+          sphere(0.22, lam(0xe8e0d0), -1.3, 0.2, -0.4, 1, 0.6, 1.3)
+        );
+        g.position.copy(g1);
+        scene.add(g);
+        storyClue(V3(g1.x + 0.8, g1.y, g1.z - 0.8), "A grave with a crook planted beside it and two sheep laid out in the grass like they were waiting. Cut in the stone: 'ORRIN. THE WOLVES CAME AND HE STOOD.'");
+        Object.assign(DISCOVERIES.shepherdsGrave, { x: g1.x, z: g1.z });
+      }
+      // the drowned chapel stands in water, so it needs a shoreline rather than a clearing: walk rings outward from
+      // a point north of the town until the ground is under water here and dry twelve metres east, which is a bank.
+      let lake = null;
+      for (let a = 0; a < 6.28 && !lake; a += 0.2)
+        for (let r = 60; r < 400 && !lake; r += 20) {
+          const x = Math.cos(a) * r, z = 200 + Math.sin(a) * r;
+          if (terrainH(x, z) < 0.3 && terrainH(x + 12, z) > 0.8 && Math.hypot(x, z) > TOWN_R + 40) lake = { x, z };
+        }
+      if (lake) {
+        const stone = texMat(cloneTex(TEX.rock, 2, 2), 0x6a6a62);
+        const g = new THREE.Group();
+        for (const [ox, oz, h] of [[-3, 0, 3.5], [3, 0, 2.2], [0, -3, 4], [0, 3, 1.6]]) // four walls, each broken to a different height
+          g.add(boxM(1.2, h, 1.2, stone, ox, h / 2 - 1.2, oz));
+        const arch = new THREE.Mesh(new THREE.TorusGeometry(1.8, 0.35, 6, 12, Math.PI), stone); // the bell arch, still up
+        arch.position.set(0, 1.6, -3);
+        g.add(arch);
+        g.position.set(lake.x, 0, lake.z);
+        scene.add(g);
+        storyClue(V3(lake.x + 12, terrainH(lake.x + 12, lake.z), lake.z), "A chapel, drowned to the eaves, with a bell still in its arch. The kingdom's histories do not mention a chapel here. The lake does.");
+        Object.assign(DISCOVERIES.drownedChapel, { x: lake.x, z: lake.z });
+      }
     }
-    // an abandoned camp on the way to the bear's cave, a cart broken on the goblin road, a house with three beds and two graves
-    if (CAVE) { const cs = findSpot(CAVE.x - 30, CAVE.z + 24, 2, 120, 5, 2); if (cs) { const g = new THREE.Group(); g.add(cyl(1.1, 1.2, 0.3, stoneDarkM, 0, 0.15, 0, 9), boxM(1.6, 0.4, 1.1, lam(0x5a4028), -2, 0.2, 0.6), cyl(0.06, 0.06, 2.2, timber, 1.8, 1.1, -0.8, 5)); const blood = new THREE.Mesh(new THREE.CircleGeometry(0.4, 8), new THREE.MeshBasicMaterial({ color: 0x4a1010 })); blood.rotation.x = -Math.PI / 2; blood.position.set(0.8, 0.02, 1.4); g.add(blood); for (let k = 1; k < 6; k++) { const b2 = blood.clone(); b2.scale.setScalar(0.5 + hash(k, 44) * 0.5); b2.position.set(0.8 + k * 1.2 * Math.sign(CAVE.x - cs.x), 0.02, 1.4 + k * 0.9 * Math.sign(CAVE.z - cs.z)); g.add(b2); } g.position.copy(cs); scene.add(g); addPickup(V3(cs.x - 1, cs.y, cs.z - 1.4), "clue", "A trapper's camp, left in a hurry: the fire cold, the bedroll torn, and a trail of blood leading uphill toward the cave. It does not lead back.", () => {}, { noCount: true, shape: "book" }); } }
-    if (polylines[0] && polylines[0][2]) { const rp = polylines[0][2]; const cs = findSpot(rp.x + 8, rp.z + 6, 1, 60, 4, 1); if (cs) { const g = new THREE.Group(); g.add(boxM(2.6, 0.9, 1.4, lam(0x6a4a2a), 0, 0.6, 0), cyl(0.7, 0.7, 0.2, timber, -1.2, 0.7, 0.9, 10), cyl(0.7, 0.7, 0.2, timber, 1.5, 0.35, -1.2, 10)); g.children[0].rotation.z = 0.4; g.children[2].rotation.x = 1.4; for (let k = 0; k < 5; k++) g.add(sphere(0.18, lam(0xd84040), (hash(k, 51) - 0.5) * 4, 0.15, (hash(k, 52) - 0.5) * 4)); g.position.copy(cs); scene.add(g); addPickup(V3(cs.x + 2, cs.y, cs.z + 2), "clue", "A cart on its side, the load spilled, and bare footprints all around it: small, wide, and a great many of them. Nobody bled. Nobody stayed.", () => {}, { noCount: true, shape: "book" }); } }
-    { const it = interiors.find(i => i.round && i.bedLen === 2.4 && i.door); if (it) { const gx = it.cx + (it.cx - it.door.x) * 0.9, gz = it.cz + (it.cz - it.door.z) * 0.9 + 6; for (let k = 0; k < 2; k++) { const st = boxM(0.7, 0.9, 0.16, stoneDarkM, gx + k * 1.4 - 0.7, it.y + 0.45, gz); scene.add(st); } for (let k = 0; k < 2; k++) { const bed = boxM(1.2, 0.3, 2, lam(0x8a6a4a), it.cx + (k ? 1.5 : -1.5), it.y + 0.15, it.cz - 1.5); scene.add(bed); } addPickup(V3(gx, it.y, gz + 1.2), "clue", "Three beds in the hut, and two small graves outside it. The third bed has been made every morning since.", () => {}, { noCount: true, shape: "book" }); } }
+    // a trapper's camp below the bear's cave, with the blood going the wrong way
+    if (CAVE) {
+      const cs = findSpot(CAVE.x - 30, CAVE.z + 24, 2, 120, 5, 2);
+      if (cs) {
+        const g = new THREE.Group();
+        g.add(
+          cyl(1.1, 1.2, 0.3, stoneDarkM, 0, 0.15, 0, 9), // the cold fire ring
+          boxM(1.6, 0.4, 1.1, lam(0x5a4028), -2, 0.2, 0.6), // the torn bedroll
+          cyl(0.06, 0.06, 2.2, timber, 1.8, 1.1, -0.8, 5) // a pole with nothing on it
+        );
+        const blood = new THREE.Mesh(new THREE.CircleGeometry(0.4, 8), new THREE.MeshBasicMaterial({ color: 0x4a1010 }));
+        blood.rotation.x = -Math.PI / 2;
+        blood.position.set(0.8, 0.02, 1.4);
+        g.add(blood);
+        // and the trail, stepping away from the camp towards the cave rather than back from it
+        for (let k = 1; k < 6; k++) {
+          const b2 = blood.clone();
+          b2.scale.setScalar(0.5 + hash(k, 44) * 0.5);
+          b2.position.set(0.8 + k * 1.2 * Math.sign(CAVE.x - cs.x), 0.02, 1.4 + k * 0.9 * Math.sign(CAVE.z - cs.z));
+          g.add(b2);
+        }
+        g.position.copy(cs);
+        scene.add(g);
+        storyClue(V3(cs.x - 1, cs.y, cs.z - 1.4), "A trapper's camp, left in a hurry: the fire cold, the bedroll torn, and a trail of blood leading uphill toward the cave. It does not lead back.");
+      }
+    }
+    // a cart tipped off the goblin road, its apples still lying where they rolled
+    if (polylines[0] && polylines[0][2]) {
+      const rp = polylines[0][2];
+      const cs = findSpot(rp.x + 8, rp.z + 6, 1, 60, 4, 1);
+      if (cs) {
+        const bed = boxM(2.6, 0.9, 1.4, lam(0x6a4a2a), 0, 0.6, 0);
+        const wheelUp = cyl(0.7, 0.7, 0.2, timber, -1.2, 0.7, 0.9, 10);
+        const wheelOff = cyl(0.7, 0.7, 0.2, timber, 1.5, 0.35, -1.2, 10);
+        bed.rotation.z = 0.4; // tipped onto its side
+        wheelOff.rotation.x = 1.4; // and one wheel lying flat where it came off
+        const g = new THREE.Group();
+        g.add(bed, wheelUp, wheelOff);
+        for (let k = 0; k < 5; k++) g.add(sphere(0.18, lam(0xd84040), (hash(k, 51) - 0.5) * 4, 0.15, (hash(k, 52) - 0.5) * 4));
+        g.position.copy(cs);
+        scene.add(g);
+        storyClue(V3(cs.x + 2, cs.y, cs.z + 2), "A cart on its side, the load spilled, and bare footprints all around it: small, wide, and a great many of them. Nobody bled. Nobody stayed.");
+      }
+    }
+    // the hut with three beds and two graves: the graves go behind it, opposite its door
+    {
+      const it = interiors.find(i => i.round && i.bedLen === 2.4 && i.door);
+      if (it) {
+        const gx = it.cx + (it.cx - it.door.x) * 0.9,
+          gz = it.cz + (it.cz - it.door.z) * 0.9 + 6;
+        for (let k = 0; k < 2; k++) scene.add(boxM(0.7, 0.9, 0.16, stoneDarkM, gx + k * 1.4 - 0.7, it.y + 0.45, gz));
+        for (let k = 0; k < 2; k++) scene.add(boxM(1.2, 0.3, 2, lam(0x8a6a4a), it.cx + (k ? 1.5 : -1.5), it.y + 0.15, it.cz - 1.5));
+        storyClue(V3(gx, it.y, gz + 1.2), "Three beds in the hut, and two small graves outside it. The third bed has been made every morning since.");
+      }
+    }
     // two wolf dens: one in the wood below the elder tree, one on the mountain above the first village
     for (const [ax, az] of [[ELDER.x - 95, ELDER.z + 70], [villages[0].center.x + 42, villages[0].center.z + 30]]) {
       const spot = findSpot(ax, az, 3, 220, 6, 2); if (!spot) continue;
@@ -11144,7 +11287,34 @@ const __boot = (async () => {
         { vi: 6, who: "Kestrel Rest potter", title: "Two pale trees for the Kestrel Rest kiln", ask: () => { STORY.potter0 = P.logs; return "The kiln eats pale wood, nothing else burns hot enough. Two pale trees felled and I'll fire something for you."; }, nag: () => `Two pale trees. Only the pale-barked ones take an axe. ${Math.min(2, P.logs - (STORY.potter0 || 0))} so far.`, thanks: "Two. That's a firing. Here, a glazed charm, hot from the kiln.", check: () => P.logs - (STORY.potter0 || 0) >= 2, progress: () => `${Math.min(2, P.logs - (STORY.potter0 || 0))}/2 pale trees`, reward: () => grant("Kestrel Charm: +8 stamina", () => { P.bonus.stam += 8; }) },
         { vi: 7, who: "Hollowmere ferryman", title: "Bring two of the queen's children home for Hollowmere", ask: () => { STORY.ferry0 = ferryBase(FAIRY.found); return "The pink fairies keep the mere sweet, and two too many have gone missing lately. Find two of the little ones and I'll give you my lantern."; }, nag: () => `Two of the queen's children. ${ferryDone()} so far.`, thanks: "Two home. The water already tastes better. My lantern; it's lit with the mere's own light.", check: () => ferryDone() >= 2, progress: () => `${ferryDone()}/2 children`, reward: () => grant("Hollowmere Lantern: a Heart Piece", () => { P.maxHp++; P.hp = P.maxHp; }) }
       ];
-      for (const d of defs) { const g = giverOf(d.vi); if (!g) continue; g.name = d.who; g.quester = true; g.post = true; g.stay = true; g.job = "idle"; g.home.copy(g.pos); addSideQuest({ giver: g, who: d.who, title: d.title, ask: d.ask, nag: d.nag, thanks: d.thanks, check: d.check, progress: d.progress, reward: d.reward, available: d.available || (() => WORLDSTATE.hermitWarned), target: d.target, notYet: ["Hmph. No trouble here a stranger can fix. Come back when the valley needs you.", "We manage. Come back when you're stronger, or when things are worse.", "I've no errand for you. Not yet. Ask me again when the pool has shown its face."][d.vi % 3] }); if (d.vi === 2) { const m2 = makePerson({ robe: 0x6a8a6a, hair: 0xe8d8a0, skin: 0xf0e0d0, elf: true, seed: 914, female: true, style: "braid", shawl: 0x8aa88a, pitch: 1.2 }); scene.remove(g.mesh); g.mesh = m2; scene.add(m2);
+      // wiring each definition onto its villager. the giver stops being one of the crowd: they keep their own name,
+      // stand at their own door from now on, and carry the errand.
+      for (const d of defs) {
+        const g = giverOf(d.vi);
+        if (!g) continue;
+        g.name = d.who;
+        g.quester = true;
+        g.post = true;
+        g.stay = true;
+        g.job = "idle";
+        g.home.copy(g.pos);
+        addSideQuest({
+          giver: g, who: d.who, title: d.title,
+          ask: d.ask, nag: d.nag, thanks: d.thanks,
+          check: d.check, progress: d.progress, reward: d.reward, target: d.target,
+          available: d.available || (() => WORLDSTATE.hermitWarned),
+          // three ways of saying "not yet", handed round the villages so the whole valley does not answer as one
+          notYet: [
+            "Hmph. No trouble here a stranger can fix. Come back when the valley needs you.",
+            "We manage. Come back when you're stronger, or when things are worse.",
+            "I've no errand for you. Not yet. Ask me again when the pool has shown its face."
+          ][d.vi % 3]
+        });
+        if (d.vi === 2) {
+          const m2 = makePerson({ robe: 0x6a8a6a, hair: 0xe8d8a0, skin: 0xf0e0d0, elf: true, seed: 914, female: true, style: "braid", shawl: 0x8aa88a, pitch: 1.2 });
+          scene.remove(g.mesh);
+          g.mesh = m2;
+          scene.add(m2);
         // the mesh was swapped for a woman's and nothing else was: she kept whatever voice the villager giverOf happened
         // to pick, which on most seeds is a man's. the voice belongs to the npc, not to the body, so it has to be
         // rebuilt here with the same numbers addNPC would have used for a woman.
@@ -11156,7 +11326,23 @@ const __boot = (async () => {
         // is put where she lives by hand, the same as every other villager who is moved by hand.
         g.worried = true; g.job = "idle"; g.post = true; g.stay = true; g.allowInside = true; g.paceT = 0; g.pos.set(g.hut.cx, g.hut.y, g.hut.cz); g.home.copy(g.pos); g.mesh.position.copy(g.pos); g.throughDoor = g.hut; } } // nim's mother does not leave the hut; she paces it
       const canopyFolk = npcs.find(n => n.canopy && !n.kid);
-      if (canopyFolk) { canopyFolk.name = "Elder-tree lookout"; addSideQuest({ giver: canopyFolk, who: "Elder-tree lookout", title: "Bring the three children lost on the lookouts home", ask: "Three of the queen's little ones are stuck on our lookout platforms, and none of us can fly. Bring them down and I'll give you the feather that lets a person climb the air.", nag: "The three lookout platforms on the tree. The little pink ones. Bring them home.", thanks: "All three. Take the skyfeather, then; hold it and the air will bear you a third time.", check: () => FAIRY.children.filter(c => (c.clue || "").startsWith("Elder") && c.found).length >= 3, progress: () => `${FAIRY.children.filter(c => (c.clue || "").startsWith("Elder") && c.found).length}/3 lookout children`, reward: () => grant("Skyfeather: a third jump in the air", () => { P.bonus.jumps = 3; }) }); }
+      // the elder tree's own errand. its three children are the ones whose clue names the tree, so the count and the
+      // completion test read the same filter rather than tracking a separate tally that could drift from it.
+      if (canopyFolk) {
+        const onTheLookouts = () => FAIRY.children.filter(c => (c.clue || "").startsWith("Elder") && c.found).length;
+        canopyFolk.name = "Elder-tree lookout";
+        addSideQuest({
+          giver: canopyFolk,
+          who: "Elder-tree lookout",
+          title: "Bring the three children lost on the lookouts home",
+          ask: "Three of the queen's little ones are stuck on our lookout platforms, and none of us can fly. Bring them down and I'll give you the feather that lets a person climb the air.",
+          nag: "The three lookout platforms on the tree. The little pink ones. Bring them home.",
+          thanks: "All three. Take the skyfeather, then; hold it and the air will bear you a third time.",
+          check: () => onTheLookouts() >= 3,
+          progress: () => `${onTheLookouts()}/3 lookout children`,
+          reward: () => grant("Skyfeather: a third jump in the air", () => { P.bonus.jumps = 3; })
+        });
+      }
     }
     // lore in the huts: a diary or a book on the table in most of them, readable with e; press i to read again
     const LORE = [
@@ -11493,12 +11679,12 @@ const __boot = (async () => {
           const x = Math.cos(a) * r,
             z = Math.sin(a) * r,
             h = terrainH(x, z);
-          if (x < -650 || x > -550) continue;
+          if (x < (o.xMin ?? -650) || x > (o.xMax ?? -550)) continue;
           if (!inBounds(x, z) || h < 3.5 || h > 30) continue;
-          if (pathDist(x, z) < 26 || isWater(x, z)) continue; // off both roads and out of the wet
+          if (pathDist(x, z) < (o.forceAny ? 14 : 26) || isWater(x, z)) continue; // off both roads and out of the wet
           if (o.deep && chanNear(x, z) < 34) continue; // sixteen clear metres beyond the furthest stone, measured not guessed
-          if (slopeAt(x, z) > o.slope) continue; // the local tilt. `rough`, measured across the real footprint below, is the test that actually governs a building this long
-          if (!treeFree(x, z, o.tree) || insideInterior(x, z, 4)) continue;
+          if (!o.forceAny && slopeAt(x, z) > o.slope) continue; // the local tilt. `rough`, measured across the real footprint below, is the test that actually governs a building this long
+          if (!o.forceAny && (!treeFree(x, z, o.tree) || insideInterior(x, z, 4))) continue;
           if (Math.hypot(x - POOL.x, z - POOL.z) < 45) continue;
           if (Math.hypot(x - ELDER.x, z - ELDER.z) < 90) continue;
           if (typeof CAVE !== "undefined" && CAVE && Math.hypot(x - CAVE.x, z - CAVE.z) < 60) continue;
@@ -11517,7 +11703,7 @@ const __boot = (async () => {
             const px = x + cc * lx + ss * lz,
               pz = z - ss * lx + cc * lz;
             rough = Math.max(rough, Math.abs(terrainH(px, pz) - h));
-            if (isWater(px, pz) || pathDist(px, pz) < 18 || (o.probeTree && !treeFree(px, pz, o.probeTree))) blocked = true;
+            if (isWater(px, pz) || pathDist(px, pz) < (o.forceAny ? 10 : 18) || (!o.forceAny && o.probeTree && !treeFree(px, pz, o.probeTree))) blocked = true;
             // anything already standing out here registered a collider — a hunter's tent, a bridge deck, the beacon
             // apron — so one sweep of the struct grid is a better clearance test than any list of names
             else
@@ -11528,7 +11714,7 @@ const __boot = (async () => {
               }
             if (blocked) break;
           }
-          if (blocked || rough > o.rough) continue;
+          if (blocked || (!o.forceAny && rough > o.rough)) continue;
           const score = rough + Math.abs(r - o.rMid) * 0.02, // flattest first, then nearest the middle of the band
             cand = { x, z, y: h, yaw, cc, ss, r, rough, score };
           // the full water sweep only runs on a candidate that is about to win, which is a handful of calls a seed
@@ -11548,6 +11734,20 @@ const __boot = (async () => {
       how = "far-west last resort";
       site = findSite({ r0: 550, r1: 790, rMid: 610, tree: 8, rough: 5.5, slope: 3.2, deep: true, probeTree: 3, aim: Math.PI, probes: PROBE });
     }
+    if (!site) {
+      // river/road/terrain layout this seed apparently leaves nothing legal in the west apron band at all. drop the
+      // roughness and slope caps (the church just sits on whatever grade it's given; RISE/PH below absorb it) and
+      // drop the tree-density and west-only restrictions too — a still-dry, unblocked, in-bounds spot anywhere on
+      // the map beats no church.
+      how = "forced (west apron had nothing legal)";
+      site = findSite({ r0: 300, r1: 900, rMid: 600, tree: 0, rough: 999, slope: 999, deep: false, probeTree: 0, aim: Math.PI, probes: PROBE, forceAny: true, xMin: -900, xMax: -450 });
+    }
+    if (!site) {
+      // last resort: forget the west apron narrative entirely and look anywhere on the ring, still avoiding water/
+      // roads/collisions with everything else already placed. same forced constraints as above, just no x-band.
+      how = "forced (anywhere)";
+      site = findSite({ r0: 200, r1: 950, rMid: 600, tree: 0, rough: 999, slope: 999, deep: false, probeTree: 0, aim: null, probes: PROBE, forceAny: true, xMin: -1e6, xMax: 1e6 });
+    }
     if (!site) console.warn("church: no legal site on the apron this seed; the building is skipped");
     if (site) {
       // the plinth is sized to the ground it was given rather than to a number picked in advance. RISE clears the
@@ -11557,7 +11757,7 @@ const __boot = (async () => {
       // three metres, and a great church on a stepped platform is what a hillside has always done to one.
       const RISE = Math.max(1.3, site.rough + 0.6),
         PH = RISE + site.rough + 4.5;
-      console.info("church at", site.x.toFixed(1), site.z.toFixed(1), "| r", site.r, "yaw", site.yaw.toFixed(2), "rough", site.rough.toFixed(2), "| by", how, "| channel", chanSegs.length ? chanNear(site.x, site.z).toFixed(1) : "none", "| plinth", RISE.toFixed(2), "on", PH.toFixed(2));
+      console.log("church at", site.x.toFixed(1), site.z.toFixed(1), "| r", site.r, "yaw", site.yaw.toFixed(2), "rough", site.rough.toFixed(2), "| by", how, "| channel", chanSegs.length ? chanNear(site.x, site.z).toFixed(1) : "none", "| plinth", RISE.toFixed(2), "on", PH.toFixed(2));
       const FY = site.y + RISE, // the plinth top, which is the church's floor level
         g = new THREE.Group();
       g.position.set(site.x, FY, site.z);
@@ -12890,7 +13090,27 @@ const __boot = (async () => {
     if (!b.phase) b.phase = 1;
     if (b.phase === 1 && b.hp <= b.maxHp * 0.6) { b.phase = 2; SFX.phase(); SFX.roar(1); say("The Old Bear bellows and the cave shakes.", 2500); b.debrisT = 1; }
     if (b.phase === 2 && b.hp <= b.maxHp * 0.33) { b.phase = 3; SFX.phase(); say("It is bleeding, and it has stopped being careful.", 2500); }
-    if (b.phase >= 2 && CAVE) { b.debrisT = (b.debrisT || 2) - dt; if (b.debrisT <= 0) { b.debrisT = b.phase === 3 ? 2.2 : 3.5; const a = Math.random() * 6.28, r = Math.random() * 12; const x = CAVE.x + Math.cos(a) * r, z = CAVE.z + Math.sin(a) * r; if (dist2D(P.pos, { x, z }) < 60) { burst(V3(x, CAVE.h + 9, z), 0x6a6058, 12, 4, 1.1, 0.25); SFX.noise(0.3, 400, 100, 0.25, "lowpass"); if (!death && dist2D(P.pos, { x, z }) < 2.2 && !P.block && P.inv <= 0) { hurtPlayer(1, V3(x, CAVE.h, z)); say("Falling rock!", 900); } } } }
+    // once the bear is properly awake the cave mouth starts shedding rock: a puff of dust and a bang somewhere on a
+    // twelve-metre disc around the entrance, and a heart off anyone standing directly underneath it. it is only ever
+    // built and heard within sixty metres, so the far side of the valley is not paying for a fight it cannot see.
+    if (b.phase >= 2 && CAVE) {
+      b.debrisT = (b.debrisT || 2) - dt;
+      if (b.debrisT <= 0) {
+        b.debrisT = b.phase === 3 ? 2.2 : 3.5; // the last phase drops them half again as often
+        const a = Math.random() * 6.28,
+          r = Math.random() * 12,
+          x = CAVE.x + Math.cos(a) * r,
+          z = CAVE.z + Math.sin(a) * r;
+        if (dist2D(P.pos, { x, z }) < 60) {
+          burst(V3(x, CAVE.h + 9, z), 0x6a6058, 12, 4, 1.1, 0.25);
+          SFX.noise(0.3, 400, 100, 0.25, "lowpass");
+          if (!death && dist2D(P.pos, { x, z }) < 2.2 && !P.block && P.inv <= 0) {
+            hurtPlayer(1, V3(x, CAVE.h, z));
+            say("Falling rock!", 900);
+          }
+        }
+      }
+    }
   }
   function updateBear(dt) {
     const b = BEAR;
@@ -14090,6 +14310,15 @@ const __boot = (async () => {
       const box = document.getElementById("saveBox");
       box.classList.remove("hidden");
       document.getElementById("loadBox").classList.add("hidden");
+      // the same warning the autosave acts on, said out loud. joining a host rolls this player's own shared errands
+      // and burial back — deliberately, because a guest's valley is the host's — and the autosave refuses to write
+      // that down. this button wrote it anyway, silently, right under a note explaining that nothing was being
+      // saved. the key is still offered, because it is the only way to carry anything out of a joined session,
+      // but nobody should paste it back expecting their own run.
+      const warn = document.getElementById("saveKeyWarn"),
+        joined = netGuest() || guestedThisSession;
+      warn.classList.toggle("hidden", !joined);
+      if (joined) warn.textContent = "Careful: this run has been joined to someone else's valley, so this key holds their story, not yours. Errands you finished before joining are recorded as unfinished and their rewards as already paid.";
       document.getElementById("saveKey").value = makeSaveKey();
       document.getElementById("saveKey").select();
     };
@@ -14613,7 +14842,7 @@ const __boot = (async () => {
       // her floating at the pool with the flag set strands the chain, and clearing the flag hands the player back a
       // body they have already lifted. she is either on the shoulder or under the mound, never both and never neither.
       applyWardenAftermath();
-      if (WORLDSTATE.ysoldeBuried) { WORLDSTATE.kingMourned = true; ysoldeIntoTheGround(); }
+      if (WORLDSTATE.ysoldeBuried) ysoldeIntoTheGround(); // kingMourned rides in the save on its own; forcing it here robbed a reload of the king's scene
       else if (WORLDSTATE.ysoldeLifted) beginCarry();
       if (d.bearDead && BEAR && BEAR.alive) { BEAR.alive = false; BEAR.awake = false; BEAR.mesh.visible = false; BEAR.t = 100; }
       for (const [id, x, z] of d.owed || []) dropReward(id, x, z);
@@ -14784,7 +15013,7 @@ const __boot = (async () => {
         if (!num(f.found, 0, 25) || !num(f.hearts, 0, 10) || (f.kids !== undefined && !(Array.isArray(f.kids) && f.kids.every(k => num(k, 0, 99)))) || (f.seen !== undefined && typeof f.seen !== "boolean") || (f.compass !== undefined && typeof f.compass !== "boolean") || ["rest", "petal", "grove", "crown", "accepted", "complete"].some(k => f[k] !== undefined && typeof f[k] !== "boolean")) return null;
       }
       if (d.ws !== undefined) {
-        const rb = ["marenFreed", "haleExposed", "pyreDismantled", "blackPoolAwake", "hermitTold", "hermitWarned", "kingTrusts", "goblinKingDefeated", "bearDefeated", "fairyCourtOpen", "finaleStarted", "wardenDead", "home", "guardsOut", "gehUnlocked", "gehDone", "ysoldeLifted", "ysoldeBuried", "kingMourned", "processionRear", "processionHale", "hermitChurchTaken", "hermitChurchFound", "hermitChurchDone", "gehAlmonerDown", "gehMatronDown", "gehHeapDown", "luciferDefeated", "gehFinaleWitnessed"]; // fairyCourtOpen is accepted from 2.0 keys and ignored
+        const rb = ["marenFreed", "haleExposed", "pyreDismantled", "blackPoolAwake", "hermitTold", "hermitWarned", "kingTrusts", "goblinKingDefeated", "bearDefeated", "fairyCourtOpen", "finaleStarted", "wardenDead", "home", "guardsOut", "gehUnlocked", "gehDone", "ysoldeLifted", "ysoldeBuried", "kingMourned", "processionRear", "processionHale", "hermitChurchTaken", "hermitChurchFound", "hermitChurchDone", "gehAlmonerDown", "gehMatronDown", "gehHeapDown", "luciferDefeated", "gehFinaleWitnessed", "kingInvisRecognized"]; // fairyCourtOpen is accepted from 2.0 keys and ignored
         const spec = {}; for (const k of rb) spec[k] = bool;
         // the seed generator only ever rolls an integer 1..999999, so the validator says the same thing: a fractional
         // seed is a world it could never produce, and it ends up inside fbm.
@@ -14794,6 +15023,7 @@ const __boot = (async () => {
         // the wolf choice: you could finish the game, reload, and find the pool reverted, every closing line reverted,
         // the act fallen from COMPLETE back to FINALE, and the dread climbing again.
         spec.gehSeed = v => num(v, 0, 999999) && Number.isInteger(v);
+        spec.kingInvisTurn = v => num(v, 0, 999); // which of the king's lines to a shade comes next; without it he starts the rotation again on every load
         spec.awokeAt = v => num(v, 0, 1e9);
         spec.deep = v => num(v, 0, 99);
         spec.afterlife = v => v === null || ["stay", "moveOn"].includes(v);
@@ -15414,6 +15644,7 @@ const __boot = (async () => {
         P.airSlash = { t: 0, hitDone: false, motion: movementStrike() };
         P.kickWindow = 0;
         P.dive = true;
+        P.diveHitDone = false; // one dive is one attack. see the wildlife gate in update()
         spendStam(P.pityDrain ? P.stam : 12);
         P.pityDrain = false;
         P.atkCd = P.atkCdMax = atkCooldown() * 0.6;
@@ -15715,7 +15946,7 @@ const __boot = (async () => {
       // no strength, no tally, no kill line. it never wanted anything and it never took anything that was not given
       // to it, and there is nothing in eight hundred years of other people's property that is worth a sentence.
       GEH.heapDown = WORLDSTATE.gehHeapDown = true;
-      if (typeof gehUpdateRoadWidth === "function") gehUpdateRoadWidth();
+      gehUpdateRoadWidth();
       autoSave("the Unclaimed store is open");
       if (e.ring) e.ring.visible = false;
       if (e.thrown) e.thrown.visible = false;
@@ -16062,7 +16293,17 @@ const __boot = (async () => {
     return new Promise(res => { if (pc.iceGatheringState === "complete") return res(); const done = () => { pc.removeEventListener("icegatheringstatechange", chk); res(); }; const chk = () => { if (pc.iceGatheringState === "complete") done(); }; pc.addEventListener("icegatheringstatechange", chk); setTimeout(done, 4000); });
   }
   function netPeer(id) {
-    const prev = NET.peers.get(id); if (prev) { NET.peers.delete(id); try { if (prev.ch) prev.ch.onmessage = null; prev.pc.close(); } catch (_) {} } // an earlier attempt under this name is shut before its replacement is installed
+    // an earlier attempt under this name is shut before its replacement is installed — and its people go with it.
+    // netDrop cannot do it: it fires from the close callback, by which time NET.peers holds the NEW peer under this
+    // id and its `!== peer` guard bails out. a guest always reconnects under the fixed id "host", so re-joining left
+    // the whole previous roster in NET.avatars, pointing at a peer that is now ready. they looked alive to every
+    // liveness test in the game, including the one that holds the tear shut until everybody is standing at it.
+    const prev = NET.peers.get(id);
+    if (prev) {
+      NET.peers.delete(id);
+      try { if (prev.ch) prev.ch.onmessage = null; prev.pc.close(); } catch (_) {}
+      for (const a of [...NET.avatars.values()]) if (a.via === id) netRemoveAvatar(a.id);
+    }
     const pc = new RTCPeerConnection(NET_ICE); const peer = { id, pc, ch: null, motion: null, ready: false, hello: false, playerId: null };
     pc.onconnectionstatechange = () => {
       const st = pc.connectionState;
@@ -16103,6 +16344,9 @@ const __boot = (async () => {
     NET.peers.delete(peer.id);
     const gone = [...NET.avatars.values()].filter(a => a.via === peer.id);
     burialPlayersGone(gone);
+    // their quest-slime batch goes with them. the map is keyed by player and capped at eight, and nothing ever
+    // deleted from it, so eight guests across one session was enough to lock the ninth out of the errand entirely.
+    for (const a of gone) questSlimeSummons.delete(a.id);
     for (const a of gone) netRemoveAvatar(a.id);
     if (NET.role === "host") for (const a of gone) netBroadcast({ t: "bye", id: a.id }, peer.id);
     try { peer.pc.close(); } catch (_) {}
@@ -16377,7 +16621,27 @@ const __boot = (async () => {
     if (m.t === "epractice" && NET.role === "guest") { netTakePractice(peer, m); return; }
     // a string coordinate fell back correctly here, because NaN is falsy — but Infinity is truthy and walked straight
     // past the old `|| ` fallback, and Infinity/Infinity is NaN. both are finite-checked and clamped now.
-    if (m.t === "ehit" && NET.role === "guest" && m.to === NET.myId) { const fx = +m.x, fz = +m.z, fromPos = V3(Number.isFinite(fx) ? clamp(fx, -2000, 2000) : P.pos.x + 1, P.pos.y, Number.isFinite(fz) ? clamp(fz, -2000, 2000) : P.pos.z); if (m.k !== "arrow" && enemyPerfectDodge(m.pierce === true)) return; if (P.block) { recordBlock(); lowerShield(true); say("Blocked!", 900); SFX.block(); hitstop = 0.06; } else hurtPlayer(clamp(+m.dmg || 1, 0, 6), fromPos, clamp(+m.kb || 1, 1, 2.5), m.pierce === true); return; } // kb is clamped like the damage: a peer cannot ask to launch you into orbit
+    // an enemy hit, worked out by the host and sent here. every number off the wire is treated as a claim, not a
+    // fact: the origin is clamped to the map so a bad one cannot fling you across it, the damage to six hearts and
+    // the knockback to 2.5 — a peer cannot ask to launch you into orbit — and a missing origin falls back to a point
+    // just beside you, which knocks you straight back rather than nowhere at all.
+    if (m.t === "ehit" && NET.role === "guest" && m.to === NET.myId) {
+      const fx = +m.x, fz = +m.z;
+      const fromPos = V3(
+        Number.isFinite(fx) ? clamp(fx, -2000, 2000) : P.pos.x + 1,
+        P.pos.y,
+        Number.isFinite(fz) ? clamp(fz, -2000, 2000) : P.pos.z
+      );
+      if (m.k !== "arrow" && enemyPerfectDodge(m.pierce === true)) return; // an arrow cannot be dodged on reflex
+      if (P.block) {
+        recordBlock();
+        lowerShield(true);
+        say("Blocked!", 900);
+        SFX.block();
+        hitstop = 0.06;
+      } else hurtPlayer(clamp(+m.dmg || 1, 0, 6), fromPos, clamp(+m.kb || 1, 1, 2.5), m.pierce === true);
+      return;
+    }
     if (m.t === "ek" && NET.role === "guest") { netKillCredit(m); return; }
     // a guest's progress snapshot may not carry an ending, and the host must not pass one on. the relay hands a
     // guest's message to every other guest unchanged, and it arrives there FROM the host — so without this strip a
@@ -16458,7 +16722,11 @@ const __boot = (async () => {
       // absurd y decides which realm they are judged to be in, and a mesh parked at 1e300 is a matrix of infinities.
       if (![m.x, m.y, m.z, m.h].every(Number.isFinite) || Math.abs(m.x) > 2000 || Math.abs(m.z) > 2000 || m.y < -400 || m.y > 1000) return;
       if (!Number.isSafeInteger(m.seq) || m.seq <= (a.seq || 0)) return false;
-      if (gehFightMember(a.id) && m.lf !== GEH.luciferFight.epoch) return false;
+      // a client that has torn its own gehenna down reports lf: 0. treating that as a mismatch froze the player on
+      // the host for the rest of the session — their avatar stayed wherever they last stood under the seam, every
+      // valley gate that tests their position refused them, and gehFightPeople went on counting them as a live
+      // member so a real party wipe could never fire the retry menu. only a live, DIFFERENT epoch is a mismatch.
+      if (m.lf && gehFightMember(a.id) && m.lf !== GEH.luciferFight.epoch) return false;
       a.seq = m.seq; a.lastAt = performance.now();
       const pos = V3(m.x, m.y, m.z), vel = V3(...[m.vx, m.vy, m.vz].map(v => clamp(Number.isFinite(v) ? v : 0, -100, 100)));
       a.samples = a.samples || [];
@@ -16866,7 +17134,13 @@ const __boot = (async () => {
     // bounded on purpose: each unseen id builds a whole character mesh, so an oversized snapshot would allocate
     // thousands of them inside one message handler. the real snapshot is the spawn cap plus a camp, so this is generous.
     for (const r of (m.g || []).slice(0, 64)) {
-      const [nid, x, y, z, h, hp, king, state, alive, rise] = r; seen.add(nid);
+      // validated like the slime and wildlife rows below it, which this one was not: a row that is not an array
+      // throws inside the message handler, and a non-finite coordinate turns a mirrored goblin's whole transform
+      // into NaN, which takes its mesh out of the scene for good.
+      if (!Array.isArray(r)) continue;
+      const [nid, x, y, z, h, hp, king, state, alive, rise] = r;
+      if (![x, y, z].every(Number.isFinite) || Math.abs(x) > 3000 || Math.abs(z) > 3000) continue;
+      seen.add(nid);
       let g = goblins.find(o => o.mirror && o.nid === nid);
       if (!g) { g = spawnGoblin(x, z, !!king); g.nid = nid; g.rise = rise; g.mirror = true; g.pos.set(x, y, z); }
       if (g.hidden) { g.hidden = false; g.mesh.visible = true; g.pos.set(x, y, z); } // back in view: it steps back in where the host has it
@@ -17229,7 +17503,7 @@ const __boot = (async () => {
   // pool and gehenna's ceiling there is nothing whatsoever to collide with, which is exactly why the phase 1 depth
   // gates had to land first — every predicate that would otherwise have caught a body down there is already exempted
   // while P.gehDive is set, including both clauses of guardPlayerPosition directly above.
-  const DIVE_T = 6, // seconds of fall
+  const DIVE_T = 8.5, // seconds of fall
     DIVE_HOLD = 9, // and the longest the water will hold you at the ceiling waiting for a build that has not finished
     DIVE_CEIL = 34; // gehenna's ceiling over its floor. the fall ends here and the arrival puts you on the ground
   function gehBeginDive() {
@@ -17615,7 +17889,8 @@ const __boot = (async () => {
     }
     function bossDown() {
       WORLDSTATE.gehDone = true;
-      if (typeof gehUpdateRoadWidth === "function") gehUpdateRoadWidth();
+      gehUpdateRoadWidth();
+      if (!GEH.kingdomRoot) gehBuildKingdom();
       state.fight = false;
       for (const s of speakers) if (s.id === "kindly") s.leaving = true;
       giveLedger();
@@ -17635,7 +17910,7 @@ const __boot = (async () => {
     }
     function almonerDown() {
       WORLDSTATE.gehAlmonerDown = true;
-      if (typeof gehUpdateRoadWidth === "function") gehUpdateRoadWidth();
+      gehUpdateRoadWidth();
       queue([["", "The cart tips over: a shoe, a comb, a child's wooden horse. The first gate opens."], ["The Matron", "Leave the people in my ward alone."]]);
       autoSave("the Almoner's gate is open");
     }
@@ -17645,7 +17920,7 @@ const __boot = (async () => {
     }
     function matronDown() {
       WORLDSTATE.gehMatronDown = true;
-      if (typeof gehUpdateRoadWidth === "function") gehUpdateRoadWidth();
+      gehUpdateRoadWidth();
       queue([["", "She falls while straightening a collar. Beyond her ward, the Caller waits beside the store of surrendered things."]]);
       autoSave("the Matron's ward is open");
     }
@@ -17713,6 +17988,9 @@ const __boot = (async () => {
   // register a solid in gehenna's own structure grid. the same record shape as addStruct, the same walkers in
   // gehGroundAt and resolveStructs, a different map — so nothing placed down here can crater the valley.
   function gehAddStruct(s) {
+    // the village rows move outward as the three demons fall, so their solids have to be findable again.
+    // anything created while a sink is open is recorded, and house solids are tagged for bulk removal.
+    if (GEH.structSink) GEH.structSink.push(s);
     const i0 = Math.floor((s.cx - s.b) / SCELL), i1 = Math.floor((s.cx + s.b) / SCELL),
       j0 = Math.floor((s.cz - s.b) / SCELL), j1 = Math.floor((s.cz + s.b) / SCELL);
     for (let i = i0; i <= i1; i++)
@@ -17848,6 +18126,89 @@ const __boot = (async () => {
   // everything is sampled FROM gehH rather than built beside it, which is why the drawn ground and the collision
   // heightfield cannot drift apart. GEH.root is assigned before the first sample for the reason the placeholder
   // gives: gehH answers GEH_VOID while it is null, and the only body under the seam meanwhile is the falling player.
+  // ---- the village and the road grow as the three demons fall ----------------------------------------
+  // these two live out here, not inside gehBuildWorld, because every caller is out here: killEnemy, the
+  // three GEH_SCRIPT boss hooks and gehLuciferDown. while they were declared inside the build they were
+  // simply not in scope at any call site, and the `typeof fn === "function"` guards those calls used to
+  // carry turned that into silence rather than an error, so the road never widened and the houses never
+  // moved even though the getters they read had already changed.
+  // the rows themselves grow with the road. GEH_L.rowZ / houseW / houseD / houseH are getters keyed on the three
+  // demons, so the numbers were already changing the moment each one fell — but the houses are an InstancedMesh
+  // built once during the world build, so nothing re-read them and the village never actually moved. this re-lays
+  // the rows from the current values: new box geometry, new instance matrices, and the collision solids taken out
+  // of the spatial buckets and put back at the new footprint. the one hollow room travels with its row rather than
+  // being left behind in the old line, and its own solids move with it.
+  function gehUpdateVillage() {
+    const v = GEH.village;
+    if (!v || !v.body) return;
+    const W = GEH_L.houseW, D = GEH_L.houseD, H = GEH_L.houseH, RZ = GEH_L.rowZ, dz = RZ - v.rowZ;
+    // depth counts too: the rows can deepen without moving or changing height, and leaving D out of this test
+    // meant the door offsets and the collision footprint quietly kept the previous depth.
+    if (Math.abs(dz) < 1e-6 && v.builtW === W && v.builtD === D && v.builtH === H) return;
+    for (const [key, list] of GEH.structs) {
+      const kept = list.filter(st => !st.house);
+      if (kept.length) GEH.structs.set(key, kept); else GEH.structs.delete(key);
+    }
+    v.body.geometry.dispose(); v.body.geometry = new THREE.BoxGeometry(W * 2, H, D * 2);
+    v.roof.geometry.dispose(); v.roof.geometry = new THREE.BoxGeometry(W * 2 + 0.5, 0.22, D * 2 + 0.5);
+    const mm4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = V3(1, 1, 1), sc0 = V3(0, 0, 0), pos = V3();
+    for (let side = 0; side < 2; side++)
+      for (let i = 0; i < GEH_L.rowN; i++) {
+        const k = side * GEH_L.rowN + i;
+        const cx = GEH.cx + GEH_L.rowX0 + i * GEH_L.rowStep, cz = GEH.cz + (side ? RZ : -RZ);
+        const y = gehH(cx, cz);
+        if (side === GEH_L.roomS && i === GEH_L.roomI) {
+          pos.set(cx, y, cz); mm4.compose(pos, q, sc0);
+          v.body.setMatrixAt(k, mm4); v.roof.setMatrixAt(k, mm4); v.door.setMatrixAt(k, mm4);
+          continue;
+        }
+        pos.set(cx, y + H / 2, cz); mm4.compose(pos, q, sc); v.body.setMatrixAt(k, mm4);
+        pos.set(cx, y + H + 0.11, cz); mm4.compose(pos, q, sc); v.roof.setMatrixAt(k, mm4);
+        pos.set(cx, y + 0.93, cz + (side ? -1 : 1) * (D + 0.06)); mm4.compose(pos, q, sc); v.door.setMatrixAt(k, mm4);
+        gehAddStruct({ cx, cz, w: W, d: D, top: y + H + 0.22, b: W + 0.3, house: true });
+      }
+    v.body.instanceMatrix.needsUpdate = v.roof.instanceMatrix.needsUpdate = v.door.instanceMatrix.needsUpdate = true;
+    if (dz && GEH.roomGroup) {
+      const shift = (GEH_L.roomS ? dz : -dz);
+      GEH.roomGroup.position.z += shift;
+      for (const st of GEH.roomStructs || []) st.cz += shift;
+      for (const [key, list] of GEH.structs) {
+        const kept = list.filter(st => !(GEH.roomStructs || []).includes(st));
+        if (kept.length) GEH.structs.set(key, kept); else GEH.structs.delete(key);
+      }
+      for (const st of GEH.roomStructs || []) gehAddStruct(st);
+    }
+    // the one hollow room deliberately keeps the size it was built at — it has an interior, a door frame and its own
+    // wall solids, so it travels with its row rather than being re-sized around whatever is standing inside it.
+    v.rowZ = RZ; v.builtW = W; v.builtD = D; v.builtH = H;
+  }
+  function gehUpdateRoadWidth() {
+    gehUpdateVillage();
+    if (!GEH.groundGeo) return;
+    const geo = GEH.groundGeo;
+    const pa = geo.attributes.position, ca = geo.attributes.color;
+    if (!pa || !ca) return;
+    const n = pa.count;
+    const ASH = toLin(0x14120f), EMBER = toLin(0x8e1605), ROAD = toLin(0x2d2823), YARD = toLin(0x3a342d), DEEPC = toLin(0x050409);
+    for (let i = 0; i < n; i++) {
+      const x = GEH.cx + pa.getX(i), z = GEH.cz + pa.getZ(i), h = gehH(x, z);
+      const dx = x - GEH.cx, dz = z - GEH.cz, r = Math.hypot(dx, dz);
+      let cr = ASH.r, cg = ASH.g, cb = ASH.b;
+      const onRoad = dx > GEH_L.roadX0 - 4 && dx < GEH_L.roadX1 + 4 ? 1 - clamp((Math.abs(dz) - GEH_L.roadW) / 2.6, 0, 1) : 0;
+      if (onRoad > 0) { cr = lerp(cr, ROAD.r, onRoad); cg = lerp(cg, ROAD.g, onRoad); cb = lerp(cb, ROAD.b, onRoad); }
+      const yk = 1 - clamp((Math.hypot(dx - GEH_L.yardX, dz) - GEH_L.yardR) / 3, 0, 1);
+      if (yk > 0) { cr = lerp(cr, YARD.r, yk); cg = lerp(cg, YARD.g, yk); cb = lerp(cb, YARD.b, yk); }
+      const v = Math.abs(fbm(x * 0.05 + GEH.seed, z * 0.05 + GEH.seed, 2) - 0.5);
+      const crack = Math.pow(clamp(1 - v / 0.058, 0, 1), 1.7) * (0.55 + 0.45 * fbm(x * 0.21, z * 0.21, 2));
+      if (crack > 0.002) { cr = lerp(cr, EMBER.r, crack); cg = lerp(cg, EMBER.g, crack); cb = lerp(cb, EMBER.b, crack); }
+      if (r < GEH_L.dishR) { const k = Math.pow(1 - r / GEH_L.dishR, 0.7); cr = lerp(cr, DEEPC.r, k); cg = lerp(cg, DEEPC.g, k); cb = lerp(cb, DEEPC.b, k); }
+      const hx = gehH(x + 2.4, z) - gehH(x - 2.4, z), hz = gehH(x, z + 2.4) - gehH(x, z - 2.4);
+      const sh = clamp(0.9 - Math.hypot(hx, hz) * 0.09 + hx * 0.035 + clamp((GEH.floor + 1 - h) / 7, -0.25, 0.3), 0.25, 1.35);
+      ca.setXYZ(i, cr * sh, cg * sh, cb * sh);
+    }
+    ca.needsUpdate = true;
+  }
+
   window.gehBuildWorld = async function gehBuildWorld() {
     if (GEH.root) return;
     let nodes0 = 0;
@@ -17932,31 +18293,6 @@ const __boot = (async () => {
       cityGroup.add(floor);
       GEH.groundGeo = geo;
     }
-    function gehUpdateRoadWidth() {
-      if (!GEH.groundGeo) return;
-      const geo = GEH.groundGeo;
-      const pa = geo.attributes.position, ca = geo.attributes.color;
-      if (!pa || !ca) return;
-      const n = pa.count;
-      const ASH = toLin(0x14120f), EMBER = toLin(0x8e1605), ROAD = toLin(0x2d2823), YARD = toLin(0x3a342d), DEEPC = toLin(0x050409);
-      for (let i = 0; i < n; i++) {
-        const x = GEH.cx + pa.getX(i), z = GEH.cz + pa.getZ(i), h = gehH(x, z);
-        const dx = x - GEH.cx, dz = z - GEH.cz, r = Math.hypot(dx, dz);
-        let cr = ASH.r, cg = ASH.g, cb = ASH.b;
-        const onRoad = dx > GEH_L.roadX0 - 4 && dx < GEH_L.roadX1 + 4 ? 1 - clamp((Math.abs(dz) - GEH_L.roadW) / 2.6, 0, 1) : 0;
-        if (onRoad > 0) { cr = lerp(cr, ROAD.r, onRoad); cg = lerp(cg, ROAD.g, onRoad); cb = lerp(cb, ROAD.b, onRoad); }
-        const yk = 1 - clamp((Math.hypot(dx - GEH_L.yardX, dz) - GEH_L.yardR) / 3, 0, 1);
-        if (yk > 0) { cr = lerp(cr, YARD.r, yk); cg = lerp(cg, YARD.g, yk); cb = lerp(cb, YARD.b, yk); }
-        const v = Math.abs(fbm(x * 0.05 + GEH.seed, z * 0.05 + GEH.seed, 2) - 0.5);
-        const crack = Math.pow(clamp(1 - v / 0.058, 0, 1), 1.7) * (0.55 + 0.45 * fbm(x * 0.21, z * 0.21, 2));
-        if (crack > 0.002) { cr = lerp(cr, EMBER.r, crack); cg = lerp(cg, EMBER.g, crack); cb = lerp(cb, EMBER.b, crack); }
-        if (r < GEH_L.dishR) { const k = Math.pow(1 - r / GEH_L.dishR, 0.7); cr = lerp(cr, DEEPC.r, k); cg = lerp(cg, DEEPC.g, k); cb = lerp(cb, DEEPC.b, k); }
-        const hx = gehH(x + 2.4, z) - gehH(x - 2.4, z), hz = gehH(x, z + 2.4) - gehH(x, z - 2.4);
-        const sh = clamp(0.9 - Math.hypot(hx, hz) * 0.09 + hx * 0.035 + clamp((GEH.floor + 1 - h) / 7, -0.25, 0.3), 0.25, 1.35);
-        ca.setXYZ(i, cr * sh, cg * sh, cb * sh);
-      }
-      ca.needsUpdate = true;
-    }
     await __stage(46, "Something moves under the water…");
 
     // ---- the black water you surface in, and the swept arcs of the yard. gehH has flattened the ground under both,
@@ -17997,7 +18333,13 @@ const __boot = (async () => {
           // InstancedMesh instance whose matrix is never set keeps the identity matrix, which would have drawn a
           // brick box, a roof and a door at the world origin — in the middle of the valley, nine hundred metres up.
           if (s === GEH_L.roomS && i === GEH_L.roomI) {
-            gehBuildRoom(cityGroup, M, cx, cz, y, s ? -1 : 1);
+            // the sink catches the room's own solids so the row can carry them when it moves. it must be closed
+            // even if the build throws: left open, gehAddStruct would go on pushing every later solid in the world
+            // into it, and the whole lot would travel with the room the first time a demon fell.
+            GEH.structSink = [];
+            try { gehBuildRoom(cityGroup, M, cx, cz, y, s ? -1 : 1); }
+            finally { GEH.roomStructs = GEH.structSink; GEH.structSink = null; }
+            GEH.roomGroup = cityGroup.getObjectByName("geh-room") || null;
             pos.set(cx, y, cz); mm4.compose(pos, q, sc0);
             body.setMatrixAt(k, mm4); roof.setMatrixAt(k, mm4); door.setMatrixAt(k, mm4);
             continue;
@@ -18005,10 +18347,11 @@ const __boot = (async () => {
           pos.set(cx, y + GEH_L.houseH / 2, cz); mm4.compose(pos, q, sc); body.setMatrixAt(k, mm4);
           pos.set(cx, y + GEH_L.houseH + 0.11, cz); mm4.compose(pos, q, sc); roof.setMatrixAt(k, mm4);
           pos.set(cx, y + 0.93, cz + (s ? -1 : 1) * (GEH_L.houseD + 0.06)); mm4.compose(pos, q, sc); door.setMatrixAt(k, mm4);
-          gehAddStruct({ cx, cz, w: GEH_L.houseW, d: GEH_L.houseD, top: y + GEH_L.houseH + 0.22, b: GEH_L.houseW + 0.3 });
+          gehAddStruct({ cx, cz, w: GEH_L.houseW, d: GEH_L.houseD, top: y + GEH_L.houseH + 0.22, b: GEH_L.houseW + 0.3, house: true });
         }
       body.instanceMatrix.needsUpdate = roof.instanceMatrix.needsUpdate = door.instanceMatrix.needsUpdate = true;
       cityGroup.add(body, roof, door);
+      GEH.village = { body, roof, door, rowZ: GEH_L.rowZ };
     }
     await __stage(60, "Something moves under the water…");
 
@@ -18338,7 +18681,7 @@ const __boot = (async () => {
     GEH.heapDown = !!WORLDSTATE.gehHeapDown;
     if (!WORLDSTATE.gehHeapDown) gehSpawnUnclaimed(GEH.cx + GEH_L.yardX, GEH.cz + 6);
     if (WORLDSTATE.gehMatronDown) { gehOpenRoom(); if (GEH.matronFig) GEH.matronFig.grp.visible = false; }
-    if (WORLDSTATE.luciferDefeated) gehBuildKingdom(); else gehBuildHillPortal();
+    if (WORLDSTATE.gehDone) gehBuildKingdom(); else gehBuildHillPortal();
     gehBuildFinale();
 
     let nodes1 = 0;
@@ -19188,7 +19531,7 @@ const __boot = (async () => {
     thrown.visible = false;
     (GEH.cityRoot || GEH.root).add(thrown);
     const e = {
-      nid: ++ENEMY_NID, kind: "unclaimed", geh: true, boss: true, big: true, noBar: true,
+      nid: ++ENEMY_NID, kind: "unclaimed", geh: true, boss: true, big: true, noBar: false,
       mesh: grp, body, pos: V3(x, y, z), vel: V3(), hp: 110, maxHp: 110, r: 3,
       state: "settle", t: 0, alive: true, heading: -Math.PI / 2, flash: 0, bar: makeHealthBar(),
       name: "The Unclaimed", born: time, heat: 0, lastHp: 110, tier: 0, atk: null,
@@ -19549,23 +19892,38 @@ const __boot = (async () => {
       return { text: "Slay the Kindly One", hint: "IV · The Last Account. " + hint, target: sister ? sister.pos : GEH.clerkPos || target("kindly", 136, 0) };
     }
     const e = enemy("lucifer");
-    if (!GEH.inPride) return { text: "Slay Lucifer, Demon of Pride", hint: "V · The Still Kingdom. Follow the road over the hill to the white tear.", target: V3(GEH.cx + 144, GEH.floor + 9, GEH.cz) };
+    if (!GEH.inPride) return { text: "Slay Lucifer, Demon of Pride", hint: "V · The Still Kingdom. Follow the road over the hill to the white tear.", target: V3(GEH.cx + 368, GEH.floor + 1, GEH.cz) };
     const hint = e && e.armed ? "Break his hold. Listen when the children speak." : e && e.beat >= 5 ? "Follow Lucifer to the centre of the room." : "Speak to Lucifer beside the children.";
-    return { text: "Slay Lucifer, Demon of Pride", hint: "VI · The Impossible Room. " + hint, target: e ? e.pos : V3(GEH.cx - 73, GEH.floor + 9, GEH.cz + 54) };
+    return { text: "Slay Lucifer, Demon of Pride", hint: "VI · The Impossible Room. " + hint, target: e ? e.pos : V3(GEH.cx + GEH_PRIDE_X, GEH.floor + 9, GEH.cz + GEH_PRIDE_Z) }; // the room itself when he has not spawned yet; the old literal pointed at bare ash a kilometre away
   }
   function gehBuildHillPortal() {
-    if (GEH.hillPortalRoot) return;
+    // the early return guards against building the geometry twice, so it must not also skip the descriptor that
+    // gehUpdateKingdom depends on: if the root somehow survives without GEH.kingdom, rebuild the descriptor and
+    // leave the meshes alone rather than returning with the portal permanently inert.
+    if (GEH.hillPortalRoot) {
+      if (!GEH.kingdom) {
+        const py = GEH.floor + 9;
+        GEH.kingdom = { cx: 144, cz: 0, r: 24, y: py, portal: V3(GEH.cx + 144, py, GEH.cz), cooldown: 1.4, transit: null };
+      }
+      return;
+    }
     const root = new THREE.Group(); root.name = "gehenna-hill-portal"; GEH.root.add(root);
     GEH.hillPortalRoot = root;
     const y = GEH.floor + 9, cx = GEH.cx + 144, cz = GEH.cz;
     GEH.kingdom = { cx: 144, cz: 0, r: 24, y, portal: V3(cx, y, cz), cooldown: 1.4, transit: null };
     const gold = new THREE.MeshStandardMaterial({ color: toLin(0x9f7540), emissive: toLin(0x432909), emissiveIntensity: 0.3, roughness: 0.54, metalness: 0.6 });
     const lit = new THREE.MeshBasicMaterial({ color: toLin(0xfff8e9) });
+    // the two gateposts are solid, and this portal is temporary — the still kingdom replaces it the moment the
+    // kindly one falls. GEH.structs has no removal path, so the records are kept here and marked gone down there;
+    // otherwise the posts stay as invisible walls either side of the centre line of the only road out of gehenna.
+    GEH.hillPortalStructs = [];
     for (const sz of [-1.8, 1.8]) {
       const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.8, 7.2, 0.8), gold);
       pillar.position.set(cx, y + 3.6, cz + sz);
       root.add(pillar);
-      gehAddStruct({ cx, cz: cz + sz, w: 0.4, d: 0.4, b: 0.4, bottom: y, top: y + 7.2 });
+      const post = { cx, cz: cz + sz, w: 0.4, d: 0.4, b: 0.4, bottom: y, top: y + 7.2 };
+      gehAddStruct(post);
+      GEH.hillPortalStructs.push(post);
     }
     const lintel = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.8, 4.4), gold);
     lintel.position.set(cx, y + 7.6, cz);
@@ -19577,15 +19935,28 @@ const __boot = (async () => {
     GEH.kingdom.seam = seam;
   }
   function gehBuildKingdom() {
-    if (GEH.kingdomRoot) return;
+    // same hazard as the hill portal: the guard exists to avoid duplicate geometry, not to leave the world without
+    // the descriptor every portal update reads.
+    if (GEH.kingdomRoot) {
+      if (!GEH.kingdom) {
+        const ky = GEH.floor + 1;
+        GEH.kingdom = { cx: 248, cz: 0, r: 128, y: ky, portal: V3(GEH.cx + 368, ky, GEH.cz), cooldown: 1.4, transit: null };
+      }
+      return;
+    }
     if (GEH.hillPortalRoot) {
       GEH.root.remove(GEH.hillPortalRoot);
+      try { disposeTree(GEH.hillPortalRoot); } catch (_) {}
       GEH.hillPortalRoot = null;
+      // and its colliders with it: removing the meshes from the scene leaves the solids behind, and the ground at
+      // the hill crest is high enough on about half the seeds for them to catch the player on the way down.
+      for (const post of GEH.hillPortalStructs || []) post.gone = true;
+      GEH.hillPortalStructs = null;
     }
     const root = new THREE.Group(); root.name = "gehenna-still-kingdom"; GEH.root.add(root);
     const y = GEH.floor + 1;
     GEH.kingdomRoot = root;
-    GEH.kingdom = { cx: 248, cz: 0, r: 96, y, portal: V3(GEH.cx + 328, y, GEH.cz), cooldown: 1.4, transit: null };
+    GEH.kingdom = { cx: 248, cz: 0, r: 128, y, portal: V3(GEH.cx + 368, y, GEH.cz), cooldown: 1.4, transit: null };
     // the kingdom is also built the moment lucifer lets go, with the player still standing in the white room, so
     // this cannot simply declare them outside it: that hid the room and showed the city for the frame before
     // gehUpdateKingdom put it back.
@@ -19604,14 +19975,11 @@ const __boot = (async () => {
       const mesh = new THREE.Mesh(new THREE.TorusGeometry(radius, tube, 4, 72), mat);
       mesh.rotation.x = Math.PI / 2; mesh.position.set(GEH.cx + rx, height, GEH.cz + rz); root.add(mesh);
     }
-    // Ramp: 24 stepped slabs from x = 144..168, dropping from y = GEH.floor + 9 to y = GEH.floor + 1
-    for (let i = 0; i < 24; i++) {
-      const sx = 144 + i + 0.5;
-      const sy = (GEH.floor + 9) - (i / 24) * 8 - 0.15;
-      block(1.05, 0.4, 14, sx, sy, 0, stone);
-      block(1.05, 0.04, 0.25, sx, sy + 0.21, 0, lit);
-      for (const sz of [-7.2, 7.2]) block(1.05, 1.1, 0.5, sx, sy + 0.7, sz, stone, true);
-    }
+    // the hill's own slope (see gehH) already carries the walk down from its crest to the avenue floor in one
+    // smooth blend; the stepped-slab staircase that used to sit on top of it never matched that curve — it was a
+    // straight linear drop over a fixed nine metres against a hill whose actual height varies with fbm noise, so
+    // the blocks either floated clear of the ground or punched into it depending on where you stood. removed:
+    // the hill alone is the ramp now.
     // Avenue pavement: straight line from x = 168 to x = 336, width 16m (z = -8..+8) at y = GEH.floor + 1
     for (let x = 168; x < 336; x += 14) {
       const w = Math.min(14, 336 - x);
@@ -19620,7 +19988,11 @@ const __boot = (async () => {
       block(w, 0.05, 0.3, x + w / 2, y + 0.02, 7.8, gold);
       block(w, 0.04, 0.2, x + w / 2, y + 0.02, 0, lit);
     }
-    // 80 Buildings: 40 along z = -13.5 and 40 along z = +13.5
+    // These towers stand hard against the avenue and do not move. The boss-by-boss opening belongs to the starter
+    // village at the top of Gehenna (GEH_L.rowZ and the house getters); wiring it here as well pushed the
+    // skyscrapers from 13.5 m out to 27 m a side once all three demons were down, which is what turned the
+    // approach into an open plain instead of the corridor it is supposed to be.
+    // 80 Buildings: 40 along each side of the avenue.
     for (let i = 0; i < 40; i++) {
       const bx = 170 + i * 4;
       const h = 14 + (i * 7 % 13), bw = 3.6, bd = 5.0;
@@ -19646,14 +20018,54 @@ const __boot = (async () => {
     block(10, 12, 10, 248, y + 26, 0, stone);
     block(7, 10, 7, 248, y + 34, 0, gold);
     block(0.8, 36, 0.8, 248, y + 26, 0, lit);
-    // Monumental portal arch at the terminus of the avenue (x = 328)
-    for (const sz of [-3.2, 3.2]) block(1.2, 10, 1.0, 328, y + 5, sz, gold, true);
-    block(1.2, 1.0, 7.4, 328, y + 10, 0, gold);
-    const tear = new THREE.Mesh(new THREE.PlaneGeometry(5.8, 9.2), new THREE.MeshBasicMaterial({ color: 0x010102, side: THREE.DoubleSide, fog: false }));
-    tear.rotation.y = Math.PI / 2; tear.position.set(GEH.cx + 328.06, y + 4.6, GEH.cz); root.add(tear);
-    const seam = new THREE.Mesh(new THREE.PlaneGeometry(0.035, 9.0), new THREE.MeshBasicMaterial({ color: 0xfff8e9, side: THREE.DoubleSide, fog: false }));
-    seam.rotation.y = Math.PI / 2; seam.position.set(GEH.cx + 328.08, y + 4.6, GEH.cz); root.add(seam);
-    GEH.kingdom.seam = seam;
+    // Circle platform from the earlier build, plugged into the end of the straight avenue. The only gate is the
+    // exact central tear: there is no second gate at the avenue mouth.
+    const roundCityX = 368, roundCityR = 48;
+    const plaza = new THREE.Mesh(new THREE.CylinderGeometry(roundCityR, roundCityR, 0.4, 96), stone);
+    plaza.position.set(GEH.cx + roundCityX, y - 0.175, GEH.cz); root.add(plaza);
+    // The analytic circle in gehH is the walkable floor. Do not register the disk in the solid grid: even a
+    // floor-only record is visited by movement/corner resolution and can wall off the approach to the center gate.
+    ring(roundCityR - 0.6, y + 0.04, 0.1, lit, roundCityX, 0);
+    ring(27, y + 0.045, 0.07, gold, roundCityX, 0);
+    ring(12, y + 0.055, 0.08, lit, roundCityX, 0);
+    block(47, 0.05, 6.8, roundCityX - 24.5, y + 0.035, 0, gold);
+    for (let i = 0; i < 40; i++) {
+      const a = i * Math.PI * 2 / 40;
+      if (Math.cos(a) > 0.91) continue;
+      const radius = i % 2 ? 39 : 43, bx = roundCityX + Math.cos(a) * radius, bz = Math.sin(a) * radius;
+      // the ring's one gap faces east (cos(a) > 0.91), but the avenue arrives from the WEST, so the towers
+      // closed over the only way in. i=20 in particular landed solid at z = 0, dead on the avenue's centre
+      // line at x 322.7-327.3, with its neighbours leaving 2.3 m slits either side: the gate stayed visible
+      // straight ahead and simply could not be walked to. skip any tower that would stand in the approach.
+      if (bx < roundCityX && Math.abs(bz) < 10) continue;
+      const h = 13 + (i * 7 % 13), w = 3.5 + (i % 3) * 0.55, d = 3.8;
+      block(w, h, d, bx, y + h / 2, bz, stone, true);
+      block(w + 0.3, 0.45, d + 0.3, bx, y + h, bz, gold);
+      block(0.12, h - 1, d + 0.045, bx, y + h / 2, bz, gold);
+      for (let row = 0; row < Math.floor(h / 3); row++) block(w + 0.045, 0.2, d + 0.065, bx, y + 2 + row * 2.8, bz, lit);
+    }
+    for (const radius of [30, 43]) ring(radius, y + 31, 0.26, gold, roundCityX, 0);
+    const roundCrownGeo = new THREE.CylinderGeometry(45, 7, 24, 16, 1, true);
+    const roundCrown = new THREE.LineSegments(new THREE.EdgesGeometry(roundCrownGeo), new THREE.LineBasicMaterial({ color: 0x9f6429, transparent: true, opacity: 0.65 }));
+    roundCrownGeo.dispose(); roundCrown.position.set(GEH.cx + roundCityX, y + 42, GEH.cz); root.add(roundCrown);
+    for (const [sx, sz] of [[roundCityX - 5, -8], [roundCityX + 5, -8], [roundCityX - 5, 8], [roundCityX + 5, 8]]) {
+      block(2.4, 31, 2.4, sx, y + 15.5, sz, stone, true);
+      block(0.16, 30, 2.44, sx, y + 15.5, sz, lit);
+    }
+    block(12.5, 16, 18.5, roundCityX, y + 23, 0, stone);
+    block(8.2, 14, 11, roundCityX, y + 35, 0, gold);
+    block(4.6, 15, 5, roundCityX, y + 46, 0, stone);
+    block(0.7, 44, 0.7, roundCityX, y + 32, 0, lit);
+    // Center gate, matching the earlier circular platform structure.
+    // The gateposts are visual trim only. The portal's proximity check owns entry; solid posts here can catch a
+    // player approaching a little off-centre and make the apparently open gate impossible to cross.
+    for (const sz of [-3.3, 3.3]) block(1.1, 9, 0.8, roundCityX, y + 4.5, sz, gold);
+    block(1.1, 0.8, 7.4, roundCityX, y + 9, 0, gold);
+    const roundTear = new THREE.Mesh(new THREE.PlaneGeometry(5.8, 8.6), new THREE.MeshBasicMaterial({ color: 0x010102, side: THREE.DoubleSide, fog: false }));
+    roundTear.rotation.y = Math.PI / 2; roundTear.position.set(GEH.cx + roundCityX + 0.06, y + 4.3, GEH.cz); root.add(roundTear);
+    const roundSeam = new THREE.Mesh(new THREE.PlaneGeometry(0.035, 8.4), new THREE.MeshBasicMaterial({ color: 0xfff8e9, side: THREE.DoubleSide, fog: false }));
+    roundSeam.rotation.y = Math.PI / 2; roundSeam.position.set(GEH.cx + roundCityX + 0.08, y + 4.3, GEH.cz); root.add(roundSeam);
+    GEH.kingdom.seam = roundSeam;
     // Street lamps along the avenue
     const lampX = [176, 196, 216, 236, 256, 276, 296, 316];
     for (const lx of lampX) {
@@ -19694,6 +20106,10 @@ const __boot = (async () => {
   function gehPrideAway() {
     const gate = GEH.kingdom && GEH.kingdom.portal, out = [];
     if (!gate) return out;
+    // waiting for the party is a multiplayer rule and must never run outside a live session. a single player has
+    // nobody to wait for, and an avatar left in the roster by a dropped connection would otherwise hold the tear
+    // shut for good, with the only symptom a refusal message that is rate-limited to once every 3.5 seconds.
+    if (!NET.role || !NET.avatars || NET.avatars.size === 0) return out;
     for (const a of NET.avatars.values()) {
       const peer = NET.peers.get(a.via);
       if (!peer || !peer.ready || a.state.dead) continue;
@@ -19701,6 +20117,12 @@ const __boot = (async () => {
       if (!netGehennaBelow(a.state.pos) || Math.abs(a.state.pos.y - gate.y) > 4.5 || dist2D(a.state.pos, gate) > GEH_PRIDE_GATE_R)
         out.push((a.look && a.look.name) || "a companion");
     }
+    // the local player counts as well. this only ever looked at the avatars, which is enough on the local path —
+    // that one is only reached when the player is standing in the gate — but the request that arrives from a guest
+    // is validated against the GUEST's position and then takes everybody, so one guest at the tear could pull the
+    // host through from anywhere in gehenna, mid-conversation, five hundred metres away.
+    if (!netGehennaRoom(P.pos) && (!netGehennaBelow(P.pos) || Math.abs(P.pos.y - gate.y) > 4.5 || dist2D(P.pos, gate) > GEH_PRIDE_GATE_R))
+      out.push(CUSTOM.name || "you");
     return out;
   }
   function gehPrideTransit(enter) {
@@ -19749,6 +20171,14 @@ const __boot = (async () => {
     city.cooldown = Math.max(0, city.cooldown - dt);
     if (city.seam) city.seam.visible = !!WORLDSTATE.gehDone;
     if (!city.transit) GEH.inPride = netGehennaRoom(P.pos);
+    // the white room's own net. the global one under guardPlayerPosition only fires 8 m below the ground, and the
+    // arrival bug that stranded players here sat at 7.95 m — under the floor, under an opaque white plane, inside
+    // white fog, with no error and no recovery. the river bed is the deepest legitimate spot in the room at 2.8 m
+    // down, so anything more than 4 m under the deck is not somewhere the room can be stood in, and is lifted out.
+    if (GEH.inPride && !city.transit && !P.gehDive && !death && P.pos.y < GEH.floor + 5) {
+      console.warn("Recovering the player from beneath the white room", P.pos.x, P.pos.y, P.pos.z);
+      P.pos.y = GEH.floor + 9.05; P.vel.set(0, 0, 0); visY = P.pos.y; P.grounded = true; P.sliding = false; P.climb = null;
+    }
     if (GEH.prideRoom) GEH.prideRoom.visible = GEH.inPride;
     if (GEH.cityRoot) GEH.cityRoot.visible = !GEH.inPride;
     if (GEH.kingdomRoot) GEH.kingdomRoot.visible = !GEH.inPride;
@@ -19768,20 +20198,49 @@ const __boot = (async () => {
       resident.mesh.position.copy(resident.pos);
     }
     if (!city.transit && city.cooldown <= 0 && !afterlifeLocked()) {
-      const enter = !GEH.inPride && WORLDSTATE.gehDone && Math.abs(P.pos.y - city.y) < 2.8 && Math.abs(P.pos.x - city.portal.x) < 2.2 && Math.abs(P.pos.z - city.portal.z) < 2.6;
-      const leave = GEH.inPride && (WORLDSTATE.luciferDefeated || !(GEH.lucifer && GEH.lucifer.beat >= 5)) && Math.abs(P.pos.x - (GEH.cx + GEH_PRIDE_X)) < 2.0 && P.pos.z < GEH.cz + GEH_PRIDE_Z - 19.5;
+      // The centered circular gate is a broad doorway, not a single two-metre trigger point. Keep the progression
+      // and floor checks, but cover the full visible opening so collision-radius and camera alignment cannot strand
+      // the player just outside the impossible room.
+      const enter = !GEH.inPride && WORLDSTATE.gehDone && Math.abs(P.pos.y - city.y) < 3.5 &&
+        Math.abs(P.pos.x - city.portal.x) < 8 && Math.abs(P.pos.z - city.portal.z) < 8;
+      const leave = GEH.inPride && (WORLDSTATE.luciferDefeated || !(GEH.lucifer && GEH.lucifer.beat >= 5)) && Math.abs(P.pos.z - (GEH.cz + GEH_PRIDE_Z - 5)) < 2.0 && P.pos.x < GEH.cx + GEH_PRIDE_X - 19.5;
       if (enter) gehPrideAdmit();
       else if (leave) gehPrideTransit(false);
     }
+    // the veil is a full-screen div at z-index 80 with a WHITE background during an entry, sitting over the canvas
+    // but under the HUD. if it is ever left opaque the scene is still rendering perfectly behind a blank white sheet,
+    // with the quest box and minimap drawing on top of it — indistinguishable from "the room did not load". nothing
+    // outside a running transit has any business showing it, so its resting state is enforced here every frame
+    // rather than trusted to whichever branch happened to end the transit.
+    if (!city.transit && GEH.portalVeil && GEH.portalVeil.style.opacity !== "0") GEH.portalVeil.style.opacity = "0";
     if (!city.transit) return;
     const transit = city.transit; transit.t += dt;
     P.vel.set(0, 0, 0);
     if (transit.t >= 0.23 && !transit.moved) {
       transit.moved = true; GEH.inPride = transit.enter;
-      const exitPos = WORLDSTATE.luciferDefeated ? V3(GEH.cx + 172, GEH.floor + 1.05, GEH.cz) : V3(GEH.cx + 140, GEH.floor + 9.05, GEH.cz);
-      P.pos.set(transit.enter ? GEH.cx + GEH_PRIDE_X : exitPos.x, (transit.enter ? city.y : exitPos.y) + 0.05, transit.enter ? GEH.cz + GEH_PRIDE_Z - 18 : exitPos.z);
+      // the white room's floor is GEH.floor + 9; the kingdom's is GEH.floor + 1. this used to drop the arriving
+      // player at city.y — the KINGDOM's height — which put them 7.95 m under the white room's own ground plane,
+      // under an opaque white surface inside white fog: a blank screen with nothing to walk to. it never tripped
+      // guardPlayerPosition either, because that net only fires 8 m under the ground and this missed it by 5 cm,
+      // which is why it failed silently. the height is read off the room itself now and floored at the room's
+      // own deck, so no future change to either world's height can put an arrival underneath the other one.
+      const enterX = GEH.cx + GEH_PRIDE_X - 14, enterZ = GEH.cz + GEH_PRIDE_Z - 5; // 5.5 m in front of the exit test at x < -19.5
+      const enterY = Math.max(gehGroundAt(enterX, enterZ, GEH.floor + 40), GEH.floor + 9);
+      // and the arrival stands four metres clear of the tear rather than one and a half. the exit test is
+      // z < GEH_PRIDE_Z - 19.5 within 2 m of the room's centre line, and the old arrival at -18 landed dead on
+      // that centre line with 1.5 m to spare, so a single step backwards threw the player straight back out.
+      // and it has to land OUTSIDE the entry trigger, which this build widened to ±8 m to cover the whole gate.
+      // at 3.5 m back the player stepped out of the room and straight into the box that puts them back in it, with
+      // only the 1.6 s cooldown in between: stand still, open the map, or turn to look at the city and you were
+      // dragged through the tear again. twelve metres is clear of the trigger and still well inside the plaza.
+      const exitX = city.portal.x - 12, exitZ = city.portal.z;
+      const exitY = gehGroundAt(exitX, exitZ, GEH.floor + 40);
+      P.pos.set(transit.enter ? enterX : exitX, (transit.enter ? enterY : exitY) + 0.05, transit.enter ? enterZ : exitZ);
       P.grounded = true; P.jumps = 0; P.swim = false; P.swimVol = null; P.dive = false; P.sliding = false; P.climb = null; P.airSlash = null;
-      visY = P.pos.y; lastSafePos.copy(P.pos);
+      if (transit.enter) { P.heading = Math.PI / 2; camYaw = -Math.PI / 2; } // arrive facing the bridge, with the tear behind you
+      // gehenna keeps its own recovery point. writing the valley's one here meant that if anything below the seam
+      // ever did recover the player, it would drag them back to wherever they last stood above ground.
+      visY = P.pos.y; lastSafeGeh.copy(P.pos); lastSafePos.copy(P.pos);
       if (GEH.prideRoom) GEH.prideRoom.visible = GEH.inPride;
       if (GEH.cityRoot) GEH.cityRoot.visible = !GEH.inPride;
       if (GEH.kingdomRoot) GEH.kingdomRoot.visible = !GEH.inPride;
@@ -19792,7 +20251,18 @@ const __boot = (async () => {
       GEH.portalVeil.style.background = transit.moved && transit.enter ? "#fff" : "#000";
       GEH.portalVeil.style.opacity = String(transit.t < 0.23 ? clamp(transit.t / 0.16, 0, 1) : clamp(1 - (transit.t - 0.23) / 0.6, 0, 1));
     }
-    if (transit.t > 0.85) { city.transit = null; city.cooldown = 1.6; }
+    // a watchdog, not a normal exit: the transit is meant to clear itself below at 0.85s. if something upstream
+    // ever keeps it open past that (a stalled tick, a missed flag), the player would otherwise be stuck immobile
+    // and blind-faded forever with nothing in the console to explain it. three seconds is generous headroom over
+    // the real completion time and forces control back regardless of why the normal path didn't fire.
+    if (transit.t > 3) {
+      if (!transit.moved) { transit.moved = true; GEH.inPride = transit.enter; }
+      city.transit = null;
+      city.cooldown = 1.6;
+      if (GEH.portalVeil) GEH.portalVeil.style.opacity = "0";
+      return;
+    }
+    if (transit.t > 0.85) { city.transit = null; city.cooldown = 1.6; if (GEH.portalVeil) GEH.portalVeil.style.opacity = "0"; }
   }
   function gehBuildFinale() {
     const g = GEH.root, y = GEH.floor + 9, room = new THREE.Group();
@@ -19849,11 +20319,16 @@ const __boot = (async () => {
       if (solid) gehAddStruct({ cx: GEH.cx + x, cz: GEH.cz + z, w: w / 2, d: d / 2, b: Math.max(w, d) / 2, bottom: yy - h / 2, top: yy + h / 2 });
     }
     // Infinite white expanse: 500x500m ground plane
-    const expanseGeo = new THREE.PlaneGeometry(500, 500);
-    expanseGeo.rotateX(-Math.PI / 2);
-    const expanseMesh = new THREE.Mesh(expanseGeo, white);
-    expanseMesh.position.set(GEH.cx + px0, y + 0.004, GEH.cz + pz0);
-    room.add(expanseMesh);
+    // built as four strips with a hole where the garden mesh is. one 500 m sheet at y + 0.004 lay OVER the garden, and
+    // the river channel dips below that height, so the opaque white sheet covered the water and drew it as a white band.
+    // the strips overlap the garden's dry white border by half a metre so no seam can open between them.
+    for (const [ox, oz, w, d] of [[0, 135.75, 500, 228.5], [0, -135.75, 500, 228.5], [-135.75, 0, 228.5, 43], [135.75, 0, 228.5, 43]]) {
+      const expanseGeo = new THREE.PlaneGeometry(w, d);
+      expanseGeo.rotateX(-Math.PI / 2);
+      const expanseMesh = new THREE.Mesh(expanseGeo, white);
+      expanseMesh.position.set(GEH.cx + px0 + ox, y + 0.004, GEH.cz + pz0 + oz);
+      room.add(expanseMesh);
+    }
 
     // Distant perimeter boundaries (220m out, hidden deep within pure white fog)
     box(440, 40, 2, px0, y + 20, pz0 - 220, white, true);
@@ -19883,11 +20358,12 @@ const __boot = (async () => {
     groundGeometry.setAttribute("position", new THREE.Float32BufferAttribute(groundPositions, 3));
     groundGeometry.setAttribute("color", new THREE.Float32BufferAttribute(groundColors, 3)); groundGeometry.setIndex(groundIndices); groundGeometry.computeVertexNormals();
     room.add(new THREE.Mesh(groundGeometry, remember(new THREE.MeshBasicMaterial({vertexColors:true, fog:false, toneMapped:false}))));
-    box(2.7, 4.5, 0.05, px0, y + 2.25, pz0 - 21, white);
+    // the tear you came through stands at the garden's west edge, in line with the bridge, facing into the room
+    box(0.05, 4.5, 2.7, px0 - 21, y + 2.25, pz0 - 5, white);
     for (const side of [-1, 1]) {
-      architecture.add("box", seam, GEH.cx + px0 + side * 1.46, y + 2.3, GEH.cz + pz0 - 20.92, 0.085, 4.7, 0.09, 0, 0, side * 0.025);
+      architecture.add("box", seam, GEH.cx + px0 - 20.92, y + 2.3, GEH.cz + pz0 - 5 + side * 1.46, 0.09, 4.7, 0.085, -side * 0.025, 0, 0);
     }
-    box(2.9, 0.06, 0.1, px0, y + 4.61, pz0 - 20.92, seam);
+    box(0.1, 0.06, 2.9, px0 - 20.92, y + 4.61, pz0 - 5, seam);
     const riverCenter = z => px0 - 9 + Math.sin((z - (pz0 - 17)) * 0.16) * 2.2;
     const riverTop = y - 0.2;
     const waterHalf = z => {
@@ -20247,7 +20723,11 @@ const __boot = (async () => {
     if (epoch < (GEH.fightEpoch || 0)) return false;
     const previous = GEH.luciferFight, changed = epoch > (previous?.epoch || 0);
     GEH.fightEpoch = epoch;
-    GEH.luciferFight = { epoch, status: f.status, members: [...new Set(f.members)], dead: [...new Set(f.dead)], controller: f.controller, action: f.action };
+    // the shove's replay guard lives on the fight, and the host re-sends the whole fight about ten times a second,
+    // so rebuilding the object wholesale wiped throwSeen on every snapshot and left the guard permanently inert.
+    // it carries across as long as the epoch has not moved; a new epoch is a new fight and starts the count again.
+    GEH.luciferFight = { epoch, status: f.status, members: [...new Set(f.members)], dead: [...new Set(f.dead)], controller: f.controller, action: f.action,
+      throwSeen: changed ? 0 : (previous?.throwSeen || 0), throwSeq: changed ? 0 : (previous?.throwSeq || 0) };
     if (changed) {
       GEH.netFinale = null; NET.gehFinaleLocal = false; GEH.fightPendingEpoch = null;
       if (GEH.lucifer) { GEH.lucifer.throwPose = null; GEH.lucifer.netPlaced = false; }
@@ -20278,6 +20758,17 @@ const __boot = (async () => {
     if (!netGuest() && f.status === "active") {
       let changed = false;
       for (const id of gehFightPeople()) if (!f.members.includes(id)) { f.members.push(id); changed = true; }
+      // and leaving gehenna leaves the fight. the roster only ever grew before, so a player who took Stay and walked
+      // back into the valley stayed on it: `alive` never emptied, the wipe never fired, and the retry/return menu
+      // never appeared after a genuine party kill. dying in the room is not leaving — that is what f.dead is for.
+      for (let i = f.members.length - 1; i >= 0; i--) {
+        const gone = gehFightActor(f.members[i]);
+        if (!gone || netGehennaBelow(gone.pos)) continue;
+        const [id] = f.members.splice(i, 1);
+        const d = f.dead.indexOf(id);
+        if (d >= 0) f.dead.splice(d, 1);
+        changed = true;
+      }
       for (const id of f.members) {
         const a = gehFightActor(id);
         if (a && (a.local ? !!death || P.hp <= 0 : a.state.dead || a.state.hp <= 0) && !f.dead.includes(id)) { f.dead.push(id); changed = true; }
@@ -20413,11 +20904,14 @@ const __boot = (async () => {
     } else if (m.op === "choose" && f.status === "wipe" && f.controller === a.id && f.members.filter(id => !!gehFightActor(id)).length === 1 && ["retry", "return"].includes(m.action)) gehFightReset(m.action);
     return true;
   }
+  // the shove's replay guard. the counter lives on the fight rather than on GEH so that it is scoped to one epoch
+  // of one fight: as a bare global it only ever went up, so a guest who had taken twelve shoves from one host
+  // silently dropped the first twelve from the next one — the arm swept through them and nothing happened.
   function gehFightTakeThrow(m) {
     const f = GEH.luciferFight;
-    if (!f || f.status !== "active" || death || m.epoch !== f.epoch || !Number.isSafeInteger(m.hit) || m.hit <= (GEH.throwHitSeen || 0) ||
+    if (!f || f.status !== "active" || death || m.epoch !== f.epoch || !Number.isSafeInteger(m.hit) || m.hit <= (f.throwSeen || 0) ||
       ![m.x, m.y, m.z, m.dmg].every(Number.isFinite) || m.y >= DIVIDE || m.dmg < 0 || m.dmg > 99) return;
-    GEH.throwHitSeen = m.hit;
+    f.throwSeen = m.hit;
     if (enemyPerfectDodge(false)) return;
     if (P.block) lowerShield(true);
     hurtPlayer(m.dmg, V3(m.x, m.y, m.z), 2.6, false);
@@ -20432,19 +20926,30 @@ const __boot = (async () => {
   function gehLuciferThrow(e, dt) {
     if (netGuest()) return;
     const f = GEH.luciferFight;
-    if (!f || f.status !== "active" || e.holdPause > 0 || !e.armed) { e.throwPose = null; return; }
+    if (!f || f.status !== "active" || !e.armed) { e.throwPose = null; return; }
+    // the cooldown runs through the plea pauses as well. it used to start ticking only once holdPause hit zero,
+    // and damage is blocked for that whole pause — so the 4.5s reset in gehLuciferBreak had to be out-run by the
+    // player's damage. anyone hitting harder than about seven a second reached the next phase floor inside those
+    // 4.5 seconds and was never thrown once in the entire fight; the mechanic quietly switched itself off as the
+    // player levelled. ticking it here means he is ready to shove the moment he stops speaking.
+    if (!e.throwPose) e.throwCd = Math.max(0, (e.throwCd || 0) - dt);
+    if (e.holdPause > 0) { e.throwPose = null; return; }
     if (e.throwPose) {
       const p = e.throwPose; p.t += dt;
       if (p.t >= 1 && !p.hit) {
         p.hit = true;
-        // re-evaluate at land time: use the nearest live member in range, not just the initial target
+        // re-evaluate at land time rather than trusting the target picked when the swing started: anyone who has
+        // moved into the arc since then is in it, and anyone who has moved out is not.
         const candidates = f.members.map(gehFightActor).filter(a =>
           a && !f.dead.includes(a.id) && netGehennaRoom(a.pos) &&
           dist2D(a.pos, e.pos) < e.r + 5 && Math.abs(a.pos.y - e.pos.y) < 6
         ).sort((a, b) => dist2D(a.pos, e.pos) - dist2D(b.pos, e.pos));
-        const a = candidates[0];
-        if (a) {
-          const hit = { t: "lf", op: "throw", seed: WORLDSTATE.gehSeed, epoch: f.epoch, to: a.id, hit: GEH.throwHitSeq = (GEH.throwHitSeq || 0) + 1,
+        // it is one arm sweeping a whole arc, so it takes everyone standing in that arc. this used to send to
+        // candidates[0] only, which meant that in a party the arm visibly passed through three people and just
+        // the nearest was thrown — and which of them that was could change mid-swing as everyone moved.
+        // the damage is still worked out per player from that player's own health at the moment it lands.
+        for (const a of candidates) {
+          const hit = { t: "lf", op: "throw", seed: WORLDSTATE.gehSeed, epoch: f.epoch, to: a.id, hit: f.throwSeq = (f.throwSeq || 0) + 1,
             x: e.pos.x, y: e.pos.y, z: e.pos.z, dmg: gehLuciferBlow(a.state) };
           if (a.local) gehFightTakeThrow(hit); else netSend(NET.peers.get(a.avatar.via), hit);
         }
@@ -20452,7 +20957,6 @@ const __boot = (async () => {
       if (p.t >= 1.85) { e.throwPose = null; e.throwCd = 7 + e.phase * 0.65; }
       return;
     }
-    e.throwCd = Math.max(0, (e.throwCd || 0) - dt);
     if (e.throwCd > 0) return;
     const nearby = f.members.map(gehFightActor).filter(a => a && !f.dead.includes(a.id) && netGehennaRoom(a.pos) && dist2D(a.pos, e.pos) < e.r + 2.8 && Math.abs(a.pos.y - e.pos.y) < 4.5).sort((a, b) => dist2D(a.pos, e.pos) - dist2D(b.pos, e.pos));
     if (!nearby.length) return;
@@ -20789,11 +21293,20 @@ const __boot = (async () => {
       if (releaseT !== null) {
         // they are out of the room before the dark takes it, so the walk is over inside the first seven seconds.
         const walk = clamp((releaseT - 1.2 - i * 0.8) / 4.2, 0, 1);
-        const routes = [[[px0 - 2, pz0 - 5], [px0 - 14, pz0 - 5], [px0 - 14, pz0 - 3]], [[px0 + 11, pz0 - 4], [px0 + 11, pz0 + 0.2]], [[px0 + 2, pz0 - 3], [px0 - 2, pz0 + 4]]];
-        const route = [home, ...routes[i].map(([x,z])=>V3(x,GEH.floor+9,z))];
-        const progress = smooth(walk)*(route.length-1), part = Math.min(route.length-2,Math.floor(progress)), mix=progress-part;
-        child.position.lerpVectors(route[part],route[part+1],mix);
-        child.rotation.y=Math.atan2(route[part+1].x-route[part].x,route[part+1].z-route[part].z);
+        // the three walks out of the room. they depend on nothing but where the room is, so they are built once and
+        // kept, rather than rebuilt — a nested array literal, a map with a fresh closure, three V3s and a spread —
+        // for every child on every frame of the finale, which is the one stretch of the game that must not stutter.
+        if (!GEH.prideChildRoutes) {
+          const legs = [[[px0 - 2, pz0 - 5], [px0 - 14, pz0 - 5], [px0 - 14, pz0 - 3]], [[px0 + 11, pz0 - 4], [px0 + 11, pz0 + 0.2]], [[px0 + 2, pz0 - 3], [px0 - 2, pz0 + 4]]];
+          GEH.prideChildRoutes = legs.map(r => r.map(([x, z]) => V3(x, GEH.floor + 9, z)));
+        }
+        // leg 0 always starts where the child is standing, so `home` is index 0 of the walk and the stored legs
+        // follow it. reading the two ends straight out avoids rebuilding the whole path to walk one step of it.
+        const legs = GEH.prideChildRoutes[i], stops = legs.length + 1;
+        const progress = smooth(walk) * (stops - 1), part = Math.min(stops - 2, Math.floor(progress)), mix = progress - part;
+        const from = part === 0 ? home : legs[part - 1], to = legs[part];
+        child.position.lerpVectors(from, to, mix);
+        child.rotation.y = Math.atan2(to.x - from.x, to.z - from.z);
         child.position.y=gehGroundAt(child.position.x,child.position.z,GEH.floor+10)+(walk>0&&walk<1?Math.abs(Math.sin(releaseT*6+i))*0.055:0);
       } else {
         const pace = [0.48,0.21,0.3][i], angle = time*pace+i*2.1;
@@ -20841,7 +21354,7 @@ const __boot = (async () => {
     // he has no last word. the hand answers for him, and anything said over it only gets in the way.
     Voice.stop();
     if (!GEH.kingdomRoot) gehBuildKingdom();
-    if (typeof gehUpdateRoadWidth === "function") gehUpdateRoadWidth();
+    gehUpdateRoadWidth();
     if (!netGehennaRoom(P.pos) || death || NET.gehFinaleLocal) { if (NET.role === "host") autoSave("Lucifer lets go"); return; }
     NET.gehFinaleLocal = true; WORLDSTATE.gehFinaleWitnessed = true;
     WORLDSTATE.afterlife = null;
@@ -21115,6 +21628,21 @@ const __boot = (async () => {
     GEH.cityRoot = null;
     if (scene.background) scene.background = null;
     GEH.kingdom = GEH.kingdomRoot = null;
+    // the hill portal's root was left dangling here. gehBuildHillPortal opens with `if (GEH.hillPortalRoot) return;`,
+    // so a stale pointer made the next build bail out before it assigned GEH.kingdom — and GEH.kingdom being null is
+    // what gehUpdateKingdom early-returns on, which silently kills the portal transit, the pride room's visibility
+    // and the city's own visibility for the rest of the session.
+    GEH.hillPortalRoot = null;
+    GEH.hillPortalStructs = null;
+    // the village handles belong to the world that is being torn down. gehUpdateRoadWidth is called from the boss
+    // hooks, which can outlive a teardown, and without this it would write instance matrices into a disposed
+    // InstancedMesh and vertex colours into a disposed BufferGeometry.
+    GEH.village = null;
+    GEH.groundGeo = null;
+    GEH.roomGroup = null;
+    GEH.roomStructs = null;
+    GEH.structSink = null;
+    GEH.prideChildRoutes = null; // the walks out of the white room are keyed to where the room was
     GEH.kingdomResidents = [];
     if (GEH.portalVeil) { GEH.portalVeil.remove(); GEH.portalVeil = null; }
     GEH.matron = null;
@@ -21281,9 +21809,11 @@ const __boot = (async () => {
     }
   }
   function turnChildrenAway() {
-    if (!WORLDSTATE.wardenDead || P.pos.y < DIVIDE) return;
+    if (!WORLDSTATE.ysoldeBuried || P.pos.y < DIVIDE) return;
     for (const n of npcs) {
-      if (!n.kid || n.storyHidden || dist2D(n.pos, P.pos) > 30) continue;
+      // watchers keep their eyes on the pool, not on you, from before she's even buried — nothing here should
+      // override that. Pip is the one child in the kingdom who still looks you in the eye; he just won't talk.
+      if (!n.kid || n.storyHidden || n.watching || n.name === "Pip" || dist2D(n.pos, P.pos) > 30) continue;
       n.heading = Math.atan2(n.pos.x - P.pos.x, n.pos.z - P.pos.z);
       n.visH = n.heading;
       n.mesh.rotation.y = n.heading;
@@ -21332,7 +21862,7 @@ const __boot = (async () => {
     WORLDSTATE.processionRear = !!m.rear; WORLDSTATE.processionHale = !!m.hale;
     WORLDSTATE.ysoldeLifted = m.lifted === true || m.phase !== "idle";
     P.carry = carrier === NET.myId && (m.phase === "carry" || m.phase === "bury");
-    if (m.phase === "buried") { if (!WORLDSTATE.ysoldeBuried) ysoldeIntoTheGround(); WORLDSTATE.kingMourned = true; return; }
+    if (m.phase === "buried") { if (!WORLDSTATE.ysoldeBuried) ysoldeIntoTheGround(); return; } // each player hears the king themselves
     WORLDSTATE.ysoldeBuried = false; WORLDSTATE.kingMourned = false;
     GRAVE_PARTS.open.visible = true; GRAVE_PARTS.shut.visible = false;
     if (fresh && carrier) { poseCarriedBody(); if (P.carry) beginCarry(false); }
@@ -21605,7 +22135,33 @@ const __boot = (async () => {
   // the morning after the king sent you to bed: the pool stops being water, and the way down is open
   function wakeTheWhirlpool() {
     if (NET.role === "guest" && !NET.gehEntered) NET.gehAccess = true;
-    else WORLDSTATE.gehUnlocked = true;
+    else {
+      WORLDSTATE.gehUnlocked = true;
+      // start building gehenna now, in the background, rather than waiting for the player to actually dive: the
+      // fall is only a handful of seconds and the still kingdom's avenue alone is eighty buildings' worth of
+      // instancing, so the sooner this kicks off the less of it is left to compress into that fall. same guarded,
+      // error-swallowing kickoff gehBeginDive itself uses when nothing has pre-built the world yet.
+      if (!GEH.root && !GEH.netBuilding && !GEH.failed) {
+        if (!WORLDSTATE.gehSeed) WORLDSTATE.gehSeed = 1 + Math.floor(Math.random() * 999999);
+        GEH.seed = WORLDSTATE.gehSeed;
+        GEH.netBuilding = true;
+        const build = typeof window.gehBuildWorld === "function" ? window.gehBuildWorld : gehBuildFloor;
+        Promise.resolve()
+          .then(build)
+          .then(() => { GEH.netBuilding = false; })
+          .catch(err => {
+            GEH.netBuilding = false;
+            GEH.failed = true;
+            console.error("Gehenna: the early build threw", err);
+            if (GEH.root) {
+              if (GEH.root.parent) scene.remove(GEH.root);
+              try { disposeTree(GEH.root); } catch (_) {}
+              GEH.root = null;
+              GEH.structs.clear();
+            }
+          });
+      }
+    }
     say("Word comes up from the gate before you are properly awake.", 5400, true, "dark");
     setTimeout(() => say("The black pool is turning. It has been turning since the middle of the night, and it is going down.", 7000, true, "dark"), 5000);
   }
@@ -21625,10 +22181,18 @@ const __boot = (async () => {
       if (BURIAL.earthT <= 0) { BURIAL.earthT = 0.18; burst(V3(GRAVE.x, GRAVE.y + 0.2, GRAVE.z), 0x6b4a2b, 4, 1.4, 0.45, 0.08); }
     }
     if (NET.role !== "guest" && BURIAL.phase === "bury" && burialAge() >= BURIAL_SECONDS) {
-      ysoldeIntoTheGround(); WORLDSTATE.kingMourned = true; BURIAL.token++; BURIAL.phaseAt = burialNow(); broadcastBurial();
+      // kingMourned is NOT set here. it means "the king has heard it from you", and the next objective is to go and
+      // tell him; setting it at the graveside ticked that objective off in the same frame as the burial, made the
+      // king's four-line mourning scene unreachable in every run, and let a player sleep straight into gehenna
+      // without ever speaking to him. kingTalk is the only place that sets it.
+      ysoldeIntoTheGround(); BURIAL.token++; BURIAL.phaseAt = burialNow(); broadcastBurial();
       SFX.dread(); logTalk("", "You put her in yourself. The earth goes back easier than it came out. It is done. Nothing about it feels finished.");
       speak(hermitVoice, "What good will that do?", "The hermit", 5000);
-      setTimeout(() => { if (WORLDSTATE.ysoldeBuried && !gehAccessOpen() && P.pos.y > DIVIDE) say("Rest in an open bed. The arrow will take you there.", 5000, true); }, 6500);
+      // the prompt has to name the step the objective list actually wants next, which is the king, not the bed
+      setTimeout(() => {
+        if (!WORLDSTATE.ysoldeBuried || gehAccessOpen() || P.pos.y <= DIVIDE) return;
+        say(WORLDSTATE.kingMourned ? "Rest in an open bed. The arrow will take you there." : "Tell the king it is done. The arrow will take you to him.", 5000, true);
+      }, 6500);
       autoSave("after Ysolde's burial");
     }
     turnChildrenAway();
@@ -22869,6 +23433,10 @@ const __boot = (async () => {
       }
     for (const n of npcs)
       if (n.kind !== "king" && n.kind !== "body" && !n.storyHidden && !n.napping && !n.arrest && near(n.pos, 3.4)) {
+        // she's in the ground now, and the children have nothing to say about it. `continue`, not `return`: this
+        // loop sits above the herbs, the flint, the beacon and the examine lines, so returning here made E do
+        // nothing at all — silently — whenever a child happened to be standing within three and a half metres.
+        if (n.kid && WORLDSTATE.ysoldeBuried) continue;
         if (isInvisMode()) {
           speak(n, npcLine(n), n.kind === "knight" ? "Knight" : n.name || (n.kid ? "Child" : n.female ? "Woman" : "Villager"), 5000);
           return;
@@ -24067,9 +24635,18 @@ const __boot = (async () => {
   }
 
   // extracted from update: one job, run once per frame
+  // how close you have to be for a room's inside to be drawn at all. rooms are built inside their own houses and
+  // were drawn from anywhere in the valley, straight through the back of their own walls — 75 interiors, 1,687
+  // meshes, 867 of them still inside the frustum standing at the south gate, measured at 8.5 ms of a 21.6 ms
+  // frame. thirty metres is well past the distance anyone can see through a doorway, so nothing pops.
+  const ROOM_DRAW_R = 30;
   function updateRoomGrowth(rdt) {
-  for (const it of interiors) {
-        if (!it.group) continue;
+    for (const it of interiors) {
+      if (!it.group) continue;
+      // keepHides is the separate rule further down, which takes the rooms the swollen throne hall is standing on
+      // top of out of the picture. it has to be a flag rather than a direct write to visible, because this line
+      // runs for every room every frame and would otherwise put them straight back.
+      it.group.visible = !it.keepHides && (it === roomNow || Math.hypot(it.cx - P.pos.x, it.cz - P.pos.z) < ROOM_DRAW_R);
         const want = it === roomNow ? it.growTo || TUNE.world.houseGrow : 1;
         if (Math.abs(it.grow - want) < 0.002) {
           it.grow = want;
@@ -24131,7 +24708,7 @@ const __boot = (async () => {
           if (keepDark) keepDark.material.opacity = lerp(keepDark.material.opacity, it === roomNow ? 0 : 0.96, Math.min(1, rdt * 4));
           for (const o of interiors)
             if (o !== it && o.group)
-              o.group.visible = k < 1.05 || !(Math.abs(o.cx - it.cx) < it.w + o.w + 2 && Math.abs(o.cz - it.cz) < it.d + o.d + 2);
+              o.keepHides = !(k < 1.05 || !(Math.abs(o.cx - it.cx) < it.w + o.w + 2 && Math.abs(o.cz - it.cz) < it.d + o.d + 2));
           king.pos.set(it.cx, PLATEAU, it.cz + (king.keepOz = king.keepOz === undefined ? king.pos.z - it.cz : king.keepOz) * k);
           king.home.copy(king.pos);
           const p = (k - 1) / ((it.growTo || 1.75) - 1);
@@ -24362,6 +24939,16 @@ const __boot = (async () => {
     if (n && dist2D(n.pos, P.pos) < 70) speak(n, WATCH_LINES[watchI % WATCH_LINES.length], "A child", 3400);
   }
   const WOLF_HOME_R = 26;
+  // how a body goes down, per kind. lean is how far onto its side it ends up, rate how quickly it gets there,
+  // sinkAfter the pause before it starts sinking into the ground, and sink the metres a second once it does.
+  // anything not listed here either has its own routine (the unclaimed spills) or simply fades out through e.mat.
+  const DEATH_FALL = {
+    wolf: { lean: 1.5, rate: 3, sinkAfter: 6, sink: 0.3 },
+    almoner: { lean: 1.4, rate: 1.6, sinkAfter: 4.5, sink: 0.5 },
+    matron: { lean: 1.45, rate: 1.1, sinkAfter: 5, sink: 0.5 },
+    attached: { lean: 1.45, rate: 2.2, sinkAfter: 1.6, sink: 0.5 },
+    kindly: { lean: 1.45, rate: 0.9, sinkAfter: 6, sink: 0.5 }
+  };
   function wardenFightActive() {
     return WORLDSTATE.finaleStarted && !WORLDSTATE.wardenDead;
   }
@@ -24410,7 +24997,21 @@ const __boot = (async () => {
       // fell through to the wraith fade, which does nothing without a material, and then lay on the ash for eight
       // seconds. they deliberately have no SHARED material either — a shared one would have faded all four of the
       // attached at once, because the flash pass below writes emissive on every material that is not e.mat.
-      if (!e.alive) { e.t += dt; if (e.kind === "wolf") { e.mesh.rotation.z = lerp(e.mesh.rotation.z, 1.5, Math.min(1, dt * 3)); e.mesh.position.y = e.pos.y - Math.max(0, e.t - 6) * 0.3; } else if (e.kind === "almoner") { e.mesh.rotation.z = lerp(e.mesh.rotation.z, 1.4, Math.min(1, dt * 1.6)); e.mesh.position.y = e.pos.y - Math.max(0, e.t - 4.5) * 0.5; } else if (e.kind === "unclaimed") gehHeapSpill(e); else if (e.kind === "matron") { e.mesh.rotation.z = lerp(e.mesh.rotation.z, 1.45, Math.min(1, dt * 1.1)); e.mesh.position.y = e.pos.y - Math.max(0, e.t - 5) * 0.5; } else if (e.kind === "attached" || e.kind === "kindly") { e.mesh.rotation.z = lerp(e.mesh.rotation.z, 1.45, Math.min(1, dt * (e.kind === "kindly" ? 0.9 : 2.2))); e.mesh.position.y = e.pos.y - Math.max(0, e.t - (e.kind === "kindly" ? 6 : 1.6)) * 0.5; } else if (e.mat) { e.mat.opacity = Math.max(0, 0.55 - e.t * 0.5); } if (e.t > 8 || (e.wraith && e.t > 1.5) || (e.kind === "attached" && e.t > 4)) { removeEnemy(e); if (e.den) e.den.wolves = e.den.wolves.filter(w => w !== e); EXTRA.splice(i, 1); } continue; }
+      if (!e.alive) {
+        e.t += dt;
+        const fall = DEATH_FALL[e.kind];
+        if (fall) {
+          e.mesh.rotation.z = lerp(e.mesh.rotation.z, fall.lean, Math.min(1, dt * fall.rate));
+          e.mesh.position.y = e.pos.y - Math.max(0, e.t - fall.sinkAfter) * fall.sink;
+        } else if (e.kind === "unclaimed") gehHeapSpill(e); // it comes apart instead of falling over
+        else if (e.mat) e.mat.opacity = Math.max(0, 0.55 - e.t * 0.5); // and everything else simply fades
+        if (e.t > 8 || (e.wraith && e.t > 1.5) || (e.kind === "attached" && e.t > 4)) {
+          removeEnemy(e);
+          if (e.den) e.den.wolves = e.den.wolves.filter(w => w !== e);
+          EXTRA.splice(i, 1);
+        }
+        continue;
+      }
       const locked = e.netTarget && e.state === "hold" ? NET.avatars.get(e.netTarget) : null;
       const tgt = locked && !locked.state.dead ? { id: locked.id, pos: locked.state.pos } : nearestPlayerTo(e.pos);
       const dx = tgt.pos.x - e.pos.x, dz = tgt.pos.z - e.pos.z, dist = Math.hypot(dx, dz);
@@ -24579,10 +25180,41 @@ const __boot = (async () => {
     }
     if (e.phase >= 2) {
       e.callT = (e.callT || 5) - dt; if (e.callT <= 0) { e.callT = e.phase === 3 ? 5 : 7; if (EXTRA.filter(x => x.wraith && !x.warden && x.alive).length < (e.phase === 3 ? 6 : 4)) { const a = Math.random() * 6.28; spawnWraith(POOL.x + Math.cos(a) * 9, POOL.z + Math.sin(a) * 9); } } // it keeps calling the drowned up
-      e.blinkT = (e.blinkT || 8) - dt; if (e.blinkT <= 0 && e.state === "drift") { e.blinkT = e.phase === 3 ? 6 : 9; e.blinks = (e.blinks || 0) + 1; const a = Math.random() * 6.28, r = 5 + Math.random() * 4; e.pos.set(tgt.pos.x + Math.cos(a) * r, POOL.y + 0.3, tgt.pos.z + Math.sin(a) * r); burst(e.pos.clone().add(V3(0, 2, 0)), 0x8ca0c8, 20, 5, 0.8, 0.15); SFX.tone(700, 120, 0.4, 0.14, "sine"); } // and steps through the dark to your side
+      // it does not walk to you: every few seconds it goes out where it stands and comes back somewhere five to nine
+      // metres from you, always at the waterline. only ever while drifting, so it cannot blink out of a strike.
+      e.blinkT = (e.blinkT || 8) - dt;
+      if (e.blinkT <= 0 && e.state === "drift") {
+        e.blinkT = e.phase === 3 ? 6 : 9;
+        e.blinks = (e.blinks || 0) + 1;
+        const a = Math.random() * 6.28,
+          r = 5 + Math.random() * 4;
+        e.pos.set(tgt.pos.x + Math.cos(a) * r, POOL.y + 0.3, tgt.pos.z + Math.sin(a) * r);
+        burst(e.pos.clone().add(V3(0, 2, 0)), 0x8ca0c8, 20, 5, 0.8, 0.15);
+        SFX.tone(700, 120, 0.4, 0.14, "sine");
+      }
       e.songT = (e.songT || 12) - dt; if (e.songT <= 0) { e.songT = e.phase === 3 ? 10 : 14; e.singing = 2.2; say("It sings. Your feet want the water. Run, or raise your shield.", 2200, false, "dark"); SFX.tone(180, 90, 2.2, 0.16, "sine"); }
       if (e.singing > 0) { e.singing -= dt; if (!death && !P.block && dist2D(P.pos, POOL) < 40) { const px = POOL.x - P.pos.x, pz = POOL.z - P.pos.z, d = Math.hypot(px, pz) || 1; P.vel.x += (px / d) * 9 * dt; P.vel.z += (pz / d) * 9 * dt; } } // the drowning song pulls; a shield or a hard run resists it
-      e.surgeT -= dt; if (e.surgeT <= 0) { e.surgeT = e.phase === 3 ? 6 : 9; if (dist2D(P.pos, POOL) < 11 && P.pos.y < POOL.y + 1.5 && !death) { hurtPlayer(1, V3(POOL.x, POOL.y, POOL.z)); const px = P.pos.x - POOL.x, pz = P.pos.z - POOL.z, d = Math.hypot(px, pz) || 1; P.vel.x += (px / d) * 12; P.vel.z += (pz / d) * 12; P.vel.y = Math.max(P.vel.y, 5); say("The pool surges! Keep to the stones.", 1200); } SFX.roar(0.8); burst(V3(POOL.x, POOL.y + 1, POOL.z), 0x8ca0c8, 40, 8, 1.2, 0.2); e.state = "recover"; e.t = 3; } }
+      // and the pool itself heaves. anyone standing in the water within eleven metres takes a heart and is thrown
+      // outward and up — off the water and onto the stones, which is where the fight is survivable.
+      e.surgeT -= dt;
+      if (e.surgeT <= 0) {
+        e.surgeT = e.phase === 3 ? 6 : 9;
+        if (dist2D(P.pos, POOL) < 11 && P.pos.y < POOL.y + 1.5 && !death) {
+          hurtPlayer(1, V3(POOL.x, POOL.y, POOL.z));
+          const px = P.pos.x - POOL.x,
+            pz = P.pos.z - POOL.z,
+            d = Math.hypot(px, pz) || 1; // || 1 keeps dead centre from dividing by zero
+          P.vel.x += (px / d) * 12;
+          P.vel.z += (pz / d) * 12;
+          P.vel.y = Math.max(P.vel.y, 5);
+          say("The pool surges! Keep to the stones.", 1200);
+        }
+        SFX.roar(0.8);
+        burst(V3(POOL.x, POOL.y + 1, POOL.z), 0x8ca0c8, 40, 8, 1.2, 0.2);
+        e.state = "recover";
+        e.t = 3;
+      }
+    }
   }
   // the wolf: circles at a distance with its pack, lunges one at a time, and backs off after a miss; a wounded wolf makes the others bold
   function updateWolf(e, tgt, dx, dz, dist, dt) {
@@ -24648,9 +25280,22 @@ const __boot = (async () => {
       night = dayElev < 0.05,
       near = dist2D(P.pos, POOL) < 70 || Math.random() < (0.05 + 0.35 * ready) * (night ? 1.6 : 1),
       cap = 1 + Math.round(relicCount() * (night ? 1 : 0.6)) + Math.round(ready * 4) + wraithHeat;
-    // the !roomNow guard only covers the case where the PLAYER is indoors, and this branch sites 18-28m from the
-    // player anywhere in the world, so a wraith could materialise in a villager's bedroom and walk out through the wall
-    if (near && count < cap && dist2D(P.pos, POOL) > 12 && !roomNow) { if (dist2D(P.pos, POOL) >= 70) { const a = Math.random() * 6.28, r = 18 + Math.random() * 10; const x = P.pos.x + Math.cos(a) * r, z = P.pos.z + Math.sin(a) * r; if (inBounds(x, z) && !isWater(x, z) && !insideInterior(x, z, 2)) { spawnWraith(x, z); say("Something has followed you from the pool.", 2500, false, "dark"); } return; } const a = Math.random() * 6.28, r = 16 + Math.random() * 10; const x = POOL.x + Math.cos(a) * r, z = POOL.z + Math.sin(a) * r; if (inBounds(x, z) && !isWater(x, z) && !insideInterior(x, z, 2)) { spawnWraith(x, z); if (count === 0) SFX.dread(); } }
+    // wraiths come out of the pool, but they are meant to find you wherever you are: close to it they rise out of
+    // the water, far from it one simply steps out of the dark behind you. `roomNow` keeps them from appearing in
+    // the room the PLAYER is standing in, and the insideInterior test below keeps them out of everybody else's.
+    if (near && count < cap && dist2D(P.pos, POOL) > 12 && !roomNow) {
+      const faraway = dist2D(P.pos, POOL) >= 70;
+      const from = faraway ? P.pos : POOL;
+      const a = Math.random() * 6.28,
+        r = faraway ? 18 + Math.random() * 10 : 16 + Math.random() * 10;
+      const x = from.x + Math.cos(a) * r,
+        z = from.z + Math.sin(a) * r;
+      if (inBounds(x, z) && !isWater(x, z) && !insideInterior(x, z, 2)) {
+        spawnWraith(x, z);
+        if (faraway) say("Something has followed you from the pool.", 2500, false, "dark");
+        else if (count === 0) SFX.dread(); // the first one out of the water is announced by the sound alone
+      }
+    }
   }
   // ============================================================ 3.0: the siege — the valley from the burial to the descent
   // she is in the ground and it will not settle. things come without pause now, in daylight and inside the walls,
@@ -25585,7 +26230,11 @@ const __boot = (async () => {
       }
       if (P.airSlash.t > 0.45) P.airSlash = null;
     }
-    if (P.dive && !P.grounded && P.vel.y < 0 && P.pos.y > stepH(P.pos.x, P.pos.z, P.pos.y) + 0.3) { hitWildlife(3.4, null, 0, 4.5); if (hitPlayers(2.2, null, 0, 4.5, TUNE.combat.diveDamageMul * dmgMul() * WEAPONS[P.weapon].dmg, 11, true)) P.dive = false; }
+    // the wildlife gate: this whole block runs every frame of the fall, and unlike the player and enemy paths below
+    // — which both end the dive on a landed hit — hitWildlife had nothing to stop it, so a dive through a boar was
+    // one attack per frame for as long as the fall lasted. one dive is one attack now; P.diveHitDone is cleared
+    // where the dive starts, so the next dive arms it again.
+    if (P.dive && !P.grounded && P.vel.y < 0 && P.pos.y > stepH(P.pos.x, P.pos.z, P.pos.y) + 0.3) { if (!P.diveHitDone && hitWildlife(3.4, null, 0, 4.5)) P.diveHitDone = true; if (hitPlayers(2.2, null, 0, 4.5, TUNE.combat.diveDamageMul * dmgMul() * WEAPONS[P.weapon].dmg, 11, true)) P.dive = false; }
     if (P.dive && !P.grounded && P.vel.y < 0)
       for (const e of allEnemies()) {
         if (!e.alive) continue;
@@ -26164,6 +26813,14 @@ const __boot = (async () => {
     }
     // the bear's cave: a dark arch in a grey mound
     if (inView(CAVE)) { const cx0 = mx(CAVE), cz0 = mz(CAVE); mctx.fillStyle = "#7d766c"; mctx.beginPath(); mctx.arc(cx0, cz0 + 2 * s, 7 * s, Math.PI, 0); mctx.fill(); mctx.fillStyle = "#1a1512"; mctx.beginPath(); mctx.arc(cx0, cz0 + 2 * s, 3.6 * s, Math.PI, 0); mctx.fill(); label("Cave", cx0, cz0 + 12 * s); }
+    // the abandoned church: a small stone nave with a peaked roof and a cross, once a site has been chosen this seed
+    if (DISCOVERIES.emptyChurch.x !== undefined && inView(DISCOVERIES.emptyChurch)) {
+      const chx = mx(DISCOVERIES.emptyChurch), chz = mz(DISCOVERIES.emptyChurch);
+      mctx.fillStyle = "#a89a82"; mctx.fillRect(chx - 3 * s, chz - 1 * s, 6 * s, 5 * s);
+      mctx.fillStyle = "#4a4038"; mctx.beginPath(); mctx.moveTo(chx - 4 * s, chz - 1 * s); mctx.lineTo(chx, chz - 5 * s); mctx.lineTo(chx + 4 * s, chz - 1 * s); mctx.fill();
+      mctx.strokeStyle = "#e8e2d0"; mctx.lineWidth = 1.4 * s; mctx.beginPath(); mctx.moveTo(chx, chz - 5 * s); mctx.lineTo(chx, chz - 8 * s); mctx.moveTo(chx - 1.4 * s, chz - 6.8 * s); mctx.lineTo(chx + 1.4 * s, chz - 6.8 * s); mctx.stroke();
+      label("Abandoned Church", chx, chz + 10 * s);
+    }
     // the elder tree: a broad crown on a trunk
     if (inView(ELDER)) { const ex = mx(ELDER), ez = mz(ELDER); mctx.fillStyle = "#6a4a2a"; mctx.fillRect(ex - 1.5 * s, ez - 2 * s, 3 * s, 7 * s); mctx.fillStyle = "#4f9a44"; for (const [ox, oz, r] of [[0, -6, 6], [-5, -3, 4.5], [5, -3, 4.5]]) { mctx.beginPath(); mctx.arc(ex + ox * s, ez + oz * s, r * s, 0, 7); mctx.fill(); } label("Elder Tree", ex, ez + 14 * s); }
     // the rose court: a rose, once you have met the queen
@@ -26661,6 +27318,10 @@ const __boot = (async () => {
       camera.layers.set(1);
       renderer.autoClear = false;
       scene.autoUpdate = false; // the pass above already updated every matrix this frame; this one walked all of them again
+      // a Color background makes three.js clear the canvas whether autoClear is on or not, and the Impossible Room
+      // sets one (its white). hide it for the layered passes so they paint over the first pass instead of wiping it.
+      const bgSave = scene.background;
+      scene.background = null;
       renderer.render(scene, camera);
       scene.autoUpdate = true;
       renderer.autoClear = true;
@@ -26674,6 +27335,7 @@ const __boot = (async () => {
       scene.overrideMaterial = null;
       scene.autoUpdate = true;
       renderer.autoClear = true;
+      scene.background = bgSave;
       camera.layers.set(0);
     }
   }
