@@ -1,6 +1,6 @@
-# test notes — 3.1 retro
+# test notes — 3.1 retro (and the 3.1.1 follow-up)
 
-what was run against `legend_of_peanits_v3.1_retro.html`, on the machine the game is built on: an RTX 5080, real WebGL2, edge. no software rasteriser was used for any of it — under swiftshader the world build stalls part way through and reports success.
+what was run against `legend_of_peanits_v3.1_retro.html`, then again against `legend_of_peanits_v3.1.1_retro.html` after the standing review's fixes, on the machine the game is built on: an RTX 5080, real WebGL2, edge. no software rasteriser was used for any of it — under swiftshader the world build stalls part way through and reports success.
 
 the retro build is the 3.0 build plus the renderer layer described in the [changelog](../CHANGELOG.md); gameplay code is identical, so the suites below are the same suites that passed on 3.0, rerun on the retro file to prove the drawing changes did not reach the game.
 

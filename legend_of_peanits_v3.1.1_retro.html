@@ -13,7 +13,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 3.1 Retro</title>
+<title>Legend of Peanits 3.1.1 Retro</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#1b1626, #0d0a14); --edge: #6c583a; --hi: #8a6a3e; }
@@ -537,7 +537,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.1r</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.1.1r</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -607,7 +607,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 3.1 RETRO</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 3.1.1 RETRO</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -1978,10 +1978,13 @@ const __boot = (async () => {
     return d;
   }
   // unfiltered up close, the mip chain still there so the far ground does not boil; the smooth setting is the n64's
-  function retroTexture(t, register = true) {
+  // mips = false is for a transparent canvas drawn afresh all the time (the name tags): a mip chain averages the
+  // clear pixels into the glyphs and goes muddy at a distance, and would be rebuilt on every change of health
+  function retroTexture(t, register = true, mips = true) {
     if (register && RETRO_TEXTURES.indexOf(t) < 0) RETRO_TEXTURES.push(t); // a texture made afresh every few seconds (the name tags) is filtered but never listed, or the list would only grow
     const mag = RETRO.pixel ? THREE.NearestFilter : THREE.LinearFilter,
-      min = RETRO.pixel ? THREE.NearestMipmapLinearFilter : THREE.LinearMipmapLinearFilter;
+      min = !mips ? mag : RETRO.pixel ? THREE.NearestMipmapLinearFilter : THREE.LinearMipmapLinearFilter;
+    if (!mips) t.generateMipmaps = false;
     if (t.magFilter === mag && t.minFilter === min && t.anisotropy === 1) return;
     t.magFilter = mag;
     t.minFilter = min;
@@ -1989,7 +1992,7 @@ const __boot = (async () => {
     t.needsUpdate = true;
   }
   // the round shadow that stood in for a real one on every 1998 machine: a dark disc, sat just above the ground
-  const retroBlobGeo = new THREE.CircleGeometry(1, 12),
+  const retroBlobGeo = new THREE.CircleGeometry(1, 16), // sixteen asked for, eight after the halving above: the renderer's own geometry is not exempt
     retroBlobMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
   retroBlobGeo.userData.shared = retroBlobMat.userData.shared = true; // shared by every villager; disposeTree and disposeCharacter are taught below to step over shared geometry as they already do shared materials
   function retroBlob(r, mat = retroBlobMat, track = false) {
@@ -3418,13 +3421,15 @@ const __boot = (async () => {
       h = Math.max(1, Math.min(wantH, Math.round(innerHeight) || wantH)),
       w = Math.max(1, Math.round((h * (innerWidth || 1)) / (innerHeight || 1)));
     retroPost.uniforms.uScreen.value.set(Math.max(1, innerWidth || 1), Math.max(1, innerHeight || 1));
+    // the point scale is set before the size test, not after: a 4:3 window asks for exactly the 320×240 the target
+    // was born at, and the early return below would otherwise leave every attenuated point at the window's size
+    RETRO_POINT_SCALE.value = h / Math.max(1, innerHeight || h);
+    for (const m of RETRO_POINTS) if (m.sizeAttenuation) m.size = m.userData.retroSize * RETRO_POINT_SCALE.value;
     if (retroRT.width === w && retroRT.height === h) return;
     retroRT.setSize(w, h);
     retroPost.uniforms.uRes.value.set(w, h);
     const k = RETRO.wobble;
     RETRO_U.snap.value.set(k > 0 ? w / (2 * k) : 0, k > 0 ? h / (2 * k) : 0);
-    RETRO_POINT_SCALE.value = h / Math.max(1, innerHeight || h);
-    for (const m of RETRO_POINTS) if (m.sizeAttenuation) m.size = m.userData.retroSize * RETRO_POINT_SCALE.value;
     retroStatus();
   }
   function retroBegin() {
@@ -3493,7 +3498,7 @@ const __boot = (async () => {
       retroHeroBlob.position.y = 0;
       scene.add(retroHeroBlob);
     }
-    retroPlaceBlob(retroHeroBlob, P.pos.x, P.pos.y, P.pos.z, !started || titleMode || !hero || hero.visible === false || P.swim);
+    retroPlaceBlob(retroHeroBlob, P.pos.x, P.pos.y, P.pos.z, !started || titleMode || !hero || hero.visible === false || P.swim || P.lying); // lying in a bed, like a villager laid flat, is no time for a disc
     // the other players, if any: a disc per avatar, made when they arrive and dropped when they leave
     const avatars = typeof NET === "object" && NET && NET.avatars instanceof Map ? NET.avatars : null;
     if (avatars) {
@@ -3501,11 +3506,12 @@ const __boot = (async () => {
         let b = retroAvatarBlobs.get(id);
         if (!b) { b = retroBlob(1, retroBlobMat.clone()); b.material.userData.shared = true; b.position.y = 0; scene.add(b); retroAvatarBlobs.set(id, b); }
         const m = a && a.mesh, s = a && a.state;
-        retroPlaceBlob(b, m ? m.position.x : 0, m ? m.position.y : 0, m ? m.position.z : 0, !m || m.visible === false || !s || s.dead || s.swim);
+        retroPlaceBlob(b, m ? m.position.x : 0, m ? m.position.y : 0, m ? m.position.z : 0, !m || m.visible === false || !s || s.dead || s.swim || s.lying);
       }
-      for (const [id, b] of retroAvatarBlobs) if (!avatars.has(id)) { scene.remove(b); retroAvatarBlobs.delete(id); }
+      // the disc's material is its own (it fades on its own); the geometry is the shared one and stays
+      for (const [id, b] of retroAvatarBlobs) if (!avatars.has(id)) { scene.remove(b); b.material.dispose(); retroAvatarBlobs.delete(id); }
     } else if (retroAvatarBlobs.size) {
-      for (const b of retroAvatarBlobs.values()) scene.remove(b);
+      for (const b of retroAvatarBlobs.values()) { scene.remove(b); b.material.dispose(); }
       retroAvatarBlobs.clear();
     }
   }
@@ -17090,7 +17096,7 @@ const __boot = (async () => {
     const c = document.createElement("canvas"); c.width = 512; c.height = 128; const g = c.getContext("2d");
     g.clearRect(0, 0, 512, 128); g.font = "bold 44px Georgia"; g.textAlign = "center"; g.fillStyle = "#ffd23c"; g.strokeStyle = "#1a1030"; g.lineWidth = 6; g.strokeText(name, 256, 52); g.fillText(name, 256, 52);
     const n = Math.max(1, Math.round(maxHp || 4)), full = Math.max(0, Math.round(hp || 0)); g.font = "36px Georgia"; let hearts = ""; for (let i = 0; i < Math.min(n, 12); i++) hearts += i < full ? "\u2665" : "\u2661"; g.fillStyle = "#ff6a8a"; g.strokeText(hearts, 256, 104); g.fillText(hearts, 256, 104);
-    const tex = new THREE.CanvasTexture(c); retroTexture(tex, false); return tex;
+    const tex = new THREE.CanvasTexture(c); retroTexture(tex, false, false); return tex;
   }
   function netApplyState(a, m) {
     // a peer used to be able to NaN you at will from here: Vector3.set does not coerce, so a string or an Infinity went
@@ -27635,6 +27641,7 @@ const __boot = (async () => {
     try {
       loopTick(now);
     } catch (e) {
+      try { retroEnd(); } catch (_) {}
       frameErrors++;
       console.error("frame", frameErrors, e);
       if (now - frameErrorAt > 5000) frameErrors = 1; frameErrorAt = now;

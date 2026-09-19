@@ -2,6 +2,18 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.1.1 retro — the standing review
+
+the retro file is `legend_of_peanits_v3.1.1_retro.html` now; the main 3.0 file is still untouched. a second, closer review of the 3.1 fixes found five things, all in the retro layer:
+
+- **on a 4:3 window every ember and mote was still four and a half times too big.** the picture target is born at 320×240, and a 4:3 window asks for exactly that, so the size test returned before the point scale was ever set. it is set before the test now.
+- **a frame that threw after the picture was begun froze the screen.** the error handler rescheduled the loop but never copied the picture to the window, so a throw on every frame showed the last good frame forever while the game ran on underneath. the copy is made on the way into the handler.
+- **name tags got a mip chain.** the main build kept them un-mipmapped on purpose: the canvas is transparent around the glyphs, a mip chain averages the clear pixels into the text and a distant tag goes muddy, and the tag is redrawn on every change of health. they are filtered without mips again.
+- **your disc stayed under the bed.** a villager laid flat loses their disc; the player asleep in a bed, and another player asleep or carried, did not. lying hides it for both.
+- **another player's disc leaked its material when they left.** each is its own so it can fade on its own; it is disposed with the disc now.
+
+also: the disc geometry is written as sixteen segments, because the renderer's own geometry goes through the same halving as everything else and comes out eight — the old twelve came out eight too and said otherwise. accepted as is: the hero's disc asks the ground height once a frame, which the movement code has already worked out; not worth a plumbing change.
+
 ## 3.1 retro — the way it would have looked in 1998
 
 [screenshots + download](docs/updates/3.1_retro.md) · [test notes](docs/QA_3.1_retro.md)

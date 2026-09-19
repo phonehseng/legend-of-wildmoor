@@ -9,13 +9,13 @@
 //
 //   node tools/make-retro.cjs [source.html] [target.html]
 //
-// defaults: legend_of_peanits_v3.0.html -> legend_of_peanits_v3.1_retro.html
+// defaults: legend_of_peanits_v3.0.html -> legend_of_peanits_v3.1.1_retro.html
 const fs = require("fs");
 const path = require("path");
 
 const SRC = path.resolve(process.argv[2] || "legend_of_peanits_v3.0.html");
-const OUT = path.resolve(process.argv[3] || "legend_of_peanits_v3.1_retro.html");
-const VERSION = "3.1";
+const OUT = path.resolve(process.argv[3] || "legend_of_peanits_v3.1.1_retro.html");
+const VERSION = "3.1.1";
 
 let html = fs.readFileSync(SRC, "utf8").replace(/\r\n/g, "\n");
 const edits = [];
@@ -233,10 +233,13 @@ before(
     return d;
   }
   // unfiltered up close, the mip chain still there so the far ground does not boil; the smooth setting is the n64's
-  function retroTexture(t, register = true) {
+  // mips = false is for a transparent canvas drawn afresh all the time (the name tags): a mip chain averages the
+  // clear pixels into the glyphs and goes muddy at a distance, and would be rebuilt on every change of health
+  function retroTexture(t, register = true, mips = true) {
     if (register && RETRO_TEXTURES.indexOf(t) < 0) RETRO_TEXTURES.push(t); // a texture made afresh every few seconds (the name tags) is filtered but never listed, or the list would only grow
     const mag = RETRO.pixel ? THREE.NearestFilter : THREE.LinearFilter,
-      min = RETRO.pixel ? THREE.NearestMipmapLinearFilter : THREE.LinearMipmapLinearFilter;
+      min = !mips ? mag : RETRO.pixel ? THREE.NearestMipmapLinearFilter : THREE.LinearMipmapLinearFilter;
+    if (!mips) t.generateMipmaps = false;
     if (t.magFilter === mag && t.minFilter === min && t.anisotropy === 1) return;
     t.magFilter = mag;
     t.minFilter = min;
@@ -244,7 +247,7 @@ before(
     t.needsUpdate = true;
   }
   // the round shadow that stood in for a real one on every 1998 machine: a dark disc, sat just above the ground
-  const retroBlobGeo = new THREE.CircleGeometry(1, 12),
+  const retroBlobGeo = new THREE.CircleGeometry(1, 16), // sixteen asked for, eight after the halving above: the renderer's own geometry is not exempt
     retroBlobMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
   retroBlobGeo.userData.shared = retroBlobMat.userData.shared = true; // shared by every villager; disposeTree and disposeCharacter are taught below to step over shared geometry as they already do shared materials
   function retroBlob(r, mat = retroBlobMat, track = false) {
@@ -363,13 +366,15 @@ after(
       h = Math.max(1, Math.min(wantH, Math.round(innerHeight) || wantH)),
       w = Math.max(1, Math.round((h * (innerWidth || 1)) / (innerHeight || 1)));
     retroPost.uniforms.uScreen.value.set(Math.max(1, innerWidth || 1), Math.max(1, innerHeight || 1));
+    // the point scale is set before the size test, not after: a 4:3 window asks for exactly the 320×240 the target
+    // was born at, and the early return below would otherwise leave every attenuated point at the window's size
+    RETRO_POINT_SCALE.value = h / Math.max(1, innerHeight || h);
+    for (const m of RETRO_POINTS) if (m.sizeAttenuation) m.size = m.userData.retroSize * RETRO_POINT_SCALE.value;
     if (retroRT.width === w && retroRT.height === h) return;
     retroRT.setSize(w, h);
     retroPost.uniforms.uRes.value.set(w, h);
     const k = RETRO.wobble;
     RETRO_U.snap.value.set(k > 0 ? w / (2 * k) : 0, k > 0 ? h / (2 * k) : 0);
-    RETRO_POINT_SCALE.value = h / Math.max(1, innerHeight || h);
-    for (const m of RETRO_POINTS) if (m.sizeAttenuation) m.size = m.userData.retroSize * RETRO_POINT_SCALE.value;
     retroStatus();
   }
   function retroBegin() {
@@ -438,7 +443,7 @@ after(
       retroHeroBlob.position.y = 0;
       scene.add(retroHeroBlob);
     }
-    retroPlaceBlob(retroHeroBlob, P.pos.x, P.pos.y, P.pos.z, !started || titleMode || !hero || hero.visible === false || P.swim);
+    retroPlaceBlob(retroHeroBlob, P.pos.x, P.pos.y, P.pos.z, !started || titleMode || !hero || hero.visible === false || P.swim || P.lying); // lying in a bed, like a villager laid flat, is no time for a disc
     // the other players, if any: a disc per avatar, made when they arrive and dropped when they leave
     const avatars = typeof NET === "object" && NET && NET.avatars instanceof Map ? NET.avatars : null;
     if (avatars) {
@@ -446,11 +451,12 @@ after(
         let b = retroAvatarBlobs.get(id);
         if (!b) { b = retroBlob(1, retroBlobMat.clone()); b.material.userData.shared = true; b.position.y = 0; scene.add(b); retroAvatarBlobs.set(id, b); }
         const m = a && a.mesh, s = a && a.state;
-        retroPlaceBlob(b, m ? m.position.x : 0, m ? m.position.y : 0, m ? m.position.z : 0, !m || m.visible === false || !s || s.dead || s.swim);
+        retroPlaceBlob(b, m ? m.position.x : 0, m ? m.position.y : 0, m ? m.position.z : 0, !m || m.visible === false || !s || s.dead || s.swim || s.lying);
       }
-      for (const [id, b] of retroAvatarBlobs) if (!avatars.has(id)) { scene.remove(b); retroAvatarBlobs.delete(id); }
+      // the disc's material is its own (it fades on its own); the geometry is the shared one and stays
+      for (const [id, b] of retroAvatarBlobs) if (!avatars.has(id)) { scene.remove(b); b.material.dispose(); retroAvatarBlobs.delete(id); }
     } else if (retroAvatarBlobs.size) {
-      for (const b of retroAvatarBlobs.values()) scene.remove(b);
+      for (const b of retroAvatarBlobs.values()) { scene.remove(b); b.material.dispose(); }
       retroAvatarBlobs.clear();
     }
   }
@@ -504,7 +510,15 @@ edit(
 edit(
   "name tag filter",
   "tex.minFilter = THREE.LinearFilter; return tex;",
-  "retroTexture(tex, false); return tex;"
+  "retroTexture(tex, false, false); return tex;"
+);
+// a frame that throws after retroBegin would otherwise leave the renderer aimed at the small picture with nothing
+// copied to the window; if it throws every frame the screen freezes while the game runs on underneath. the copy is
+// made on the way into the error handler, so whatever was drawn is shown and the next frame starts clean.
+edit(
+  "frame error recovery",
+  "    } catch (e) {\n      frameErrors++;\n      console.error(\"frame\", frameErrors, e);",
+  "    } catch (e) {\n      try { retroEnd(); } catch (_) {}\n      frameErrors++;\n      console.error(\"frame\", frameErrors, e);"
 );
 
 // ------------------------------------------------------------------ lucifer's hand keeps the per-pixel material its rim hook reads from
