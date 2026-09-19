@@ -2,6 +2,45 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.1 retro — the way it would have looked in 1998
+
+[screenshots + download](docs/updates/3.1_retro.md) · [test notes](docs/QA_3.1_retro.md)
+
+a second build of the same game, `legend_of_peanits_v3.1_retro.html`. the main 3.0 file is untouched. the retro file is produced from it by `tools/make-retro.cjs`: twenty-five anchored edits that only touch drawing, each of which must match exactly once or the build refuses. saves, quests, the world and multiplayer are the main build's, and the two share the same browser save.
+
+- the picture is 240 lines tall (427×240 at a 16:9 window) and scaled to the window without smoothing. the pause menu offers 200p, 240p, 320p, 480p and the window's own size.
+- every texture is painted at its old size, shrunk to 64 texels, cut to sixteen shades a channel and shown with no filtering. the "pixel textures" toggle off gives the n64's bilinear instead. alpha is cut to the same sixteen steps, so the glow's soft edge survives and a leaf cutout still ends where its own alpha test says.
+- lighting is worked out at the vertices: every physically-based material is built as a lambert one, so light smears across each face the way a 1998 console's did. roughness and metalness are kept as plain numbers so the code that tunes them still runs and still means nothing. the exception is lucifer's hand, whose rim-light shader hook reads per-pixel normals and keeps the physical material under a second name.
+- vertices snap to the picture grid (the playstation wobble, 0–3 in the menu), and the texture mapping can ignore perspective (the affine warp slider, half on by default). both are one patch to three's shader chunks, applied before any material exists, so the game's own shader hooks — the triplanar ground, the water, the swaying leaves and grass, the hand — are untouched and still work. the warp fades in with distance: it is off on whatever is within a couple of metres and full past a dozen, because the affine error is worst on the big triangles nearest the camera — a room's floor and walls, the road at the bottom of the screen — and a console hid exactly that by cutting its near geometry into pieces.
+- the screen pass cuts colour to five bits a channel through a 4×4 ordered dither, one cell per picture pixel however far it is scaled. scanlines are optional.
+- round geometry has half its sides: 8-sided cylinders, 8×6 spheres, 9-segment robes. anything already at or under the floor keeps its count, because the limbs are six-sided cylinders and would fold flat at three.
+- no shadow maps. a dark disc sits under the hero and under every villager, shrinking and fading as you jump. the hero's lives in the scene and follows the ground under you (structures and gehenna included) rather than the model, which rises with a jump.
+- the sky has two-tone clouds cut from value noise, drifting. their colour follows the horizon's, so night keeps them dark and the white room keeps them gone.
+- tone mapping is cineon at 1.0: the main build's aces curve at 1.22 made the meadow pale, and a plain linear one clipped it to neon.
+- the six new controls are machine preferences like the sound sliders, saved and restored through the same list.
+
+### found in review and fixed before release
+- **every sprite showed a quarter of its texture.** the E prompt, the quest marks, the sleeping zzz, the fairy glow and the name tags all read as one blown-up corner. the affine uv is written in the block appended to three's projection chunk, and the sprite is the one built-in shader that builds its own position and never runs that chunk — so its fragment mixed the real uv with a varying nobody had written. sprites now take the same block by hand, and every shader seeds the affine uv with the plain one first so nothing can read it unwritten again.
+- **textures swam too much indoors and at the bottom of the screen.** the warp was applied at full strength everywhere, and the affine error grows with a triangle's size on screen. it now fades in with distance (see above).
+- **the small picture had a 16-bit depth buffer.** r128 gives a render target without a stencil a 16-bit depth renderbuffer, 1/256 of what the window had, and the town's cobbles started to z-fight past a few metres. the target asks for the stencil and gets the window's 24 bits.
+- **size-attenuated points were four and a half times too big.** r128 sizes a point against the window's height, never the bound target's, so gehenna's embers and lucifer's radiance drawn into 240 lines would have filled the screen. every points material keeps the size it was given and is rescaled with the picture; the stars are not attenuated and stay in picture pixels.
+- **the glow was a hard disc.** the cutout alpha threshold ran on every alpha texture, including the one soft radial gradient every glow sprite and particle uses. alpha is banded to sixteen steps instead.
+- **the rivers ignored the pixel-textures toggle.** they clone the water texture directly rather than through the helper the build patched. any clone of a retro texture is now a retro texture, at the clone method itself.
+- **the disc under a villager stood on its edge when they were laid flat.** bodies, the burial carry and sleepers are rotated as a group, and the disc rotated with them. each disc is checked against its group's up axis every frame and hidden when the group is not upright.
+- **other players cast no shadow.** villagers had a disc and so did you, but a remote player's model is built by neither route. each avatar gets a pooled scene-level disc placed by the ground under them, dropped when they leave.
+- **removing a goblin disposed the disc geometry under every villager.** the two teardown helpers skipped shared materials but disposed every geometry; the disc is the first shared geometry, and they skip it now. three re-uploaded the buffer on the next draw, so this was a stall each time rather than a missing disc.
+- **the multiplayer name tag was the one texture the layer never touched.** it is redrawn on every change of health, so it is filtered like the rest but never listed; listing it would have grown the list forever.
+
+### refuted in review
+- the vertex snap divides by w with no guard: vertices behind the camera are clipped by the unchanged w, and the quantised value is re-multiplied by the same w; nothing reaches the screen.
+- the sixteen pooled point lights become per-vertex on the lowest-poly surfaces and caves lose their light pools: that is gouraud lighting, which is the point of the build.
+- retroFit divides by an innerHeight of zero: it is guarded on both sides.
+- the discs are sliced by the ground on any slope past a few degrees: they sit five centimetres up with a polygon offset, and a disc cut by a slope is what every 1998 game did.
+
+### refuted while testing
+- **the blob shadows were "not rendering".** they were: an isolated disc at the same height drew fine, and tinting them showed every one in place. they were narrower than the bodies over them, so from the usual camera height the model covered them entirely. they are now a metre wide.
+- **`qa-lucifer-visuals` broke on the retro build.** the suite stubs the finale out of the source text without the retro prologue, so the hand material's reference to the second-name physical class was undefined in its sandbox. the reference now falls back to `THREE.MeshStandardMaterial` when the alias is missing; the suite passes its 134 checks again. the game itself was never affected.
+
 ## 3.0 — the still kingdom
 
 [test notes](docs/QA_3.0.md)
