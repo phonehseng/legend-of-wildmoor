@@ -12,7 +12,9 @@ the retro file is `legend_of_peanits_v3.1.1_retro.html` now; the main 3.0 file i
 - **your disc stayed under the bed.** a villager laid flat loses their disc; the player asleep in a bed, and another player asleep or carried, did not. lying hides it for both.
 - **another player's disc leaked its material when they left.** each is its own so it can fade on its own; it is disposed with the disc now.
 
-also: the disc geometry is written as sixteen segments, because the renderer's own geometry goes through the same halving as everything else and comes out eight — the old twelve came out eight too and said otherwise. accepted as is: the hero's disc asks the ground height once a frame, which the movement code has already worked out; not worth a plumbing change.
+also: the disc geometry is written as sixteen segments, because the renderer's own geometry goes through the same halving as everything else and comes out eight — the old twelve came out eight too and said otherwise. accepted as is: the hero's disc asks the ground height once a frame, which the movement code has already worked out; not worth a plumbing change. worth knowing: because the point scale is now applied every frame rather than on a size change, any future per-frame animation of a points material's `size` would be overwritten — none of the three points materials in the game is animated today.
+
+the re-review of these six edits found them clean; they were rebuilt from the generator and the output matched the committed file byte for byte.
 
 ## 3.1 retro — the way it would have looked in 1998
 
