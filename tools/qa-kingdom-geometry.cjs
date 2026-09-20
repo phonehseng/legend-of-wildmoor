@@ -3,7 +3,7 @@
 const fs = require('fs');
 const vm = require('vm');
 const assert = require('assert');
-const html = fs.readFileSync(process.argv[2] || 'legend_of_peanits_v3.0.html', 'utf8');
+const html = fs.readFileSync(process.argv[2] || 'legend_of_peanits_v3.3.html', 'utf8');
 const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(m => m[1]);
 const context = vm.createContext({ console });
 vm.runInContext(scripts.find(s => s.includes('REVISION') && s.length > 500000), context);

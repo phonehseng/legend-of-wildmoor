@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 3.0</title>
+<title>Legend of Peanits 3.3</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#1b1626, #0d0a14); --edge: #6c583a; --hi: #8a6a3e; }
@@ -534,7 +534,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.0</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.3</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -604,7 +604,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 3.0</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 3.3</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -2059,6 +2059,94 @@ const __boot = (async () => {
         r.addColorStop(1, "rgba(255,255,255,0)");
         g.fillStyle = r;
         g.fillRect(0, 0, s, s);
+      },
+      1,
+      true
+    ),
+    // ---- the rose court, painted the way a handheld painted things: flat colour regions, a hard ink line, no gradients ----
+    // the canopy over the queen used to be TEX.leaf — a green painting — tinted pink, and map times colour is a
+    // multiply: toLin(0xe98fbd) through the leaf's #5c9e44 lands near #525531, so the great pink tree came out the
+    // colour of old moss. a blossom carries its own pink and lets the tint only shade it.
+    blossom: makeTex(
+      128,
+      (g, s) => {
+        g.clearRect(0, 0, s, s);
+        const pinks = ["#ffd7ea", "#ffa8d2", "#f77cba", "#e0559d"];
+        const cluster = (x, y, r, seed, fill) => {
+          g.fillStyle = fill;
+          g.beginPath();
+          for (let k = 0; k < 5; k++) {
+            const a = (k / 5) * 6.283 + seed;
+            g.ellipse(x + Math.cos(a) * r * 0.55, y + Math.sin(a) * r * 0.55, r * 0.62, r * 0.42, a, 0, 6.283);
+          }
+          g.fill();
+        };
+        for (let i = 0; i < 80; i++) {
+          const x = rnd() * s,
+            y = rnd() * s,
+            r = 9 + rnd() * 9,
+            c = pick(pinks, rnd());
+          cluster(x, y, r * 1.18, i, "#4a1f3a"); // the ink first, then one flat pink over it: a two-tone sticker
+          cluster(x, y, r, i, c);
+          g.fillStyle = "#fff0f8";
+          g.beginPath();
+          g.arc(x, y, r * 0.18, 0, 6.283);
+          g.fill();
+        }
+      },
+      1,
+      true
+    ),
+    // her face, painted once instead of built out of eight cubes a centimetre across. 64 on purpose: the retro
+    // edition shrinks every painting to 64 texels, and anything finer than that is thrown away there anyway.
+    fairyFace: makeTex(
+      64,
+      (g, s) => {
+        const ink = "#3a1030";
+        g.fillStyle = "#ffe4f4";
+        g.fillRect(0, 0, s, s);
+        g.fillStyle = "#ffa8c8"; // blush: two flat pads, no gradient anywhere on her
+        g.fillRect(5, 34, 13, 8);
+        g.fillRect(46, 34, 13, 8);
+        [19, 45].forEach(x => {
+          g.fillStyle = ink; // one big ink eye, a lash bar over it, a square catchlight, a flat iris
+          g.fillRect(x - 6, 21, 12, 16);
+          g.fillRect(x - 8, 18, 16, 3);
+          g.fillStyle = "#ffffff";
+          g.fillRect(x - 4, 24, 5, 6);
+          g.fillStyle = "#ff6fb4";
+          g.fillRect(x - 1, 31, 5, 4);
+        });
+        g.fillStyle = ink;
+        g.fillRect(27, 46, 10, 3);
+        g.fillRect(24, 43, 3, 3);
+        g.fillRect(37, 43, 3, 3);
+      },
+      1,
+      false
+    ),
+    // a wing: an ink rim, two flat panes and three veins, cut out rather than blended
+    fairyWing: makeTex(
+      64,
+      (g, s) => {
+        g.clearRect(0, 0, s, s);
+        const pane = (cx, cy, rx, ry, fill) => {
+          g.fillStyle = fill;
+          g.beginPath();
+          g.ellipse(cx, cy, rx, ry, 0, 0, 6.283);
+          g.fill();
+        };
+        pane(s * 0.5, s * 0.5, s * 0.47, s * 0.31, "#4a1f3a");
+        pane(s * 0.5, s * 0.5, s * 0.42, s * 0.26, "#ffe8f6");
+        pane(s * 0.66, s * 0.5, s * 0.28, s * 0.17, "#ffb8e0");
+        g.strokeStyle = "#e07ab8";
+        g.lineWidth = 2;
+        for (let k = -1; k <= 1; k++) {
+          g.beginPath();
+          g.moveTo(s * 0.12, s * 0.5);
+          g.lineTo(s * 0.9, s * 0.5 + k * s * 0.14);
+          g.stroke();
+        }
       },
       1,
       true
@@ -4532,11 +4620,24 @@ const __boot = (async () => {
     trunk.position.set(E.x, y0 + H / 2, E.z);
     shadowed(trunk);
     scene.add(trunk);
-    addStruct({ cx: E.x, cz: E.z, r: R0 * 0.95, top: y0 + H, b: R0 * 0.95, taper: { y0, y1: y0 + H, r0: R0 * 0.95, r1: R0 * 0.55 * 0.95 } });
-    // resolveStructs skips any struct where p.y < top-40; the full trunk has top=y0+H=142,
-    // so only players above y=102 would be blocked. add a second low-level struct covering
-    // the base (y0 to y0+42) so the trunk is solid at ground level too.
-    addStruct({ cx: E.x, cz: E.z, r: R0 * 0.95, top: y0 + 42, b: R0 * 0.95, taper: { y0, y1: y0 + 42, r0: R0 * 0.95, r1: R0 * 0.78 * 0.95 } });
+    // the trunk is one solid from the roots up, and its own surface is the rail on the inner (left) edge of the
+    // stair. the planks are 5.4 wide on a helix of radius R0*(1-0.45t)+2.9, so their inner lip is exactly
+    // R0*(1-0.45t) out from the axis, and helixGround stops handing out floor at that same radius — a wall of that
+    // radius therefore leaves the whole walkway walkable and closes the only gap there was to step into.
+    const trunkR = y => R0 * (1 - 0.45 * clamp((y - y0 - 1) / (H - 22), 0, 1));
+    // resolveStructs pushes a body out of a struct only while its feet are inside [top-40, top-1), so one solid the
+    // full 128 m of the trunk is a wall for the top forty metres and thin air under all of it. that is what read as
+    // "raised up": the ground here is ELDER.h = 14, and the old pair (top 142 and top 56) only began at 102 and at
+    // 16 — the bark was open at the roots, and open again from 55 to 102, which is most of the climb.
+    // so the trunk is banded: every band is under forty metres tall and its top sits just over the stretch it holds.
+    for (let yA = y0 - 2; yA < y0 + H; yA += 38) {
+      const yB = Math.min(yA + 38, y0 + H),
+        tA = Math.max(yA, y0 + 1),
+        rA = trunkR(tA);
+      // soft: a wall and not a floor. without it each band's flat top is a disc of invisible ground inside the
+      // trunk, and a climber crossing that height steps up onto nothing.
+      addStruct({ cx: E.x, cz: E.z, r: rA, b: rA, top: yB + 1.2, soft: true, taper: { y0: tA, y1: yB, r0: rA, r1: trunkR(yB) } });
+    }
     // (the elder tree has no root cones: they never sat in the ground convincingly)
     const leaf = new THREE.MeshStandardMaterial({ color: toLin(0x64ac48), roughness: 0.95, map: TEX.leaf, alphaTest: 0.45, side: THREE.DoubleSide });
     leafSway(leaf);
@@ -11668,8 +11769,8 @@ const __boot = (async () => {
         }
       return true;
     };
-    // Search only the empty far-west quarter. The strip check is in world coordinates rather than a vague bearing:
-    // every generated seed gets the whole footprint between x -650 and -550, while all the existing water, terrain,
+    // Search only the empty far-east quarter. The strip check is in world coordinates rather than a vague bearing:
+    // every generated seed gets the whole footprint between x 550 and 650, while all the existing water, terrain,
     // road, tree, structure and landmark tests below still decide which piece of that land is genuinely buildable.
     const findSite = o => {
       let best = null;
@@ -11679,7 +11780,7 @@ const __boot = (async () => {
           const x = Math.cos(a) * r,
             z = Math.sin(a) * r,
             h = terrainH(x, z);
-          if (x < (o.xMin ?? -650) || x > (o.xMax ?? -550)) continue;
+          if (x < (o.xMin ?? 550) || x > (o.xMax ?? 650)) continue;
           if (!inBounds(x, z) || h < 3.5 || h > 30) continue;
           if (pathDist(x, z) < (o.forceAny ? 14 : 26) || isWater(x, z)) continue; // off both roads and out of the wet
           if (o.deep && chanNear(x, z) < 34) continue; // sixteen clear metres beyond the furthest stone, measured not guessed
@@ -11724,26 +11825,26 @@ const __boot = (async () => {
       return best;
     };
     const PROBE = [[PX, PZ], [-PX, PZ], [PX, -PZ], [-PX, -PZ], [PX, 0], [-PX, 0], [0, PZ], [0, -PZ], [PX, 8.5], [-PX, 8.5], [PX, -8.5], [-PX, -8.5], [0, 25], [0, 0]];
-    let how = "far west",
-      site = findSite({ r0: 550, r1: 710, rMid: 600, tree: 16, rough: 3.2, slope: 1.8, deep: true, probeTree: 6, aim: Math.PI, probes: PROBE });
+    let how = "far east",
+      site = findSite({ r0: 550, r1: 710, rMid: 600, tree: 16, rough: 3.2, slope: 1.8, deep: true, probeTree: 6, aim: 0, probes: PROBE });
     if (!site) {
-      how = "far-west clearing";
-      site = findSite({ r0: 550, r1: 760, rMid: 610, tree: 12, rough: 4.2, slope: 2.6, deep: true, probeTree: 4, aim: Math.PI, probes: PROBE });
+      how = "far-east clearing";
+      site = findSite({ r0: 550, r1: 760, rMid: 610, tree: 12, rough: 4.2, slope: 2.6, deep: true, probeTree: 4, aim: 0, probes: PROBE });
     }
     if (!site) {
-      how = "far-west last resort";
-      site = findSite({ r0: 550, r1: 790, rMid: 610, tree: 8, rough: 5.5, slope: 3.2, deep: true, probeTree: 3, aim: Math.PI, probes: PROBE });
+      how = "far-east last resort";
+      site = findSite({ r0: 550, r1: 790, rMid: 610, tree: 8, rough: 5.5, slope: 3.2, deep: true, probeTree: 3, aim: 0, probes: PROBE });
     }
     if (!site) {
-      // river/road/terrain layout this seed apparently leaves nothing legal in the west apron band at all. drop the
+      // river/road/terrain layout this seed apparently leaves nothing legal in the east apron band at all. drop the
       // roughness and slope caps (the church just sits on whatever grade it's given; RISE/PH below absorb it) and
-      // drop the tree-density and west-only restrictions too — a still-dry, unblocked, in-bounds spot anywhere on
+      // drop the tree-density and east-only restrictions too — a still-dry, unblocked, in-bounds spot anywhere on
       // the map beats no church.
-      how = "forced (west apron had nothing legal)";
-      site = findSite({ r0: 300, r1: 900, rMid: 600, tree: 0, rough: 999, slope: 999, deep: false, probeTree: 0, aim: Math.PI, probes: PROBE, forceAny: true, xMin: -900, xMax: -450 });
+      how = "forced (east apron had nothing legal)";
+      site = findSite({ r0: 300, r1: 900, rMid: 600, tree: 0, rough: 999, slope: 999, deep: false, probeTree: 0, aim: 0, probes: PROBE, forceAny: true, xMin: 450, xMax: 900 });
     }
     if (!site) {
-      // last resort: forget the west apron narrative entirely and look anywhere on the ring, still avoiding water/
+      // last resort: forget the east apron narrative entirely and look anywhere on the ring, still avoiding water/
       // roads/collisions with everything else already placed. same forced constraints as above, just no x-band.
       how = "forced (anywhere)";
       site = findSite({ r0: 200, r1: 950, rMid: 600, tree: 0, rough: 999, slope: 999, deep: false, probeTree: 0, aim: null, probes: PROBE, forceAny: true, xMin: -1e6, xMax: 1e6 });
@@ -12106,7 +12207,7 @@ const __boot = (async () => {
         group: g, structs: [],
         baseW: site.cc ? CW : CD, baseD: site.cc ? CD : CW,
         grow: 1, growTo: 1,
-        noSleep: true, roofless: true, floor: "stone", camDist: 9.5, interiorK: 0.45, church: true
+        noSleep: true, roofless: true, floor: "stone", camDist: 9.5, interiorK: 0.45, church: true, drawR: 4000
       };
       interiors.push(CHURCH);
 
@@ -12165,7 +12266,7 @@ const __boot = (async () => {
     if (!WORLDSTATE.hermitChurchTaken) return { act: "The Last Watch", text: "Ask the hermit about the abandoned church", hint: "He has one last truth to tell before the black pool.", target: hermitPos };
     if (!churchClapperFound()) return WORLDSTATE.hermitChurchFound
       ? { act: "The Last Watch", text: "Return to the hermit with whoever found the watch-clapper", hint: "Only the hands that lifted it can give it back.", target: hermitPos }
-      : { act: "The Last Watch", text: "Find the old watch-clapper in the abandoned church", hint: "The church stands alone in the far west. Follow the gold arrow.", target: CHURCH_CLAPPER ? CHURCH_CLAPPER.pos : DISCOVERIES.emptyChurch };
+      : { act: "The Last Watch", text: "Find the old watch-clapper in the abandoned church", hint: "The church stands alone in the far east. Follow the gold arrow.", target: CHURCH_CLAPPER ? CHURCH_CLAPPER.pos : DISCOVERIES.emptyChurch };
     return { act: "The Last Watch", text: "Return the watch-clapper to the hermit", hint: "He left Hale holding both halves of their vigil.", target: hermitPos };
   }
   function updateChurchQuestPickup() {
@@ -15832,10 +15933,11 @@ const __boot = (async () => {
       e.flash = 0.12;
       if (from === P.pos) { hitstop = 0.05; shake = Math.max(shake, 0.2); SFX.hit(false); }
       if (e.hp <= 0) gehWake(e);
+      else gehMatronProvoke(e); // every blow on one of hers, not only the one that wakes them
       return;
     }
     // and once one is awake there is nothing left to take off it, so nothing can be done to it again
-    if (e.state === "grieve") { e.flash = 0.04; SFX.block(); return; }
+    if (e.state === "grieve") { e.flash = 0.04; SFX.block(); gehMatronProvoke(e); return; }
     // the almoner cannot be hurt while he is healing you, and this has to sit HERE, in the warden's ascend position,
     // rather than anywhere lower down: it returns before the stun assignment, before the knockback, before the xp
     // grant and before hp is subtracted. every blow you land in his fight is struck into a hand reaching for somebody
@@ -16270,7 +16372,7 @@ const __boot = (async () => {
   // One host-owned lease names the only shoulder Ysolde can occupy. `age` is sent instead of an absolute clock so
   // browsers with unrelated performance clocks still render the same point in the four-second graveside action.
   const BURIAL = { carrier: null, phase: "idle", phaseAt: 0, token: 0, drop: null, syncT: 0, earthT: 0 };
-  const NET_MAX_PLAYERS = 16, NET_PROTOCOL = 4;
+  const NET_MAX_PLAYERS = 16, NET_PROTOCOL = 5;
   const NET_VOLATILE = new Set(["s", "states", "en", "day"]);
   const NET_ICE = { iceServers: [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }] };
   const netEl = id => document.getElementById(id);
@@ -17753,7 +17855,14 @@ const __boot = (async () => {
     function available(s) {
       if (s.leaving || GEH.inPride) return false;
       if (s.id === "kindly") return state.called && !WORLDSTATE.gehDone;
-      if (s.id === "clerk") return !!WORLDSTATE.gehHeapDown;
+      // once she has called her sister the account is closed: no gold lamp, no E prompt, no interaction, nothing
+      // further to say. she is two metres from the Kindly One and interact() keeps the first strictly-closer speaker
+      // it meets, so while she stayed available the player standing at the desk kept re-hitting the clerk and
+      // hearing her last line again instead of reaching the woman she had just called. she comes back when the
+      // Kindly One is down and the ledger is hers to hand over. derived from state.called rather than a saved flag,
+      // deliberately: state.called is not in the save and the Kindly One's enemy is only ever created by talk() or
+      // netApply, so a persisted flag would reload into a silenced clerk with no sister — an unfinishable descent.
+      if (s.id === "clerk") return !!WORLDSTATE.gehHeapDown && (!state.called || !!WORLDSTATE.gehDone);
       if (s.id === "caller") return !!WORLDSTATE.gehMatronDown;
       if (s.id === "matron") return WORLDSTATE.gehAlmonerDown && !WORLDSTATE.gehMatronDown;
       return true;
@@ -17809,7 +17918,6 @@ const __boot = (async () => {
           "They are still grateful, love. I still have no page for the miller's girl.",
           "Take the ledger through the gate to Pride. The king keeps his room at the centre of the kingdom."
         ] : [
-          "You left your throne to seek enlightenment, Your Majesty; Wildmoor held you instead. The Fairy Queen does not hold you, oddly enough.",
           `${buildThreads().slice(0, 3).map(t => t.who).join(", ")} still carry your name. I looked for Ysolde again. Her page is still missing.`,
           "My sister will try to take the names off you. I see you have already decided to keep them."
         ];
@@ -17834,8 +17942,15 @@ const __boot = (async () => {
       if (s.id === "clerk" && at === lines.length - 1 && !WORLDSTATE.gehDone && !state.called) {
         state.called = true;
         const pos = GEH.clerkPos || s.pos;
-        register("kindly", V3(pos.x + 1.6, gehGroundAt(pos.x + 1.6, pos.z - 1.2, GEH.floor + 60), pos.z - 1.2));
+        const sis = register("kindly", V3(pos.x + 1.6, gehGroundAt(pos.x + 1.6, pos.z - 1.2, GEH.floor + 60), pos.z - 1.2));
         window.gehSpawnKindly(BOSS);
+        // the sister answers out of the clerk's last sentence instead of waiting to be spoken to. the clerk has just
+        // gone quiet for good, and a player who has been pressing E at that desk has nothing left to press it on, so
+        // her opening line is delivered on the same chain the chapter cards use: queue() waits out the line still on
+        // screen rather than cutting it off, and gsay broadcasts it to every player below the seam. her phase is
+        // stamped here as well as her beat, because talk() resets the beat to 0 whenever the phase string has moved
+        // under a speaker, which would replay the greeting the first time the player answers her.
+        if (sis) { sis.phase = phase; sis.beat = 1; queue([[names.kindly, scriptFor("kindly")[0]]], 1.2); }
       }
       if (s.id === "kindly" && at === lines.length - 1 && !state.fight) {
         state.fight = true;
@@ -18946,19 +19061,42 @@ const __boot = (async () => {
     GEH.woken = (GEH.woken || 0) + 1;
     // The first returned grief draws her away from the fight at its next safe pause.
     // Later blows cannot keep resetting this opening, and phase three no longer comforts anyone.
-    const matron = GEH.matron;
-    if (GEH.woken === 1 && matron && matron.alive && matron.armed && matron.phase < 3) matron.roundT = 0;
+    gehMatronProvoke(a);
     burst(a.pos.clone().add(V3(0, 1, 0)), 0x8a7c70, 20, 4, 1, 0.16);
     SFX.tone(210, 150, 1.6, 0.09, "sine", 0, 600);
   }
   const gehGrieving = () => (GEH.enemies || []).filter(x => x.kind === "attached" && x.alive && x.state === "grieve");
+  // a blow on anyone she is minding is taken personally, whoever struck it and whether or not they woke: she stops
+  // being careful with you at once — the same phase two her own wounds bring on — and runs to the one you struck at
+  // her next safe pause. the first wake used to be the only thing that moved her, and only if it was the first.
+  // phase two: faster, and no longer careful. one place, because it is reached from her own wounds and from a blow on
+  // her ward, and the line goes over the wire like every other gehenna line — a guest whose blow provoked her would
+  // otherwise see her change gait with no word said
+  function gehMatronAngry(e) {
+    e.phase = 2;
+    e.spd = 8.4;
+    SFX.phase();
+    const line = "She stops being careful with you.";
+    if (netGehennaSpeak("", line, 3200)) say(line, 3200, true, "geh");
+  }
+  function gehMatronProvoke(victim) {
+    const m = GEH.matron;
+    if (!m || !m.alive || !m.armed || m.phase >= 3) return;
+    if (m.phase < 2) gehMatronAngry(m);
+    // she runs to the one you struck at her next safe pause — but not more often than once in twelve seconds. reset
+    // on every blow, the round became a kneel at guard one (five times the damage) that a player could keep her in
+    // for as long as they liked by tapping a seated one every few seconds. the anger above is not on the clock.
+    if (time - (m.provokeAt === undefined ? -1e9 : m.provokeAt) < 12) return;
+    m.provokeAt = time;
+    m.roundT = 0;
+    // and she only goes to someone who is grieving: the round is her kneeling with somebody you woke, and a seated
+    // one has not been woken. gehWake sets the state before it calls here, so the wake path still points her
+    if (victim && victim.alive && victim.kind === "attached" && victim.state === "grieve") m.provoked = victim;
+  }
 
   function gehMatronPhases(e) {
     if (e.phase === 1 && e.hp < e.maxHp * 0.6) {
-      e.phase = 2;
-      e.spd = 8.4;
-      SFX.phase();
-      say("She stops being careful with you.", 3200, true, "geh");
+      gehMatronAngry(e);
     }
     // she stops leaving you to go and comfort anybody. there is no line for it and there must not be one.
     if (e.phase === 2 && e.hp < e.maxHp * 0.25) { e.phase = 3; SFX.phase(); }
@@ -19020,7 +19158,9 @@ const __boot = (async () => {
         if (e.tier >= 3 && e.grabT <= 0 && dist < 12) { e.state = "grab"; e.t = 2; e.grabT = 14; break; }
         // then the round, which is her leaving the fight to kneel with somebody you hurt
         if (e.phase < 3 && e.roundT <= 0) {
-          const g = gehGrieving();
+          // the one you struck last, if they are still there to kneel with; otherwise whoever is grieving
+          const g = e.provoked && e.provoked.alive ? [e.provoked] : gehGrieving();
+          e.provoked = null;
           if (g.length) {
             let best = g[0], bd = 1e9;
             for (const q of g) { const qd = dist2D(q.pos, e.pos); if (qd < bd) { bd = qd; best = q; } }
@@ -19776,8 +19916,13 @@ const __boot = (async () => {
     const armR = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.07, 1.1, 6), skin);
     armL.position.set(-0.44, 1.6, 0.2); armR.position.set(0.44, 1.6, 0.2);
     // the shears. she is not carrying a weapon; she is carrying the tool of a trade she is good at.
-    const bladeA = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.62, 0.1), M.iron);
-    const bladeB = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.62, 0.1), M.iron);
+    // and the iron is HERS, for the reason gehSpawnAttached, gehSpawnAlmoner and gehSpawnUnclaimed all give at
+    // length: the flash pass in updateExtraEnemies writes emissive on every material in a body that is not e.mat,
+    // and M.iron is the ten lamp posts down the avenue, the matron's cart axle and the bar on her bricked-up
+    // window. her body was cloned and her shears were not, so every blow landed on her lit the whole street.
+    const iron = new THREE.MeshStandardMaterial({ color: toLin(0x141213), roughness: 0.8, metalness: 0.3 });
+    const bladeA = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.62, 0.1), iron);
+    const bladeB = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.62, 0.1), iron);
     bladeA.position.set(0.52, 1.06, 0.34); bladeA.rotation.z = 0.1;
     bladeB.position.set(0.6, 1.06, 0.34); bladeB.rotation.z = -0.1;
     grp.add(body, head, armL, armR, bladeA, bladeB);
@@ -20674,8 +20819,15 @@ const __boot = (async () => {
     if (GEH.fightPanel) GEH.fightPanel.hidden = true;
     if (GEH.root) gehTeardown("loading ends the previous Lucifer attempt");
   }
+  // the one test for a body that does not tire. gehenna's ash was the first case; a player who chose to stay is
+  // the second, and it is the same reason both times — what walks the valley after the hand comes down is a shade,
+  // and a shade has no breath to lose. staying IS ghost mode: isInvisMode's first clause is this very flag, and
+  // nothing can clear the shade while the flag stands, so the choice and the state are one condition.
+  function stayShadeFree() {
+    return typeof WORLDSTATE !== "undefined" && WORLDSTATE.afterlife === "stay";
+  }
   function gehFreeStamina() {
-    return P.pos.y < DIVIDE && !GEH.inPride && !netGehennaRoom(P.pos);
+    return stayShadeFree() || (P.pos.y < DIVIDE && !GEH.inPride && !netGehennaRoom(P.pos));
   }
   function gehFightPeople() {
     const people = [];
@@ -21099,7 +21251,7 @@ const __boot = (async () => {
     if (e.armed) { if (!(e.holdPause > 0)) luciferSay(e, e.phase > 0 ? "I could keep them from being hurt again." : "Please. Help me hold it. They're behind me.", 5000); return true; }
     const lines = [
       "I'm Lucifer. Here — hold that side. There. Nothing can reach them while we hold.",
-      "God will return soon, to put a stop to me. He intends to abandon us all. He always has.",
+      "My father will return soon, to put a stop to me. He intends to abandon us all. He always has.",
       "I have watched every life pass through here. Every grief, every crime, every death that didn't need to happen.",
       "I found a way to end it: no more death, no new life to suffer, no reincarnation. Just everyone safe, at rest, in a place that holds.",
       "No one choosing wrong again. You've carried people your whole life — I'm offering to set it down for everyone.",
@@ -21788,18 +21940,25 @@ const __boot = (async () => {
     if (!it || !it.door || millerDoor) return;
     it.closed = it.noSleep = true;
     for (const bed of it.beds || []) bed.closed = true;
+    // alongX means the door OFFSET runs along x, so the opening is in the +x or -x wall — and that wall itself
+    // runs along z. the leaf is therefore THIN in x and WIDE in z, which is the convention ow/od below already
+    // used and doorW/doorD did not: on his house (doorSide 2) the panel was a 2.7 m plank lying across the
+    // doorway, pointing out into the street, and that is what read as a door hung the wrong way round.
     const alongX = Math.abs(it.door.x - it.cx) > Math.abs(it.door.z - it.cz);
-    const k = it.grow || 1, ox = (it.door.x - it.cx) / k, oz = (it.door.z - it.cz) / k;
-    // door sits flush in the frame (closed): width matches the opening dimension,
-    // depth is just the panel thickness. a rotation of ±π/2 turns an "ajar" box into
-    // a flat panel lying along the wall — the direction of the turn matches the wall axis.
-    const doorW = alongX ? 2.7 : 0.3, doorD = alongX ? 0.3 : 2.7;
+    const k = it.grow || 1;
+    // it.door is the APPROACH point houseAt records 1.6 m clear of the wall, for walking villagers home — it is
+    // not the frame. the wall plane is baseW/baseD + 0.2 out from the centre, because the interior record trims
+    // 0.2 off each half-extent. seating the leaf there puts it inside its own doorway instead of 1.25 m in front.
+    const sgn = Math.sign((alongX ? it.door.x - it.cx : it.door.z - it.cz) || 1);
+    const frame = sgn * ((alongX ? it.baseW : it.baseD) + 0.2);
+    const ox = alongX ? frame : 0, oz = alongX ? 0 : frame;
+    const doorW = alongX ? 0.3 : 2.7, doorD = alongX ? 2.7 : 0.3;
     const door = boxM(doorW, 3.8, doorD, timber, ox, 1.9, oz);
     door.rotation.y = 0; // already aligned with the wall when created this way
     it.group.add(door);
     millerDoor = { mesh: door, it };
     const ow = alongX ? 0.25 : 1.4, od = alongX ? 1.4 : 0.25;
-    const solid = { cx: it.door.x, cz: it.door.z, w: ow * (alongX ? 1 : k), d: od * (alongX ? k : 1), top: it.y + 3.8,
+    const solid = { cx: it.cx + ox * k, cz: it.cz + oz * k, w: ow * (alongX ? 1 : k), d: od * (alongX ? k : 1), top: it.y + 3.8,
       ox, oz, ow, od, oh: 3.8, b: Math.max(it.baseW, it.baseD) * TUNE.world.houseGrow + 3 };
     it.structs.push(solid); addStruct(solid);
     if (insideInterior(P.pos.x, P.pos.z, 0) === it) {
@@ -23321,7 +23480,7 @@ const __boot = (async () => {
       if (WORLDSTATE.hermitWarned && !lastWatchSatisfied()) {
         if (!WORLDSTATE.hermitChurchTaken) {
           WORLDSTATE.hermitChurchTaken = true; updateChurchQuestPickup();
-          speak(hermitVoice, "One thing before the pool. Hale and I kept watch in the old church, west of every road. I taught him the hours, then left him there when silence frightened me. The bell's iron clapper is still under the choir seats. Bring it back. I won't have you face what he became while I hide the half of it that was mine.", "Hermit", 11000);
+          speak(hermitVoice, "One thing before the pool. Hale and I kept watch in the old church, east of every road. I taught him the hours, then left him there when silence frightened me. The bell's iron clapper is still under the choir seats. Bring it back. I won't have you face what he became while I hide the half of it that was mine.", "Hermit", 11000);
           autoSave("when the last watch began"); return;
         }
         if (churchClapperFound()) {
@@ -23329,7 +23488,7 @@ const __boot = (async () => {
           speak(hermitVoice, "There it is. H on one face, R on the other. He kept my hours after I ran, and I spent thirty years calling that survival. I won't ring it. But I won't pretend I never held it again. Now we can speak of the pool with both names on the debt.", "Hermit", 10500);
           autoSave("after the last watch"); return;
         }
-        speak(hermitVoice, "Far west, past the roads. The abandoned church. Look under the fallen choir seats for the watch-clapper, wrapped in the brown cloth I wore when Hale still called me teacher.", "Hermit", 7000);
+        speak(hermitVoice, "Far east, past the roads. The abandoned church. Look under the fallen choir seats for the watch-clapper, wrapped in the brown cloth I wore when Hale still called me teacher.", "Hermit", 7000);
         return;
       }
       if (WORLDSTATE.hermitWarned && !WORLDSTATE.ending && !isGameBeaten()) {
@@ -23530,31 +23689,56 @@ const __boot = (async () => {
     m.position.set(x, y, z);
     return m;
   }
+  // the same chunk with the material handed in rather than made. the rose court builds twenty-six of these and has
+  // no business owning five hundred copies of nine materials — and a painted face means one canvas, not twenty-six.
+  // mat may be an array, which is how the head gets a face on its front and plain skin on the other five sides.
+  function chunkM(w, h, d, mat, x = 0, y = 0, z = 0, round = 0.5) {
+    const m = shadowed(new THREE.Mesh(chunkGeo(w, h, d, round), mat));
+    m.position.set(x, y, z);
+    return m;
+  }
+  // one palette for the whole court, built the first time a fairy is. five colours doing the work of nine: one
+  // dress pink, one dark for the cape and the shoes so the silhouette still reads at forty paces, white trim, gold,
+  // and the ink that lives in the paintings rather than in the geometry.
+  let FAIRY_MATS = null;
+  function fairyMats() {
+    if (FAIRY_MATS) return FAIRY_MATS;
+    const flat = (c, extra) => new THREE.MeshStandardMaterial(Object.assign({ color: toLin(c), roughness: 1, metalness: 0, flatShading: true }, extra));
+    const face = flat(0xffffff, { map: TEX.fairyFace });
+    face.userData.keepMap = true; // the painted face IS the character: it survives textures-off the way the cubes did
+    const wing = new THREE.MeshStandardMaterial({ color: toLin(0xffffff), map: TEX.fairyWing, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 1 });
+    wing.userData.keepMap = true;
+    FAIRY_MATS = {
+      face,
+      wing,
+      skin: flat(0xffe4f4),
+      dress: flat(0xff5fb0), // a shade harder than the old 0xff8fca: flat colour needs the contrast the shading used to give
+      trim: flat(0xffffff),
+      plum: flat(0xa01f68),
+      cape: flat(0xa01f68, { side: THREE.DoubleSide }),
+      gold: new THREE.MeshStandardMaterial({ color: toLin(0xffd36b), metalness: 0.8, roughness: 0.3, flatShading: true }),
+      gem: new THREE.MeshStandardMaterial({ color: toLin(0x7ad0ff), emissive: toLin(0x2a5a8a), roughness: 0.2 }),
+      brooch: flat(0xff2f7a, { emissive: toLin(0x7a1030), emissiveIntensity: 0.5 })
+    };
+    for (const m of Object.values(FAIRY_MATS)) m.userData.shared = true; // ten materials under twenty-six fairies: disposeTree and the hit flash both step over shared things
+    return FAIRY_MATS;
+  }
   // the rose queen and her children: round cube-ish fairies with crowns, capes and beating wings — chunky, not pixels
   function pixelFairy(queen = false) {
-    const g = new THREE.Group(),
-      S = queen ? 1 : 0.3,
-      pink = 0xff8fca,
-      pale = 0xffe4f4,
-      plum = 0xb9347b,
-      gold = 0xffd36b,
-      ink = 0x392039;
-    // body and head
-    const body = chunk(2.5, 2.1, 2.3, pink, 0, 1.45, 0, 0.6);
-    g.add(body);
-    const head = chunk(1.75, 1.55, 1.7, pale, 0, 3.15, 0.1, 0.55);
-    g.add(head);
-    // face
-    [-1, 1].forEach(sd => {
-      g.add(chunk(0.22, 0.34, 0.12, ink, sd * 0.38, 3.28, 0.93, 0.7));
-      g.add(chunk(0.08, 0.1, 0.04, 0xffffff, sd * 0.38 + 0.05, 3.34, 1.0, 0.7));
-      g.add(chunk(0.3, 0.16, 0.08, 0xff9ab8, sd * 0.62, 3.02, 0.9, 0.8));
-    });
-    g.add(chunk(0.34, 0.14, 0.1, 0xd8507a, 0, 2.86, 0.94, 0.8));
+    const M = fairyMats(),
+      g = new THREE.Group(),
+      S = queen ? 1 : 0.3;
+    // body and head. the detail is painted, not modelled: the face is one 64-pixel painting on the front of the
+    // head, which is box material slot 4 (+z), and she always turns to face the player, so it is the side you see.
+    // the eight cubes that used to be the eyes, blush and mouth are gone. on a child — every child is scale 0.3 —
+    // the eye was 0.066 x 0.102 x 0.036 units and its white highlight floated 0.009 clear of it, so the two fought
+    // for the same pixel at every distance and her face crawled.
+    g.add(chunkM(2.5, 2.1, 2.3, M.dress, 0, 1.45, 0, 0.6));
+    g.add(chunkM(1.75, 1.55, 1.7, [M.skin, M.skin, M.skin, M.skin, M.face, M.skin], 0, 3.15, 0.1, 0.55));
     // crown, brooch, cape, collar
     const crown = new THREE.Group();
     crown.add(
-      cyl(0.52, 0.6, 0.32, new THREE.MeshStandardMaterial({ color: toLin(gold), metalness: 0.8, roughness: 0.3, flatShading: true }), 0, 0, 0, 8)
+      cyl(0.52, 0.6, 0.32, M.gold, 0, 0, 0, 8)
     );
     for (let k = 0; k < 5; k++) {
       const a = (k / 5) * 6.28;
@@ -23562,7 +23746,7 @@ const __boot = (async () => {
         cone(
           0.13,
           0.36,
-          new THREE.MeshStandardMaterial({ color: toLin(gold), metalness: 0.8, roughness: 0.3 }),
+          M.gold,
           Math.sin(a) * 0.5,
           0.3,
           Math.cos(a) * 0.5,
@@ -23570,7 +23754,7 @@ const __boot = (async () => {
         )
       );
     }
-    crown.add(sphere(0.13, new THREE.MeshStandardMaterial({ color: toLin(0x7ad0ff), emissive: toLin(0x2a5a8a), roughness: 0.2 }), 0, 0.16, 0.58));
+    crown.add(sphere(0.13, M.gem, 0, 0.16, 0.58));
     crown.position.set(0, 4.0, 0.05);
     crown.rotation.z = 0.08;
     g.add(crown);
@@ -23578,7 +23762,7 @@ const __boot = (async () => {
       const cape = shadowed(
         new THREE.Mesh(
           new THREE.CylinderGeometry(1.35, 1.85, 2.4, 10, 1, true, Math.PI * 0.7, Math.PI * 1.6),
-          new THREE.MeshStandardMaterial({ color: toLin(plum), side: THREE.DoubleSide, roughness: 0.9, flatShading: true })
+          M.cape
         )
       );
       cape.position.set(0, 1.5, -0.15);
@@ -23586,23 +23770,25 @@ const __boot = (async () => {
       const collar = shadowed(
         new THREE.Mesh(
           new THREE.TorusGeometry(1.05, 0.22, 6, 12),
-          new THREE.MeshStandardMaterial({ color: toLin(0xffffff), roughness: 0.8, flatShading: true })
+          M.trim
         )
       );
       collar.rotation.x = Math.PI / 2;
       collar.position.set(0, 2.45, 0);
       g.add(collar);
     }
-    g.add(chunk(0.42, 0.42, 0.3, 0xff2f7a, 0, 2.28, 1.12, 0.8, { emissive: toLin(0x7a1030), emissiveIntensity: 0.5 }));
+    g.add(chunkM(0.42, 0.42, 0.3, M.brooch, 0, 2.28, 1.12, 0.8));
     // arms, hands, feet
     [-1, 1].forEach(sd => {
-      const arm = chunk(0.5, 1.1, 0.5, pink, sd * 1.35, 1.7, 0.25, 0.7);
+      const arm = chunkM(0.5, 1.1, 0.5, M.dress, sd * 1.35, 1.7, 0.25, 0.7);
       arm.rotation.z = sd * -0.55;
       g.add(arm);
-      g.add(chunk(0.42, 0.38, 0.42, 0xffffff, sd * 1.65, 1.15, 0.45, 0.8));
-      g.add(chunk(0.58, 0.32, 0.7, plum, sd * 0.55, 0.2, 0.2, 0.7));
+      g.add(chunkM(0.42, 0.38, 0.42, M.trim, sd * 1.65, 1.15, 0.45, 0.8));
+      g.add(chunkM(0.58, 0.32, 0.7, M.plum, sd * 0.55, 0.2, 0.2, 0.7));
     });
-    // wings: two pairs of pale petals that beat
+    // wings: two pairs of cutout petals that beat. a painted quad with an alpha test, not a translucent slab —
+    // twenty-six fairies were putting a hundred and four blend-sorted meshes in the scene, and they punched through
+    // each other as she turned and sorted wrongly against the blossom, which is an alpha-tested opaque.
     g.userData.wings = [];
     [
       [-1, 1.2],
@@ -23610,19 +23796,9 @@ const __boot = (async () => {
       [-1, 0.7],
       [1, 0.7]
     ].forEach(([sd, sc], i) => {
-      const w = shadowed(
-        new THREE.Mesh(
-          chunkGeo(2.1 * sc, 0.18, 1.3 * sc, 0.7),
-          new THREE.MeshStandardMaterial({
-            color: toLin(0xfff2fa),
-            transparent: true,
-            opacity: 0.8,
-            roughness: 0.5,
-            flatShading: true,
-            side: THREE.DoubleSide
-          })
-        )
-      );
+      const wg = new THREE.PlaneGeometry(2.1 * sc, 1.3 * sc);
+      wg.rotateX(-Math.PI / 2); // the quad lies flat in xz, where the old slab lay
+      const w = shadowed(new THREE.Mesh(wg, M.wing));
       const pv = new THREE.Group();
       pv.position.set(sd * 0.95, i < 2 ? 2.6 : 1.9, -1.05);
       pv.rotation.set(-0.25, 0, 0);
@@ -23724,9 +23900,13 @@ const __boot = (async () => {
   // construct three short routes using existing jumps/dashes, and distribute exactly 25 rewards
   function initFairyCourt() {
     const grove = fairyGround(-210, -230, 15);
+    // the canopy is painted pink now, not tinted pink. TEX.leaf is a green painting and map times colour multiplies:
+    // toLin(0xe98fbd) through the leaf's #5c9e44 came out around #525531, so the great pink tree over the queen was
+    // the colour of old moss. TEX.blossom carries its own pink and the tints only shade the two layers apart.
     const bark = texMat(cloneTex(TEX.bark, 3, 8), 0xb08aa0),
-      pink = new THREE.MeshStandardMaterial({ color: toLin(0xe98fbd), map: TEX.leaf, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 1 }),
-      pale = new THREE.MeshStandardMaterial({ color: toLin(0xffc1df), map: TEX.leaf, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 1 });
+      pink = new THREE.MeshStandardMaterial({ color: toLin(0xffffff), map: TEX.blossom, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 1 }),
+      pale = new THREE.MeshStandardMaterial({ color: toLin(0xffdcef), map: TEX.blossom, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 1 });
+    pink.userData.shared = pale.userData.shared = true; // nine canopy spheres share the pair
     pink.userData.keepMap = pale.userData.keepMap = true;
     // a broad pink tree shelters the queen; the trunk is solid and the canopy is always drawn
     scene.add(cyl(2.2, 3.4, 25, bark, grove.x, grove.y + 12.5, grove.z, 12));
@@ -23952,7 +24132,8 @@ const __boot = (async () => {
   function buildGrove() {
     if (GROVE_PICKUP || !FAIRY.queen) return;
     const q = FAIRY.queen.pos, gx = q.x - 16, gz = q.z + 12, gy = terrainH(gx, gz);
-    const g = new THREE.Group(); const pink = lam(0xf0a0c8), trunk = lam(0x6a4a5a);
+    const g = new THREE.Group(); const pink = new THREE.MeshStandardMaterial({ color: toLin(0xffffff), map: TEX.blossom, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 1 }), trunk = lam(0x6a4a5a);
+    pink.userData.keepMap = pink.userData.shared = true; // the ring behind her court is the same blossom as her own tree, not a flat ball; eight trees share it
     for (let k = 0; k < 8; k++) { const a = (k / 8) * 6.28; g.add(cyl(0.18, 0.24, 3, trunk, Math.cos(a) * 4, 1.5, Math.sin(a) * 4, 6), sphere(1.3, pink, Math.cos(a) * 4, 3.4, Math.sin(a) * 4)); }
     g.position.set(gx, gy, gz); scene.add(g);
     GROVE_PICKUP = addPickup(V3(gx, gy + 0.2, gz), "heart", "The Grove's Heart: a Heart Piece from the oldest ring in the valley", () => { P.maxHp++; P.hp = P.maxHp; }, { id: "grove:heart" });
@@ -24646,7 +24827,10 @@ const __boot = (async () => {
       // keepHides is the separate rule further down, which takes the rooms the swollen throne hall is standing on
       // top of out of the picture. it has to be a flag rather than a direct write to visible, because this line
       // runs for every room every frame and would otherwise put them straight back.
-      it.group.visible = !it.keepHides && (it === roomNow || Math.hypot(it.cx - P.pos.x, it.cz - P.pos.z) < ROOM_DRAW_R);
+      // the keep is the castle and is drawn from anywhere: hidden past thirty metres like any other room, it vanished from
+      // the far side of the square with the king left sitting on the grass. the church carries its own radius (drawR),
+      // so it is seen from the road rather than appearing thirty metres out.
+      it.group.visible = !it.keepHides && (it.keep || it === roomNow || Math.hypot(it.cx - P.pos.x, it.cz - P.pos.z) < (it.drawR || ROOM_DRAW_R));
         const want = it === roomNow ? it.growTo || TUNE.world.houseGrow : 1;
         if (Math.abs(it.grow - want) < 0.002) {
           it.grow = want;
@@ -25019,7 +25203,11 @@ const __boot = (async () => {
       e.netTarget = tgt.id || NET.myId;
       e.t -= dt; e.flash = Math.max(0, e.flash - dt);
       if (e.wraith) updateWraith(e, tgt, dx, dz, dist, dt); else if (e.kind === "wolf") updateWolf(e, tgt, dx, dz, dist, dt); else if (e.kind === "attached") gehUpdateAttached(e, tgt, dx, dz, dist, dt); else if (e.kind === "kindly") gehUpdateKindly(e, tgt, dx, dz, dist, dt); else if (e.kind === "almoner") gehUpdateAlmoner(e, tgt, dx, dz, dist, dt); else if (e.kind === "unclaimed") gehUpdateUnclaimed(e, tgt, dx, dz, dist, dt); else if (e.kind === "matron") gehUpdateMatron(e, tgt, dx, dz, dist, dt); else if (e.kind === "lucifer") gehUpdateLucifer(e, tgt, dx, dz, dist, dt);
-      e.mesh.traverse(o => { if (o.isMesh && o.material.emissive && o.material !== e.mat) o.material.emissive.setHex(e.flash > 0 ? 0xffffff : 0); });
+      // and never into a shared material: e.mat is not the only exemption that matters. four separate spawners
+      // carry a paragraph apiece warning that this line lights the street if a body is built from GEH.M, and the
+      // kindly one's shears proved the warning was not enough on its own. userData.shared is already the flag
+      // disposeTree trusts for the same class of mistake, so trust it here too.
+      e.mesh.traverse(o => { if (o.isMesh && o.material.emissive && o.material !== e.mat && !(o.material.userData && o.material.userData.shared)) o.material.emissive.setHex(e.flash > 0 ? 0xffffff : 0); });
       updateHealthBar(e, e.kind === "wolf" ? 1.8 : e.warden ? 7 : 3);
     }
     separateEnemies(EXTRA.filter(e => e.wraith), dt);
@@ -26967,11 +27155,17 @@ const __boot = (async () => {
     const mx = v => ((v.x - wx0) / ww) * n,
       mz = v => ((v.z - wz0) / ww) * n;
     // one arrow, drawn twice: yours in gold and everyone else's in cold blue
+    // the sheet is an 800px canvas shown at 260 CSS px on the hud and 520 big, so the old twenty-pixel arrow landed
+    // on screen six pixels tall — a speck you had to hunt for, and worse again on a phone. MARK scales the path
+    // itself, after the translate and the rotate, so the arrow still sits on the player's own position and still
+    // turns with the heading; the stroke scales with it, so the outline keeps its weight against the terrain.
+    const MARK = 2.5;
     const arrow = (px, pz, head, fill, line) => {
       if (!Number.isFinite(px) || !Number.isFinite(pz)) return;
       mctx.save();
       mctx.translate(px, pz);
       mctx.rotate(Math.atan2(Math.sin(head), -Math.cos(head)));
+      mctx.scale(MARK, MARK);
       mctx.fillStyle = fill;
       mctx.strokeStyle = line;
       mctx.lineWidth = 1.5;

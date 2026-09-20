@@ -25,7 +25,9 @@
     check(matron.hp === hp - 10 && matron.state === 'round', 'full-damage comfort window survives a heavy hit');
     const cadence = matron.roundT;
     damageEnemy(residents[1], 99, P.pos, 0, true);
-    check(matron.roundT === cadence && GEH.woken === 2, 'later wakes cannot reset the comfort cadence');
+    check(matron.roundT === cadence && GEH.woken === 2, 'a second wake inside twelve seconds keeps the comfort cadence');
+    time += 13; damageEnemy(residents[1], 1, P.pos, 0, true);
+    check(matron.roundT === 0 && matron.provoked === residents[1] && matron.phase === 2, 'a blow on a grieving one after the cooldown sends her to them and she is no longer careful (3.3)');
 
     WORLDSTATE.gehMatronDown = WORLDSTATE.gehHeapDown = true;
     move(GEH.clerkPos.clone());

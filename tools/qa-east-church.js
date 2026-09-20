@@ -5,7 +5,7 @@
   check(church, "the seeded world did not instantiate the abandoned church");
   check(CHURCH_CLAPPER && CHURCH_CLAPPER.id === "church:watch-clapper", "the seeded church did not instantiate its explicit clapper pickup");
   check(CHURCH_CLAPPER.mesh.children.length > 0, "the clapper pickup has no visible geometry");
-  check(church.cx >= -650 && church.cx <= -550, `church center is not far west (${church.cx.toFixed(1)})`);
+  check(church.cx >= 550 && church.cx <= 650, `church center is not far east (${church.cx.toFixed(1)})`);
 
   const churchPickups = pickups.filter(p => p.id.startsWith("church:"));
   check(churchPickups.length >= 13, `only ${churchPickups.length} church items were built`);
@@ -44,7 +44,8 @@
   interact();
   check(WORLDSTATE.hermitChurchTaken, "real hermit interaction did not accept The Last Watch");
   check(!CHURCH_CLAPPER.hidden && CHURCH_CLAPPER.mesh.visible, "accepted quest did not reveal the clapper");
-  check(lastWatchObjective().text.startsWith("Find the old watch-clapper"), "accepted quest objective did not point west");
+  check(lastWatchObjective().text.startsWith("Find the old watch-clapper"), "accepted quest objective is not the clapper errand");
+  check(/far east/.test(lastWatchObjective().hint || ""), "accepted quest objective did not point east");
   renderQuestBook();
   check(document.getElementById("qb-main").textContent.includes("The Last Watch"), "The Last Watch is missing from the main journal");
   check(!document.getElementById("qb-side").textContent.includes("There is only this to do now"), "Last Watch hid the side-errand journal");

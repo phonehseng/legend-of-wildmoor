@@ -3,7 +3,7 @@ const fs = require('node:fs'), path = require('node:path'), crypto = require('no
 const assert = require('node:assert/strict');
 const {instrument,serve,loadPlaywright,browserPath} = require('./qa-game.cjs');
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
-const html = path.resolve(process.argv[2] || 'legend_of_peanits_v3.0.html');
+const html = path.resolve(process.argv[2] || 'legend_of_peanits_v3.3.html');
 const combatOnly = process.argv.includes('--combat-only');
 const minutesAt = process.argv.indexOf('--minutes');
 const minutes = minutesAt < 0 ? 10 : Number(process.argv[minutesAt + 1]);
@@ -62,7 +62,7 @@ async function main() {
     for(let i=1;i<count;i++)await connect(i);
     for(const p of pages)await p.waitForFunction(n=>window.__gameQa.run(`NET.avatars.size===${n-1}`),count,{timeout:25000});
     check('all clients see the full real WebRTC party',true);
-    check('protocol is 4 and channels have intended reliability',await run(0,`NET_PROTOCOL===4&&[...NET.peers.values()].every(p=>p.ch.ordered&&p.motion.readyState==='open'&&!p.motion.ordered&&p.motion.maxRetransmits===0)`));
+    check('protocol is 5 and channels have intended reliability',await run(0,`NET_PROTOCOL===5&&[...NET.peers.values()].every(p=>p.ch.ordered&&p.motion.readyState==='open'&&!p.motion.ordered&&p.motion.maxRetransmits===0)`));
     await run(0,`P.inv=.3;P.dodge=.3;P.flurry=0;P.block=false;enemyStrike({kind:'wraith',pos:V3(0,20,-2)},1,null);`);
     check('local melee dodge reference opens flurry',await run(0,'P.flurry===1.7'));
     await combat('remote valley melee dodge opens flurry',{},valley(false),s=>s.hp===20&&s.flurry===1.7);

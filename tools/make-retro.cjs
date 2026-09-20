@@ -9,13 +9,13 @@
 //
 //   node tools/make-retro.cjs [source.html] [target.html]
 //
-// defaults: legend_of_peanits_v3.0.html -> legend_of_peanits_v3.2_retro.html
+// defaults: legend_of_peanits_v3.3.html -> legend_of_peanits_v3.3_retro.html
 const fs = require("fs");
 const path = require("path");
 
-const SRC = path.resolve(process.argv[2] || "legend_of_peanits_v3.0.html");
-const OUT = path.resolve(process.argv[3] || "legend_of_peanits_v3.2_retro.html");
-const VERSION = "3.2";
+const SRC = path.resolve(process.argv[2] || "legend_of_peanits_v3.3.html");
+const OUT = path.resolve(process.argv[3] || "legend_of_peanits_v3.3_retro.html");
+const VERSION = "3.3";
 
 let html = fs.readFileSync(SRC, "utf8").replace(/\r\n/g, "\n");
 const edits = [];
@@ -47,14 +47,14 @@ edit(
     "filtering, lighting worked out per vertex, vertices snapped to the pixel grid, affine texture warp and 15-bit dithered colour. gameplay, saves and\n" +
     "multiplayer are the main build's, untouched; look for \"the 1998 renderer\" in the script. built from the main file by tools/make-retro.cjs"
 );
-edit("title", "<title>Legend of Peanits 3.0</title>", `<title>Legend of Peanits ${VERSION} Retro</title>`);
+edit("title", `<title>Legend of Peanits ${VERSION}</title>`, `<title>Legend of Peanits ${VERSION} Retro</title>`);
 edit(
   "canvas css",
   "canvas#game { display: block; width: 100vw; height: 100vh; cursor: none; }",
   "canvas#game { display: block; width: 100vw; height: 100vh; cursor: none; image-rendering: pixelated; image-rendering: crisp-edges; }"
 );
-edit("hud version", '<span class="quest-version">3.0</span>', `<span class="quest-version">${VERSION}r</span>`);
-edit("pause edition", '<div class="edition">LEGEND OF PEANITS 3.0</div>', `<div class="edition">LEGEND OF PEANITS ${VERSION} RETRO</div>`);
+edit("hud version", `<span class="quest-version">${VERSION}</span>`, `<span class="quest-version">${VERSION}r</span>`);
+edit("pause edition", `<div class="edition">LEGEND OF PEANITS ${VERSION}</div>`, `<div class="edition">LEGEND OF PEANITS ${VERSION} RETRO</div>`);
 after(
   "settings controls",
   '      <p id="graphics-status" role="status" aria-live="polite"></p>\n',
@@ -604,12 +604,12 @@ edit(
   "      townDrawDistance: 60, // metres you can see inside the walls before the beacon is lit",
   "      townDrawDistance: 110, // metres you can see inside the walls before the beacon is lit (sixty in the main build: at 240 lines the fill is cheap, and a house that arrived at sixty arrived late)"
 );
-// the keep is the castle. drawn only within thirty metres like any other room, it vanished from the far side of the
-// square and left the king sitting on the grass
+// every room is drawn as far as the view reaches (the main build draws a room's inside within thirty metres, the
+// keep and the church excepted), so a house does not arrive with its inside missing
 edit(
-  "keep always drawn",
-  "      it.group.visible = !it.keepHides && (it === roomNow || Math.hypot(it.cx - P.pos.x, it.cz - P.pos.z) < ROOM_DRAW_R);",
-  "      it.group.visible = !it.keepHides && (it.keep || it === roomNow || Math.hypot(it.cx - P.pos.x, it.cz - P.pos.z) < camera.far); // the keep is the castle, and is drawn from anywhere; every other room is drawn as far as the view reaches, so a house does not arrive with its inside missing (thirty metres in the main build)"
+  "rooms to the view distance",
+  "      it.group.visible = !it.keepHides && (it.keep || it === roomNow || Math.hypot(it.cx - P.pos.x, it.cz - P.pos.z) < (it.drawR || ROOM_DRAW_R));",
+  "      it.group.visible = !it.keepHides && (it.keep || it === roomNow || Math.hypot(it.cx - P.pos.x, it.cz - P.pos.z) < camera.far); // retro: every room is drawn as far as the view reaches, so a house does not arrive with its inside missing"
 );
 // gehenna stays built once it is built (retroGehennaResident raises it at boot); only the after-story's own grace
 // period still takes it down, so its closing beat can be the valley heard from outside as it was written

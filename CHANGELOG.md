@@ -2,6 +2,35 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.3 — the second playthrough
+
+[screenshots + download](docs/updates/3.3.md) · [test notes](docs/QA_3.3.md)
+
+from here the main build and the retro edition share a version: `legend_of_peanits_v3.3.html` is the game, and `legend_of_peanits_v3.3_retro.html` is made from it by `tools/make-retro.cjs`. everything below is in both.
+
+- **hitting the clerk's sister lit every lamp post in gehenna.** the kindly one's body was built from her own materials, as every gehenna boss is, but her shears were the shared iron — the same material as the ten lamp posts down the avenue, the matron's cart axle and the bar on her window — and the hit flash writes emissive into every material on a struck body. her shears are her own iron now, and the flash pass skips any shared material as well, so the class of mistake cannot come back.
+- **the clerk goes quiet once she has called her sister, and her sister answers.** the clerk stayed interactable for ever, two metres from the woman she had just summoned, so the player at the desk kept re-hearing her last line instead of reaching the kindly one. once called she has no prompt and nothing to say until gehenna is done and the ledger is hers to hand over; and the kindly one's first line is delivered on the dialogue chain straight out of the clerk's last sentence, broadcast to the whole party as every gehenna line is. the second line, the one that opens the fight, still waits for the player.
+- **the clerk's line about the fairy queen is gone.** "The Fairy Queen does not hold you, oddly enough." set no flag; her sister is still called on her last line.
+- **the matron takes any blow on her ward personally.** only the first waking used to move her, and only if it was the first. now every blow on anyone she is minding — a seated one, a grieving one, whoever struck it — stops her being careful with you at once (the same phase two her own wounds bring on) and sends her running to the one you struck at her next safe pause.
+- **the fairy queen's tree was the colour of old moss, and she is painted now.** the canopy tinted the green leaf painting pink, and a tint multiplies: pink through green is mud. the canopy has its own blossom painting. and she and her children are drawn the way a handheld drew things: a face painted once on the front of the head instead of eight cubes a centimetre across fighting for the same pixel, cutout wings with an ink rim instead of translucent slabs punching through each other, five flat colours doing the work of nine, and one shared palette for the whole court instead of five hundred materials.
+- **lucifer says "my father".** the one line where he named his father said "God".
+- **the abandoned church stands in the east now**, in the band x 550..650 that the siting search used to pin to the west, with the hermit's directions, the journal hint and the church test following it. and it is drawn from as far as the fog allows instead of appearing thirty metres out: it was a room like any other under the room-draw rule, and rooms carry their own draw radius now. the network protocol is 5, so a host and a guest on different builds refuse each other instead of building the church in two places.
+- **the castle no longer vanishes from across the square.** the keep was hidden past thirty metres like any other room; it is drawn from anywhere now. (the retro edition had this since 3.2.)
+- **the map arrow is two and a half times bigger**, on the minimap and the big map, and still turns with you.
+- **staying is a shade, and a shade does not tire.** a player who chose to stay at the end is in ghost mode, and their stamina never drains: the one predicate that already made gehenna's ash free now counts staying too, so the bar, the drains that bypass it and the save all follow.
+- **the elder tree's trunk is solid from the roots up, and its bark is the rail on the inner edge of the stair.** the trunk was two solids whose collision windows began at 102 m and 16 m, so the bark was open at the roots and open again from 55 m to 102 m — most of the climb — which read as the collision being raised. it is banded now, every band under the window's height, and each band a wall rather than a floor so a climber never steps onto an invisible disc inside the tree. the stair's inner lip is at exactly the trunk's radius, so the same wall stops you stepping left into the bark.
+- **ysolde's father's door hung sideways in the street.** the closed leaf's width and thickness were swapped against the wall it closes (the collision box beside it had them right), so it stood across the doorway like a fin; and it was placed at the villagers' waiting spot a metre and a half out from the wall. it lies in its own frame now, and the block moves with it.
+
+### found in review and fixed before release
+- **the matron's new rule was an exploit.** as first written, every blow on a seated one zeroed her round cooldown, so a player could tap one every few seconds and keep her kneeling at guard one — five times the damage — for as long as they liked; and it recorded the seated one as the person to kneel with, someone who had not been woken. she now runs to a struck ward at most once in twelve seconds (the anger is not on the clock), and only to someone who is grieving.
+- **her "stops being careful" line was local.** a guest whose blow provoked her saw her change gait with no word said. the line goes over the wire now, from one place, whether her own wounds or a blow on her ward brought it on.
+- **the rose court's ten shared materials now say they are shared**, as gehenna's do, so a future teardown or hit flash steps over them. nothing disposes a fairy today; this is the shape of the shears bug, closed before it can happen.
+- **the church test now checks the direction the hint gives**, not just its wording.
+
+### refuted / known
+- `qa-gehenna-choice` is stale past its matron section on every build, 3.0 included: its lucifer half sets a field that does not exist. its matron checks pass with the new rule.
+- the retro edition draws the church to its own view distance (240 m) rather than the 4000 m radius the main build gives it; both are far past where it used to appear.
+
 ## 3.2 retro — what a first playthrough found
 
 the retro file is `legend_of_peanits_v3.2_retro.html`; the main 3.0 file is still untouched. everything here came from playing the 3.1.1 build.
