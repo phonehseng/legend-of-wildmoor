@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 3.3.3</title>
+<title>Legend of Peanits 3.4</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#1b1626, #0d0a14); --edge: #6c583a; --hi: #8a6a3e; }
@@ -519,6 +519,46 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   .credits-roll p { margin:70px auto !important; }
   @keyframes creditsRoll { from { transform:translateY(65vh); } to { transform:translateY(-65vh); } }
   @media(prefers-reduced-motion:reduce) { .credits-roll { animation:none; } }
+
+  /* the pause menu: a slam-in card with tabs down the side, cut on the diagonal, in the game's own gold and ink */
+  #pause { background: linear-gradient(112deg, #0d081ef2 0 46%, #e0b45a 46% 46.6%, #14102af0 46.6% 100%); align-items: stretch; justify-content: flex-start; overflow: hidden; }
+  #pause::before { content: ""; position: absolute; inset: -30% -20%; background: repeating-linear-gradient(112deg, transparent 0 38px, #e0b45a0e 38px 40px); pointer-events: none; animation: pm-drift 16s linear infinite; }
+  @keyframes pm-drift { to { transform: translateX(-80px); } }
+  .pmenu { position: relative; display: grid; grid-template-columns: 290px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); width: 100%; height: 100%; padding: 30px 84px 34px 52px; gap: 6px 40px; }
+  .pm-head { grid-column: 1 / -1; animation: pm-in .42s cubic-bezier(.16,1.2,.3,1) both; }
+  .pm-head .edition { font-size: 10px; letter-spacing: .3em; color: var(--gold); }
+  .pm-title { font-size: clamp(34px, 6vw, 72px); font-weight: 900; line-height: .88; letter-spacing: -.045em; color: var(--bone); transform: skewX(-9deg); text-shadow: 5px 5px 0 #000, 8px 8px 0 var(--gold); margin: 4px 0 6px; }
+  .pm-tabs { display: flex; flex-direction: column; gap: 10px; align-self: start; padding-top: 18px; }
+  .pm-tab { position: relative; text-align: left; font: inherit; font-weight: 900; font-size: 21px; letter-spacing: .14em; text-transform: uppercase; color: var(--bone); background: #05030c; border: 0; padding: 12px 26px 12px 30px; clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%); transform: skewX(-9deg); cursor: pointer; opacity: 0; animation: pm-tab-in .34s cubic-bezier(.18,.86,.34,1) forwards; animation-delay: calc(var(--i, 0) * 45ms + 140ms); transition: background .14s, color .14s, margin-left .14s; }
+  .pm-tab:hover { background: #1a1030; margin-left: 10px; }
+  .pm-tab.on { background: var(--gold); color: #1a1206; margin-left: 18px; box-shadow: -6px 6px 0 #000; }
+  .pm-panes { position: relative; min-height: 0; }
+  .pm-pane { display: none; height: 100%; overflow-y: auto; padding: 24px 30px 30px; background: #f4ead2; color: #1a1206; clip-path: polygon(0 0, 100% 0, 100% calc(100% - 28px), calc(100% - 28px) 100%, 0 100%); box-shadow: -8px 8px 0 #000; animation: pm-in .32s cubic-bezier(.16,1.1,.3,1) both; }
+  .pm-pane.on { display: block; }
+  .pm-pane.on > * { animation: pm-slide .28s cubic-bezier(.18,.86,.34,1) both; animation-delay: calc(var(--i, 0) * 30ms + 90ms); }
+  .pm-pane h3 { display: inline-block; font-size: 13px; font-weight: 900; letter-spacing: .2em; text-transform: uppercase; color: #fff; background: #1a1206; padding: 5px 14px 4px 10px; margin: 16px 0 10px; transform: skewX(-9deg); box-shadow: 4px 4px 0 var(--gold); }
+  .pm-pane h3:first-child { margin-top: 0; }
+  .pm-row { display: flex; flex-wrap: wrap; gap: 8px 10px; margin: 4px 0 8px; }
+  #pause .btn { transform: skewX(-6deg); box-shadow: inset 0 2px 0 #fff4d838, 5px 5px 0 #1a1206; }
+  #pause .btn:hover { transform: skewX(-6deg) translate(2px, -2px); }
+  #pause .btn.pm-danger { background: linear-gradient(130deg, #e06060, #a83030); border-color: #ffb0b0; color: #fff; }
+  #pause label { display: block; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .14em; color: #7a5a2a; margin: 14px 0 6px; }
+  #pause .row { display: flex; gap: 10px; align-items: center; font-size: 14px; margin: 8px 0; }
+  #pause .row label { text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 600; color: #1a1206; margin: 0; }
+  #pause input[type=range] { width: 100%; accent-color: #b8823f; }
+  #pause input[type=checkbox] { accent-color: #b8823f; width: 17px; height: 17px; }
+  #pause input[type=text], #pause textarea { font: inherit; background: #fffaf0; color: #1a1206; border: 2px solid #1a1206; border-radius: 0; padding: 8px 10px; }
+  #pause p { color: #3a2c1a; line-height: 1.55; font-size: 13px; margin: 6px 0; }
+  #pause .pm-note { font-size: 12px; color: #6a5238; }
+  #pause .pm-keys { font-size: 13px; line-height: 1.8; color: #3a2c1a; } #pause .pm-keys b { display: inline-block; color: #1a1206; background: #e0b45a; padding: 0 6px; margin: 0 1px; transform: skewX(-6deg); }
+  #pause #skills { font-size: 13px; } #pause #skills .sk b { color: #1a1206; } #pause #skills .sk i { background: #1a120626; } #pause #skills .sk i s { background: #b8823f; } #pause #skills .sk small { color: #8a5a1a; font-weight: 700; }
+  #pause details summary { color: #7a5a2a; }
+  #pause #graphics-status, #pause #r-status, #pause #mpStatus, #pause #mpHint { color: #3a2c1a; }
+  @keyframes pm-in { from { opacity: 0; transform: translate3d(-36px, 0, 0); } }
+  @keyframes pm-slide { from { opacity: 0; transform: translate3d(42px, 0, 0); } }
+  @keyframes pm-tab-in { from { opacity: 0; margin-left: -48px; } to { opacity: 1; } }
+  @media (max-width: 900px) { .pmenu { grid-template-columns: 1fr; grid-template-rows: auto auto minmax(0, 1fr); padding: 18px 16px 20px; gap: 8px; } .pm-tabs { flex-direction: row; flex-wrap: wrap; gap: 6px; padding-top: 4px; } .pm-tab { font-size: 13px; padding: 8px 18px 8px 14px; } .pm-tab.on { margin-left: 0; } .pm-title { font-size: 34px; } }
+  @media (prefers-reduced-motion: reduce) { #pause *, #pause::before { animation: none !important; } .pm-tab { opacity: 1; } }
 </style>
 </head>
 <body class="loading">
@@ -534,7 +574,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.3.3</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.4</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -603,39 +643,57 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- pause: game interface element -->
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
-    <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 3.3.3</div><h2>Take a breather<span class="brand-dot">.</span></h2>
-      <div class="pause-grid"><div>
+    <div class="pmenu">
+      <div class="pm-head"><div class="edition">LEGEND OF PEANITS 3.4</div><h2 class="pm-title">Take a<br>breather<span class="brand-dot">.</span></h2></div>
+      <nav class="pm-tabs" aria-label="Pause menu">
+        <button class="pm-tab on" data-pane="pm-play" style="--i:0">Play</button>
+        <button class="pm-tab" data-pane="pm-skills" style="--i:1">Skills</button>
+        <button class="pm-tab" data-pane="pm-sound" style="--i:2">Sound</button>
+        <button class="pm-tab" data-pane="pm-picture" style="--i:3">Picture</button>
+        <button class="pm-tab" data-pane="pm-save" style="--i:4">Save</button>
+        <button class="pm-tab" data-pane="pm-friends" style="--i:5">Friends</button>
+      </nav>
+      <div class="pm-panes">
+        <section class="pm-pane on" id="pm-play">
+          <h3>Carry on</h3>
+          <div class="pm-row"><button id="resume" class="btn">Resume</button><button id="restartBtn" class="btn pm-danger">Restart</button></div>
+          <p class="pm-note">Esc also resumes.</p>
+          <h3>The keys</h3>
+          <div class="pm-keys"><b>W A S D</b> move · <b>Shift</b> run · <b>Space</b> jump · <b>X</b> slide · <b>C</b> dash<br><b>Left click</b> swing · <b>Right click</b> or <b>K</b> shield · <b>1 2 3</b> weapons<br><b>E</b> talk, pick up, sleep · <b>M</b> map · <b>Tab</b> stats · <b>I</b> satchel · <b>J</b> quests · <b>L</b> logs · <b>N</b> guide arrow</div>
+          <h3>Controls</h3>
+          <label>Mouse sensitivity <span id="s-sens-val" style="opacity:.7;font-variant-numeric:tabular-nums">1.0</span></label><input type="range" id="s-sens" min=".1" max="2" step=".05" value="1">
+          <div class="row"><input type="checkbox" id="s-arrow" checked><label for="s-arrow" style="margin:0">Guide arrow to the current task</label></div>
+          <div class="row"><input type="checkbox" id="s-fps"><label for="s-fps" style="margin:0">Show frame rate</label></div>
+        </section>
+        <section class="pm-pane" id="pm-skills">
+          <h3>Practice makes you better</h3>
+          <div id="skills"></div>
+          <span id="found" class="hidden"></span>
+        </section>
+        <section class="pm-pane" id="pm-sound">
+          <h3>Sound</h3>
+          <label>Sound effects</label><input type="range" id="s-sfx" min="0" max="1" step=".05" value=".8">
+          <label>Ambience (wind, insects, birds, water)</label><input type="range" id="s-amb" min="0" max="1" step=".05" value=".7">
+          <label>Music</label><input type="range" id="s-music" min="0" max="1" step=".05" value=".5">
+          <div class="row"><input type="checkbox" id="s-voice" checked><label for="s-voice" style="margin:0">Spoken dialogue</label></div>
+        </section>
+        <section class="pm-pane" id="pm-picture">
+          <h3>Picture</h3>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
       <p id="graphics-status" role="status" aria-live="polite"></p>
-      <!-- s-sfx: pause-menu setting or control -->
-      <label>Sound effects</label><input type="range" id="s-sfx" min="0" max="1" step=".05" value=".8">
-      <!-- s-amb: pause-menu setting or control -->
-      <label>Ambience (wind, insects, birds, water)</label><input type="range" id="s-amb" min="0" max="1" step=".05" value=".7">
-      <!-- s-music: pause-menu setting or control -->
-      <label>Music</label><input type="range" id="s-music" min="0" max="1" step=".05" value=".5">
-      <!-- s-sens: pause-menu setting or control -->
-      <label>Mouse sensitivity <span id="s-sens-val" style="opacity:.7;font-variant-numeric:tabular-nums">1.0</span></label><input type="range" id="s-sens" min=".1" max="2" step=".05" value="1">
-      <!-- s-voice: pause-menu setting or control -->
-      <div class="row"><input type="checkbox" id="s-voice" checked><label for="s-voice" style="margin:0">Spoken dialogue</label></div>
-      <!-- s-fps: pause-menu setting or control -->
-      <div class="row"><input type="checkbox" id="s-fps"><label for="s-fps" style="margin:0">Show frame rate</label></div>
-      <!-- s-arrow: pause-menu setting or control -->
-      <div class="row"><input type="checkbox" id="s-arrow" checked><label for="s-arrow" style="margin:0">Guide arrow to the current task</label></div>
-      <!-- s-grass: removed with the ground cover. nothing to toggle, so the row is gone rather than left dead.
-      <div class="row"><input type="checkbox" id="s-grass"><label for="s-grass" style="margin:0">Tall grass and flowers</label></div> -->
-      <!-- skills: game interface element -->
-      </div><div>
-      <label>Skills — practice makes you better</label><div id="skills"></div>
-      <span id="found" class="hidden"></span>
-      <!-- resume: game interface element -->
-      <button id="resume" class="btn">Resume</button><button id="saveBtn" class="btn">Save key</button><button id="loadBtn" class="btn">Load key</button><button id="restartBtn" class="btn">Restart</button>
-      <p id="autoNote" style="font-size:12px;margin:12px 0 0;opacity:.8;line-height:1.55"></p>
-      <div id="saveBox" class="hidden" style="margin-top:10px"><p style="font-size:13px">Copy this key somewhere safe. Paste it back with <b>Load key</b> to resume.</p><p id="saveKeyWarn" class="hidden" style="font-size:12px;color:#ff658c;line-height:1.5"></p><textarea id="saveKey" style="width:100%;height:70px;font-size:11px;user-select:text;-webkit-user-select:text"></textarea></div>
-      </div><div>
-      <label>Play with a friend — no server, straight between your browsers</label>
-      <p style="font-size:12px;opacity:.85;margin:0 0 6px">One of you presses <b>Host</b> and gets a four-digit code; the other types it and presses <b>Join</b>. The two browsers meet on a public message board just long enough to find each other, then talk directly — no game server anywhere. Share story quests and boss fights with up to 16 players. The finder returns quest items. Story rewards go to everyone; optional errands and skills stay personal. The host can turn PvP on.</p>
+        </section>
+        <section class="pm-pane" id="pm-save">
+          <h3>Save and load</h3>
+          <div class="pm-row"><button id="saveBtn" class="btn">Save key</button><button id="loadBtn" class="btn">Load key</button></div>
+          <p id="autoNote" class="pm-note"></p>
+          <div id="saveBox" class="hidden" style="margin-top:10px"><p style="font-size:13px">Copy this key somewhere safe. Paste it back with <b>Load key</b> to resume.</p><p id="saveKeyWarn" class="hidden" style="font-size:12px;color:#ff658c;line-height:1.5"></p><textarea id="saveKey" style="width:100%;height:70px;font-size:11px;user-select:text;-webkit-user-select:text"></textarea></div>
+          <div id="loadBox" class="hidden" style="margin-top:10px"><textarea id="loadKey" placeholder="paste a save key here" style="width:100%;height:60px;font-size:11px;user-select:text;-webkit-user-select:text"></textarea><button id="loadGo" class="btn">Resume from key</button></div>
+        </section>
+        <section class="pm-pane" id="pm-friends">
+          <h3>Play with a friend</h3>
+          <p class="pm-note">No server: straight between your browsers.</p>
+          <p style="font-size:12px;opacity:.85;margin:0 0 6px">One of you presses <b>Host</b> and gets a four-digit code; the other types it and presses <b>Join</b>. The two browsers meet on a public message board just long enough to find each other, then talk directly — no game server anywhere. Share story quests and boss fights with up to 16 players. The finder returns quest items. Story rewards go to everyone; optional errands and skills stay personal. The host can turn PvP on.</p>
       <div class="row" style="gap:8px;align-items:center"><button id="mpHostCode" class="btn">Host: get a code</button><input type="text" id="mpCode" inputmode="numeric" maxlength="4" placeholder="code" style="width:80px;font-size:18px;letter-spacing:.2em;text-align:center"><button id="mpJoinCode" class="btn">Join</button></div>
       <details style="margin-top:6px"><summary style="font-size:12px;cursor:pointer">No luck with codes? Long codes by hand</summary>
       <div class="row"><button id="mpHost" class="btn">New invite code</button><button id="mpJoin" class="btn">Join with an invite</button></div>
@@ -643,9 +701,8 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
       </details>
       <label style="display:block;font-size:12px;margin:10px 0"><input id="mpPvp" type="checkbox"> pvp · allow players to hurt each other (host sets this)</label>
       <p id="mpStatus" style="font-size:12px;opacity:.9;margin:6px 0 0"></p>
-      <div id="loadBox" class="hidden" style="margin-top:10px"><textarea id="loadKey" placeholder="paste a save key here" style="width:100%;height:60px;font-size:11px;user-select:text;-webkit-user-select:text"></textarea><button id="loadGo" class="btn">Resume from key</button></div>
-      </div></div>
-      <p style="margin-top:10px;font-size:12px;opacity:.8">Esc also resumes.</p>
+        </section>
+      </div>
     </div>
   </div>
 </div>
@@ -989,6 +1046,12 @@ const __boot = (async () => {
       (typeof BURIAL !== "undefined" && BURIAL.carrier && (BURIAL.phase === "carry" || BURIAL.phase === "bury"))
     );
   const rootReadable = () => { const q = SIDE.find(q => q.who === "Nim's mother"); return !!(q && q.done); };
+  // an errand for herbs counts only the herbs picked after it was asked for. the four the hermit is shown stay in the
+  // bag, and used to have the miller's and the healer's errands complete before either had been spoken
+  // what the story still wants out of the bag: the four the hermit has yet to be shown, and any open errand's count.
+  // maren's heal takes three at a press and used to take them from all of it
+  const herbsOwed = () => (!gaveHerbs && !lit ? 4 : 0) + SIDE.reduce((n, q) => n + (q.taken && !q.done ? { "cloudrest-herbs": 3, "ysolde-herb": 1 }[q.wireId] || 0 : 0), 0);
+  const herbsSince = key => Math.max(0, (STORY.herbsPicked || 0) - (STORY[key] === undefined ? STORY.herbsPicked || 0 : STORY[key]));
   const villageQuests = () => SIDE.filter(q => q.giver && q.giver.village !== undefined);
   const villagesDone = () => villageQuests().filter(q => q.done).length;
   // the valley's difficulty grows with what you carry: enemies hit harder and last longer the further the story goes
@@ -1895,6 +1958,16 @@ const __boot = (async () => {
         g.stroke();
       }
     }),
+    // the pale trees' bark: birch-white, with a handful of dark lenticels instead of the oak's four hundred lines
+    paleBark: makeTex(256, (g, s) => {
+      g.fillStyle = "#e2dacb";
+      g.fillRect(0, 0, s, s);
+      speck(g, s, 900, ["#d8d0c0", "#ebe4d6", "#cfc6b5"], 4, 3);
+      for (let i = 0; i < 26; i++) {
+        g.fillStyle = pick(["#8a7a68", "#6f6152", "#9c8d7a"], rnd());
+        g.fillRect(rnd() * s, rnd() * s, 4 + rnd() * 12, 1 + rnd() * 2);
+      }
+    }),
     plaster: makeTex(256, (g, s) => {
       g.fillStyle = "#e3d9c4";
       g.fillRect(0, 0, s, s);
@@ -2558,7 +2631,9 @@ const __boot = (async () => {
       }
     }
     {
-      const it = insideInterior(x, z, 0);
+      // floorPad: a room whose floor slab reaches past its walkable boundary (the keep's, through the doorway) keeps its
+      // floor under your feet that far out, scaled with the room, so walking out does not put the slab over your boots
+      const it = insideInterior(x, z, 0) || (() => { for (const r of interiors) if (r.floorPad && insideInterior(x, z, r.floorPad * (r.grow || 1)) === r) return r; return null; })();
       if (it && it.floorTop && y > it.y - 1 && y < it.y + it.h) h = Math.max(h, it.y + it.floorTop * (it.group ? it.group.scale.y : 1)); // the room's floorboards are the ground inside it
     }
     return h;
@@ -3878,8 +3953,12 @@ const __boot = (async () => {
       scene.add(m);
       return m;
     };
-    const barkI = texMat(cloneTex(TEX.bark, 2, 6), 0xffffff, 1);
+    const barkI = texMat(cloneTex(TEX.bark, 2, 6), 0xffffff, 1),
+      paleI = texMat(cloneTex(TEX.paleBark, 2, 6), 0xffffff, 1);
+    // the pale trees have a trunk mesh of their own, on the pale bark, so they are pale by texture and not by a tint
+    // that kept the oak's lines
     const trunkM = inst(new THREE.CylinderGeometry(0.42, 0.9, 13, 12).translate(0, -1.5, 0), barkI, N),
+      paleM = inst(new THREE.CylinderGeometry(0.42, 0.9, 13, 12).translate(0, -1.5, 0), paleI, N),
       rootM = inst(new THREE.CylinderGeometry(0.08, 0.55, 3.2, 6), barkI.clone(), N * 5),
       branchM = inst(new THREE.CylinderGeometry(0.1, 0.3, 4.5, 6), barkI.clone(), N * 5);
     {
@@ -3894,7 +3973,7 @@ const __boot = (async () => {
       p = V3(),
       e = new THREE.Euler(),
       col = new THREE.Color();
-    TREEMESH = { trunkM, rootM, branchM, leafM, set: null };
+    TREEMESH = { trunkM, paleM, rootM, branchM, leafM, set: null };
     rootM.visible = false;
     const set = (im, idx, x, y, z, sx, sy, sz, rx = 0, ry = 0, rz = 0) => {
       e.set(rx, ry, rz);
@@ -3910,17 +3989,20 @@ const __boot = (async () => {
         T = t.tk,
         y = t.y;
       col.setHSL(0.28 + t.hue, 0.5, 0.35 + t.light * 0.3);
+      paleM.setColorAt(i, new THREE.Color(1, 1, 1)); // every slot, or the unset ones read as black
       if (t.weak) {
         const c2 = new THREE.Color(2.1, 2.0, 1.85);
         col.setHSL(0.2, 0.18, 0.5);
         trunkM.setColorAt(i, c2);
-        for (let k = 0; k < 5; k++) rootM.setColorAt(i * 5 + k, c2);
+        for (let k = 0; k < 5; k++) { rootM.setColorAt(i * 5 + k, c2); branchM.setColorAt(i * 5 + k, c2); }
       } else {
         const c3 = new THREE.Color(1, 1, 1);
         trunkM.setColorAt(i, c3);
         for (let k = 0; k < 5; k++) rootM.setColorAt(i * 5 + k, c3);
       }
-      set(trunkM, i, t.x, y + 5 * S, t.z, S * T, S, S * T, t.lean, t.a, t.lean * 0.5);
+      // the trunk goes on the mesh for its kind; the other mesh keeps a zero-scaled slot at the same index
+      set(t.weak ? paleM : trunkM, i, t.x, y + 5 * S, t.z, S * T, S, S * T, t.lean, t.a, t.lean * 0.5);
+      set(t.weak ? trunkM : paleM, i, 0, -100, 0, 0, 0, 0);
       {
         const bp = V3(0, -5, 0).applyMatrix4(m);
         t.bx = bp.x;
@@ -3981,6 +4063,7 @@ const __boot = (async () => {
       if (dist2D(t, CAVE) < 27) {
         const m0 = new THREE.Matrix4().makeScale(0, 0, 0);
         trunkM.setMatrixAt(t.ix, m0);
+        paleM.setMatrixAt(t.ix, m0);
         for (let k = 0; k < 5; k++) {
           rootM.setMatrixAt(t.ix * 5 + k, m0);
           branchM.setMatrixAt(t.ix * 5 + k, m0);
@@ -4000,13 +4083,15 @@ const __boot = (async () => {
         return m;
       };
       t.mats = {
-        trunk: grab(trunkM, t.ix),
+        trunk: grab(t.weak ? paleM : trunkM, t.ix),
         branches: [0, 1, 2, 3, 4].map(k => grab(branchM, t.ix * 5 + k)),
         leaves: leafM.map(lm => [0, 1, 2].map(k => grab(lm, t.ix * 3 + k)))
       };
     });
     leafM.forEach(l => (l.instanceColor.needsUpdate = true));
     trunkM.instanceColor.needsUpdate = true;
+    paleM.instanceColor.needsUpdate = true;
+    branchM.instanceColor.needsUpdate = true;
     rootM.instanceColor.needsUpdate = true;
   }
   // ============================================================ 3.0: the road trees, in the last band of the dread
@@ -5547,7 +5632,11 @@ const __boot = (async () => {
     u.shield.visible = !P.carry;
     u.rArm.rotation.x = damp(u.rArm.rotation.x, rA.x, 22, dt);
     u.rArm.rotation.y = damp(u.rArm.rotation.y, rA.y, 22, dt);
-    u.hand.rotation.x = damp(u.hand.rotation.x, armed && P.weapon === "sword" && !P.atk && !P.airSlash && !P.dive ? -1.0 : 0, 14, dt); // a drawn sword is carried blade forward, not hanging at the leg
+    // a drawn sword is carried blade forward, not hanging at the leg; the axe is carried the same way whenever it is
+    // in the hand, drawn or not — its haft is a metre and a half, and hanging straight down it dragged its head along
+    // the ground. the swing itself is the arm's (rA), so the hand only turns for that
+    const carried = !P.atk && !P.airSlash && !P.dive && ((armed && P.weapon === "sword") || (P.weapon === "axe" && P.owned.axe && !P.carry));
+    u.hand.rotation.x = damp(u.hand.rotation.x, carried ? -1.0 : 0, 14, dt);
     u.lArm.rotation.x = damp(u.lArm.rotation.x, lA.x, 18, dt);
     u.lArm.rotation.y = damp(u.lArm.rotation.y, lA.y, 18, dt);
     u.shield.rotation.y = damp(u.shield.rotation.y, P.block ? 1.2 : 0, 14, dt);
@@ -6538,7 +6627,10 @@ const __boot = (async () => {
       // one flag on the root buys all thirty-eight: measured at 2.2 ms of an 18 ms frame with the town in view.
       // the napping hunter owns his own visibility, and so does the body on your shoulder.
       // the cross-realm distance above is already 1e5, so standing in gehenna hides the valley for free.
-      if (n.mesh && !n.napping && n.kind !== "body") n.mesh.visible = distToPlayer < camera.far + TUNE.people.drawMargin;
+      // and anyone inside a house the swollen throne hall is standing on top of is hidden with the house: the house group
+      // goes with keepHides, but a villager's mesh is the scene's, so a sleeper lay on the hall floor in full view
+      const hiddenRoom = KEEP_ROOM && KEEP_ROOM.grow > 1.05 ? (n.inBed && n.myBed ? n.myBed.it : insideInterior(n.pos.x, n.pos.z, 0)) : null;
+      if (n.mesh && !n.napping && n.kind !== "body") n.mesh.visible = distToPlayer < camera.far + TUNE.people.drawMargin && !(hiddenRoom && hiddenRoom.keepHides);
       if ((npcTick + n.vi) % skip) continue;
       const dt = Math.min(0.25, dtFrame * skip);
       if (n.furniture || n.asleep) {
@@ -7590,6 +7682,10 @@ const __boot = (async () => {
               if (!bucket) continue;
               for (const o of bucket) {
                 if (o === n) continue;
+                // the arrest party keep their own formation: two knights closing on a prisoner's shoulders, pressing in to a
+                // mark inside this radius, used to shove him a tenth of a metre a tick — and walked him backwards across
+                // the square at a steady pace, facing them, while the scene said he was standing still
+                if (n.arrest && o.arrest) continue;
                 let ox = n.pos.x - o.pos.x,
                   oz = n.pos.z - o.pos.z;
                 if (ox > 0.95 || ox < -0.95 || oz > 0.95 || oz < -0.95 || Math.abs(n.pos.y - o.pos.y) > 2) continue;
@@ -8249,7 +8345,9 @@ const __boot = (async () => {
     let roadN = 0;
     const road = (x, z, w, d) => {
       const r = new THREE.Mesh(new THREE.BoxGeometry(w, 0.08, d), texMat(cloneTex(TEX.cobble, Math.max(1, w / 4), Math.max(1, d / 4)), 0xd0c8bc));
-      r.position.set(x, PLATEAU + 0.04 + (roadN++ % 7) * 0.004, z);
+      // every slab on its own step: the old seven-step cycle put the west side street and the north cross street on
+      // the same height, and where they crossed the two cobble textures fought for the pixel in a sawtooth
+      r.position.set(x, PLATEAU + 0.04 + roadN++ * 0.003, z);
       r.receiveShadow = true;
       scene.add(r);
       TOWN_STONE.push({ x, z, w: w / 2 + 0.4, d: d / 2 + 0.4 });
@@ -8468,8 +8566,9 @@ const __boot = (async () => {
     cg.add(
       boxM(K.door * 2 + 0.4, K.h - 7, 1.6, stoneM, 0, K.h - (K.h - 7) / 2, K.d),
       boxM(K.w * 2 + 2, 1.4, K.d * 2 + 2, stoneDarkM, 0, K.h + 0.7, 0),
-      // and it reaches under the walls and out through the doorway (0.2 past the wall centre lines, inside the 0.35 the
-      // walls are thick), so there is no band of street between the flagstones and the door and no slab edge to see
+      // and it reaches under the walls and out through the doorway (0.2 past the wall centre lines, well inside the 0.7
+      // half-thickness of the walls), so there is no band of street between the flagstones and the door and no slab
+      // edge to see. KEEP_ROOM.floorPad tells groundAt the floor goes that far too
       boxM(K.w * 2 + 0.4, 0.02, K.d * 2 + 0.4, keepFloorM, 0, 0.05, 0)
     );
     for (let k = -3; k <= 3; k++)
@@ -8595,6 +8694,7 @@ const __boot = (async () => {
       floorTop: 0.06, // the top of the flagstone slab above, scaled with the hall like the slab is
       floorTex: keepFloorTex,
       floorRepeat: [6, 5], // the repeat the slab was laid at; a texture in this three has no userData to keep it on
+      floorPad: 1.0, // the slab reaches a metre past baseW/baseD (under the walls and through the doorway); groundAt keeps the floor under you that far
       // the keep was the one interior with no door recorded, and every routine that puts a stray villager back outside
       // is written as "walk them to the door" — so for the throne room it simply never ran, and anyone who got in
       // stayed in. the gateway is the gap in the south wall, centred on x = 0.
@@ -9852,11 +9952,11 @@ const __boot = (async () => {
     woodpile: { goals: [3], read: () => [Math.max(0, (P.logs || 0) - (STORY.logsGiven || 0))], text: p => `${p[0]}/3 bundles${P.owned.axe ? "" : " — you need an axe"}` },
     corrin: { goals: [5, 2], prepare: () => { if (!Array.isArray(STORY.wager0)) STORY.wager0 = [P.swordSheep || 0, P.swordDeer || 0]; }, read: () => [Math.max(0, (P.swordSheep || 0) - (STORY.wager0 || [0, 0])[0]), Math.max(0, (P.swordDeer || 0) - (STORY.wager0 || [0, 0])[1])], text: p => `${p[0]}/5 sheep, ${p[1]}/2 deer — sword only` },
     washing: { goals: [4], prepare: () => { if (STORY.gobKills0 === undefined) STORY.gobKills0 = P.gkills || 0; }, read: () => [Math.max(0, (P.gkills || 0) - (STORY.gobKills0 || 0))], text: p => `${p[0]}/4 goblins` },
-    "ysolde-herb": { goals: [1], read: () => [P.herbs || 0], text: p => `${p[0]}/1 moor-herb` },
+    "ysolde-herb": { goals: [1], prepare: () => { if (STORY.miller0 === undefined) STORY.miller0 = STORY.herbsPicked || 0; }, read: () => [herbsSince("miller0")], text: p => `${p[0]}/1 moor-herb` },
     weaver: { goals: [1], prepare: () => { if (STORY.weaver0 === undefined) STORY.weaver0 = JSON.stringify([CUSTOM.tunic, CUSTOM.cape, CUSTOM.hair, CUSTOM.style]); }, read: () => [STORY.weaver0 !== undefined && JSON.stringify([CUSTOM.tunic, CUSTOM.cape, CUSTOM.hair, CUSTOM.style]) !== STORY.weaver0 ? 1 : 0], text: () => "change your look at Wren's" },
     "violet-stone": { goals: [1], read: () => [pickups.some(p => p.id === "quest:stonefold" && p.taken) ? 1 : 0], text: () => "the violet stone" },
     nim: { goals: [1], read: () => [((npcs.find(n => n.lost) || {}).found ? 1 : 0)], text: p => p[0] ? "Nim is home" : "find Nim in the forest" },
-    "cloudrest-herbs": { goals: [3], read: () => [P.herbs || 0], text: p => `${p[0]}/3 moor-herbs` },
+    "cloudrest-herbs": { goals: [3], prepare: () => { if (STORY.healer0 === undefined) STORY.healer0 = STORY.herbsPicked || 0; }, read: () => [herbsSince("healer0")], text: p => `${p[0]}/3 moor-herbs` },
     "beacon-ring": { goals: [1], read: () => [pickups.some(p => p.id === "quest:greytor" && p.taken) ? 1 : 0], text: () => "the ring at the beacon's foot" },
     "ashfall-slimes": { goals: [3], prepare: () => { if (STORY.smith0 === undefined) STORY.smith0 = P.kills || 0; }, read: () => [Math.max(0, (P.kills || 0) - (STORY.smith0 || 0))], text: p => `${p[0]}/3 slimes` },
     "kestrel-wood": { goals: [2], prepare: () => { if (STORY.potter0 === undefined) STORY.potter0 = P.logs || 0; }, read: () => [Math.max(0, (P.logs || 0) - (STORY.potter0 || 0))], text: p => `${p[0]}/2 pale trees` },
@@ -9873,10 +9973,13 @@ const __boot = (async () => {
     return s.goals.map((g, i) => clamp(Number.isFinite(+a[i]) ? Math.floor(+a[i]) : 0, 0, 100000));
   }
   function sidePrepare(q) { if (q.wireId === "washing" && !q.taken) STORY.gobKills0 = P.gkills; const s = sideSpec(q); if (s && s.prepare) s.prepare(); }
-  function sideProgressValues(q) { return !sidePersonalFairy(q) && Array.isArray(q.partyProgress) ? q.partyProgress : sideRead(q); }
+  // the party's count and your own: the higher of the two. the party's used to replace yours, so an errand taken while
+  // hosting froze at the party's last count the moment the party was gone — the array rides in the save, and nothing
+  // wrote to it offline — and the finale's eight village errands could never all be handed in
+  function sideProgressValues(q) { const local = sideRead(q); return !sidePersonalFairy(q) && Array.isArray(q.partyProgress) ? local.map((v, i) => Math.max(v, q.partyProgress[i] || 0)) : local; }
   function sideProgressText(q) { const s = sideSpec(q); return s ? s.text(sideProgressValues(q)) : q.progress(); }
   const sideSharesReward = q => q && !sidePersonalFairy(q) && q.giver && q.giver.village !== undefined;
-  function sideReady(q) { if (!sideSharesReward(q)) return q.check(); const s = sideSpec(q); return s && Array.isArray(q.partyProgress) ? s.goals.every((g, i) => (q.partyProgress[i] || 0) >= g) : q.check(); }
+  function sideReady(q) { if (!sideSharesReward(q)) return q.check(); const s = sideSpec(q); return q.check() || !!(s && Array.isArray(q.partyProgress) && s.goals.every((g, i) => (q.partyProgress[i] || 0) >= g)); }
   function sideHostEnsure(q) {
     const s = sideSpec(q); if (!s || !q.taken || sidePersonalFairy(q)) return false;
     if (!Array.isArray(q.partyProgress)) q.partyProgress = sideRead(q).map((v, i) => Math.min(v, s.goals[i]));
@@ -9911,7 +10014,7 @@ const __boot = (async () => {
       sideHostEnsure(q); const now = row[2].slice(), before = q.partySeen.get(actor); if (!before && q.partySeen.size >= 16) { const live = new Set([NET.myId, ...NET.avatars.keys()]); for (const id of q.partySeen.keys()) if (!live.has(id)) q.partySeen.delete(id); if (q.partySeen.size >= 16) continue; }
       if (!before) { q.partySeen.set(actor, now); continue; } // joining late establishes a baseline; old solo progress is not imported
       for (let i = 0; i < now.length; i++) { const d = Math.max(0, now[i] - (before[i] || 0)); if (d && q.partyProgress[i] < s.goals[i]) { q.partyProgress[i] = Math.min(s.goals[i], q.partyProgress[i] + d); changed = true; } }
-      q.partySeen.set(actor, now.map((v, i) => Math.max(v, before[i] || 0))); if (q.wireId === "rose-children" && sideReady(q) && !q.done) { q.done = true; changed = true; }
+      q.partySeen.set(actor, now.map((v, i) => Math.max(v, before[i] || 0)));
     }
     return changed;
   }
@@ -10005,13 +10108,18 @@ const __boot = (async () => {
     if (!WORLDSTATE.wardenDead || WORLDSTATE.luciferDefeated) return null;
     if (!WORLDSTATE.ysoldeLifted) return { text: "Lift Ysolde from the water", hint: "Wick asks you to carry her to the grave.", target: BODY.pos };
     if (!WORLDSTATE.ysoldeBuried) return { text: processionStageLabel(), hint: "Let them see her. Follow the gold arrow.", target: processionTarget() };
+    // the king first, then the bed: the night's rest only opens the pool once he has heard it from you (kingTalk is
+    // the one place that sets kingMourned), so a player sent to bed before him rested for ever with the errand still
+    // up. a guest's access comes from the host and was never gated on the king, and still is not.
+    if (!WORLDSTATE.kingMourned && NET.role !== "guest") return { text: "Tell the king it is done", hint: `The throne is ${dirTo(king.pos)}`, target: king.pos };
     if (!gehAccessOpen()) return { text: "Rest in the nearest open bed", hint: "There is nothing else to do tonight.", target: nearestOpenBed() };
     return { text: "Enter the black pool portal", hint: "Swim into the turning water.", target: POOL };
   }
   function sideQuestTarget(q) {
     if (!q || !q.giver) return null;
     if (sideReady(q) || (q.done && !q.rewarded)) return q.giver.pos;
-    if (q.wireId === "weaver") return STORY.weaverVisited ? q.giver.pos : WREN_POS;
+    // (the weaver's errand has its own target: wren's room until the look has changed, then the giver. a flag set by
+    // merely opening the mirror used to turn the arrow round before anything had been changed.)
     if (/three slimes/i.test(q.title)) {
       let best = null, distance = Infinity;
       for (const slime of slimes) if (slime.alive && !slime.hidden) {
@@ -10103,8 +10211,11 @@ const __boot = (async () => {
   function questMark(n) {
     if (P.carry || P.pos.y < DIVIDE || n.storyHidden) return null;
     if (n.kind === "king") {
-      const st = stage();
-      return st === 0 ? "bang" : st === 7 ? "tick" : null;
+      // by the story's own flags, not the objective list's indices: the throne was bare at the report of the murder,
+      // at the seal and at the mourning, three visits where he had something new to say
+      if (!metKing) return "bang";
+      if ((lit && !talkedKing) || (talkedKing && STORY.solved && !STORY.reported) || (WORLDSTATE.hermitWarned && WORLDSTATE.goblinKingDefeated && !WORLDSTATE.relics.seal) || (WORLDSTATE.ysoldeBuried && !WORLDSTATE.kingMourned)) return "tick";
+      return null;
     }
     // nim carries her own mark. her mother cannot ask for help she does not know she needs, and sending the player up
     // the mountain to be told about it, back down to find her, and up again to report was three trips for one child.
@@ -10114,7 +10225,7 @@ const __boot = (async () => {
     if (!q || (!q.taken && q.available && !q.available())) return null;
     if (!q.taken) return "bang";
     if (q.done && !q.rewarded) return "tick";
-    if (!q.done && sideReady(q)) return "tick";
+    if (!q.done && sideReady(q) && sideCanDeliver(q, sideRead(q), null)) return "tick"; // a tick over someone who then refuses the hand-in is worse than none
     return null;
   }
   const qTex = makeTex(
@@ -10953,8 +11064,7 @@ const __boot = (async () => {
   }
   function gameplayOverlayOpen() {
     return invOpen || custOpen || questBookOpen() || !!CHOICE || afterlifeLocked() || gehFightLocked() ||
-      document.getElementById("minimap").classList.contains("big") ||
-      !document.getElementById("statsPanel").classList.contains("hidden");
+      document.getElementById("minimap").classList.contains("big"); // the stats panel is a side panel and no longer stops the world
   }
   function toggleMap() {
     const map = document.getElementById("minimap");
@@ -11360,8 +11470,8 @@ const __boot = (async () => {
         nag: "One moor-herb. They glow mint-green at dusk. Anywhere on the moor.",
         thanks:
           "Thank you. I'll sleep, and I'll dream of her, and that's better than lying awake. Take her mother's charm. She'd want it doing some good.",
-        check: () => P.herbs >= 1,
-        progress: () => `${Math.min(1, P.herbs)}/1 moor-herb`,
+        check: () => herbsSince("miller0") >= 1 && P.herbs >= 1,
+        progress: () => `${Math.min(1, herbsSince("miller0"))}/1 moor-herb`,
         reward: () => {
           P.herbs = Math.max(0, P.herbs - 1);
           grant("Milliner's Charm: slimes take a third more from you", () => {
@@ -11392,11 +11502,15 @@ const __boot = (async () => {
           target: () => (STORY.weaver0 !== undefined && JSON.stringify([CUSTOM.tunic, CUSTOM.cape, CUSTOM.hair, CUSTOM.style]) !== STORY.weaver0 ? null : WREN_POS), ask: () => { STORY.weaverVisited = false; STORY.weaver0 = JSON.stringify([CUSTOM.tunic, CUSTOM.cape, CUSTOM.hair, CUSTOM.style]); return "That tunic. Those colours. I weave for a living and it hurts to look at you. Wren in the kingdom keeps a fitting room; go and come back dressed like a person, and I'll give you something worth wearing."; }, nag: "Wren's fitting room, in the kingdom. Any change. Please.", thanks: "Better. Much better. Here, a sash of my own weaving; it keeps the wind out of your lungs.", check: () => STORY.weaver0 !== undefined && JSON.stringify([CUSTOM.tunic, CUSTOM.cape, CUSTOM.hair, CUSTOM.style]) !== STORY.weaver0, progress: () => "change your look at Wren's", reward: () => grant("Highreach Sash: +12 stamina", () => { P.bonus.stam += 12; }) },
         { vi: 1, who: "Stonefold elder", title: "Fetch the violet stone from the black pool", ask: "Our colour comes from the stone under this hill. There's a fist of it lying on the shore of the black pool below the kingdom, and the pool is no place for old bones. Bring it and I'll give you our charm.", nag: "The black pool, below the kingdom. A purple stone on its shore. Don't swim; it's cold and it remembers.", thanks: "That's it. Feel how warm it is. Take this charm; slimes cannot bear the colour.", check: () => pickups.some(p => p.id === "quest:stonefold" && p.taken), progress: () => "the violet stone", reward: () => grant("Stonefold Charm: slimes take a third more from you", () => { P.bonus.slime *= 1.33; }) },
         { vi: 2, who: "Nim's mother", title: "Find Nim, who ran into the forest",
-          // she only has anything to say once nim is on her way: the child is found by finding her, not by being sent.
-          available: () => !!LOST.found,
+          // the errand is hers from the first day, not from the pool waking: her girl is in the wood under the elder tree
+          // and will not come home until the beacon is lit — nim says so herself — so finding her before then is the
+          // errand's first half, and the arrow points at her. found before her mother is ever asked, it simply completes.
+          // (she used to be gated on nim being found, and her not-yet line named the pool, which had nothing to do with it.)
+          available: () => true,
           target: () => (LOST.found ? null : LOST.pos),
-          ask: "You found her. She's walking up the path now — I can see her from the door.", nag: "She's on her way up. Stay a moment; I want to give you something.", thanks: "She's home. She's home and she's told me every word you said. Take this; it was her grandmother's. Blows land softer on whoever wears it.", check: () => !!LOST.found, progress: () => (LOST.found ? "Nim is home" : "find Nim in the forest"), reward: () => grant("Thornback Bracelet: every blow you take hurts a fifth less", () => { P.bonus.guard *= 0.8; }) },
-        { vi: 3, who: "Cloudrest healer", title: "Three moor-herbs for the Cloudrest healer", ask: "The fever is back on the mountain and my shelves are bare. Three moor-herbs; they glow green at dusk on the moor below. I'll pay in kind.", nag: "Three moor-herbs. They glow at dusk. The moor below is thick with them.", thanks: "Three. That's a week of fevers seen off. A tonic for you, brewed strong.", check: () => P.herbs >= 3, progress: () => `${Math.min(3, P.herbs)}/3 moor-herbs`, reward: () => { P.herbs = Math.max(0, P.herbs - 3); grant("Cloudrest Tonic: a Heart Piece", () => { P.maxHp++; P.hp = P.maxHp; }); } },
+          ask: () => LOST.found ? (LOST.running ? "You found her. She's walking up the path now — I can see her from the door." : "You found her. She's home, and she's told me every word you said.") : "My Nim ran into the forest under the elder tree and won't come home. Stubborn, like her father was. Find her, please. She says she can't tell which way the mountain is — if the old beacon were lit she'd see it from anywhere.",
+          nag: () => LOST.found ? (LOST.running ? "She's on her way up. Stay a moment; I want to give you something." : "She's home. Stay a moment; I want to give you something.") : "She's under the elder tree somewhere. She won't come for me. Light the old beacon and she'll find her own way — or go down and find her.", thanks: "She's home. She's home and she's told me every word you said. Take this; it was her grandmother's. Blows land softer on whoever wears it.", check: () => !!LOST.found, progress: () => (LOST.found ? "Nim is home" : "find Nim in the forest"), reward: () => grant("Thornback Bracelet: every blow you take hurts a fifth less", () => { P.bonus.guard *= 0.8; }) },
+        { vi: 3, who: "Cloudrest healer", title: "Three moor-herbs for the Cloudrest healer", ask: "The fever is back on the mountain and my shelves are bare. Three moor-herbs; they glow green at dusk on the moor below. I'll pay in kind.", nag: "Three moor-herbs. They glow at dusk. The moor below is thick with them.", thanks: "Three. That's a week of fevers seen off. A tonic for you, brewed strong.", check: () => herbsSince("healer0") >= 3 && P.herbs >= 3, progress: () => `${Math.min(3, herbsSince("healer0"))}/3 moor-herbs`, reward: () => { P.herbs = Math.max(0, P.herbs - 3); grant("Cloudrest Tonic: a Heart Piece", () => { P.maxHp++; P.hp = P.maxHp; }); } },
         { vi: 4, who: "Grey Tor widow", title: "Bring back the ring from the Old Beacon", ask: "My husband kept the beacon, when it was kept. He dropped his ring at its foot the day he died and no one has fetched it. It's a long climb and I'm past it. Please.", nag: "At the foot of the Old Beacon, in the grass. A tarnished ring.", thanks: "Forty years I've wanted this in my hand. Take his boots; he ran that hill twice a day.", check: () => pickups.some(p => p.id === "quest:greytor" && p.taken), progress: () => "the ring at the beacon's foot", reward: () => grant("Beacon-keeper's Boots: you run faster", () => { P.bonus.run += 1.5; }) },
         { vi: 5, who: "Ashfall smith", title: "Burst three slimes for the Ashfall smith", ask: () => { STORY.smith0 = P.kills; return "Slimes in the ash pits again. Three of them burst and I'll sharpen whatever you carry properly, on the good stone."; }, nag: () => `Three slimes. ${Math.min(3, P.kills - (STORY.smith0 || 0))} so far.`, thanks: "Three. Good. Give it here. There: that edge will hold now.", check: () => P.kills - (STORY.smith0 || 0) >= 3, progress: () => `${Math.min(3, P.kills - (STORY.smith0 || 0))}/3 slimes`, reward: () => grant("Ashfall Edge: your blows hit a tenth harder", () => { P.bonus.dmg *= 1.1; }) },
         { vi: 6, who: "Kestrel Rest potter", title: "Two pale trees for the Kestrel Rest kiln", ask: () => { STORY.potter0 = P.logs; return "The kiln eats pale wood, nothing else burns hot enough. Two pale trees felled and I'll fire something for you."; }, nag: () => `Two pale trees. Only the pale-barked ones take an axe. ${Math.min(2, P.logs - (STORY.potter0 || 0))} so far.`, thanks: "Two. That's a firing. Here, a glazed charm, hot from the kiln.", check: () => P.logs - (STORY.potter0 || 0) >= 2, progress: () => `${Math.min(2, P.logs - (STORY.potter0 || 0))}/2 pale trees`, reward: () => grant("Kestrel Charm: +8 stamina", () => { P.bonus.stam += 8; }) },
@@ -11422,7 +11536,7 @@ const __boot = (async () => {
           notYet: [
             "Hmph. No trouble here a stranger can fix. Come back when the valley needs you.",
             "We manage. Come back when you're stronger, or when things are worse.",
-            "I've no errand for you. Not yet. Ask me again when the pool has shown its face."
+            "I've no errand for you. Not yet. Come back once the hermit has told you what the water wants." // every gate this line stands in front of is the hermit's warning
           ][d.vi % 3]
         });
         if (d.vi === 2) {
@@ -14265,7 +14379,7 @@ const __boot = (async () => {
         grid.querySelectorAll(".slot-item").forEach(o => o.classList.remove("sel"));
         el.classList.add("sel");
         const e = entries[+el.dataset.i];
-        detail.innerHTML = `<h3>${esc(e.label)}</h3><p>${esc(e.text || "").replace(/&lt;br>/g, "<br>")}</p>`;
+        detail.innerHTML = `<h3>${esc(e.label)}</h3><p>${esc(e.text || "").replace(/&lt;br&gt;/g, "<br>")}</p>`;
         if (/^Rose Compass/.test(e.label)) { roseOn = !roseOn; detail.innerHTML += `<p><b>${roseOn ? "Awake" : "Asleep"}.</b> Click again to ${roseOn ? "put it to sleep" : "wake it"}.</p>`; } // the compass wakes and sleeps by a click
       };
     });
@@ -14281,7 +14395,7 @@ const __boot = (async () => {
     { text: "Present yourself to the king in the castle", done: () => metKing, hint: () => `The throne is ${dirTo(king.pos)}` },
     { text: "Find the hermit on the moor, east of the kingdom", done: () => talkedOnce, hint: () => `Follow the road ${dirTo(hermitPos)}` },
     { text: "Drive off the slimes plaguing the moor", done: () => gaveHerbs || beaconSlimeKills() >= 6, hint: () => `${beaconSlimeKills()}/6 slimes slain` },
-    { text: "Gather 4 moor-herbs", done: () => gaveHerbs || P.herbs >= 4, hint: () => `${P.herbs}/4 herbs — look for glowing sprigs` },
+    { text: "Gather 4 moor-herbs", done: () => gaveHerbs || P.herbs >= 4 || (STORY.herbsPicked || 0) >= 4, hint: () => `${Math.min(4, Math.max(P.herbs, STORY.herbsPicked || 0))}/4 herbs — look for glowing sprigs` },
     { text: "Bring the herbs back to the hermit", done: () => gaveHerbs, hint: () => `Follow the road ${dirTo(hermitPos)}` },
     { text: "Take the flint from the southern lakeshore", done: () => P.flint, hint: () => `Head ${dirTo(flintPos)}` },
     { text: "Climb to the beacon and relight it", done: () => lit, hint: () => `Follow the road ${dirTo(lighthousePos)}` },
@@ -14295,7 +14409,7 @@ const __boot = (async () => {
     { text: "Ask the hermit again: how did the old folk shut it?", done: () => WORLDSTATE.hermitWarned, hint: () => `Follow the road ${dirTo(hermitPos)}`, target: () => hermitPos },
     // act iv: the valley
     { text: "The King's Seal: the king wants the Goblin King dead before he'll part with it", done: () => WORLDSTATE.relics.seal, hint: () => (WORLDSTATE.goblinKingDefeated ? `The throne is ${dirTo(king.pos)}` : "The Goblin King comes to the walls at night. Wait for him outside the gate."), target: () => (WORLDSTATE.goblinKingDefeated ? king.pos : V3(0, PLATEAU, TOWN_R + 20)) },
-    { text: "The Root Word: it is cut in the elves' tongue; Nim's mother will read it once Nim is home", done: () => WORLDSTATE.relics.root, hint: () => (rootReadable() ? `The stairs up the elder tree are ${dirTo(ELDERSTAIR)}; keep climbing past the huts` : `Thornback is ${dirTo(villages[2].center)}`), target: () => (rootReadable() ? RELIC_SPOTS.root || ELDERSTAIR : villages[2].center) },
+    { text: "The Root Word: it is cut in the elves' tongue; Nim's mother will read it once Nim is home", done: () => WORLDSTATE.relics.root, hint: () => { if (rootReadable()) return `The stairs up the elder tree are ${dirTo(ELDERSTAIR)}; keep climbing past the huts`; const nq = SIDE.find(q => q.who === "Nim's mother"), nim = npcs.find(n => n.lost); return nq && nq.taken && nim && !nim.found ? `Nim is ${dirTo(nim.pos)}, in the wood under the elder tree` : `Nim's mother is ${dirTo(nq && nq.giver ? nq.giver.pos : villages[2].center)}`; }, target: () => { if (rootReadable()) return RELIC_SPOTS.root || ELDERSTAIR; const nq = SIDE.find(q => q.who === "Nim's mother"), nim = npcs.find(n => n.lost); return nq && nq.taken && nim && !nim.found ? nim.pos : nq && nq.giver ? nq.giver.pos : villages[2].center; } },
     { text: "The Warden's Stone: it lies under the Old Bear's hoard, and the bear does not share", done: () => WORLDSTATE.relics.warden, hint: () => `The cave is ${dirTo(CAVE)}`, target: () => (CAVE ? V3(CAVE.x, CAVE.h, CAVE.z) : POOL) },
     { text: "The Queen's Thorn: bring ten of the rose court's children home and ask their mother", done: () => WORLDSTATE.relics.tear, hint: () => (FAIRY.found < 10 ? `${FAIRY.found}/10 children home. ${fairyHint()}` : `Queen Rosabel is ${dirTo(FAIRY.queen.pos)}`), target: () => FAIRY.queen.pos },
     // act v: what lies beneath
@@ -14814,6 +14928,16 @@ const __boot = (async () => {
     return true;
   }
   // apply a validated snapshot to a freshly built world
+  // nim, home: from a save, or from the other side of a shared game. found is an npc field, so it rode in nobody's
+  // packet — a guest could finish her errand while she still stood in the host's wood with a mark over her head
+  function sendNimHome() {
+    const nim = npcs.find(n => n.lost);
+    if (!nim || nim.found) return;
+    nim.found = true; nim.stay = false; nim.post = false;
+    const v = villages[2], nx = v.center.x + 3, nz = v.center.z + 2;
+    nim.pos.set(nx, groundAt(nx, nz, v.center.y + 3), nz); nim.home.copy(nim.pos); nim.job = "explore"; nim.radius = 12; nim.village = 2; nim.heading = Math.atan2(v.center.x - nx, v.center.z - nz);
+    syncNPCMesh(nim);
+  }
   function applySave(d) {
     gehFightLeaveForLoad();
     clearPickupFlights(); // a key describes a settled world; nothing may still be in the air when it lands
@@ -14868,7 +14992,7 @@ const __boot = (async () => {
       // her body does not follow her position. the villager tick is the only writer of mesh.position and it gives up past
       // 420 m — measured from the NEW pos — so nim's model stayed standing in the elder wood where the world built her,
       // unreachable and with no prompt over it, until the player happened to walk within range of thornback.
-      if (d.nimHome) { const nim = npcs.find(n => n.lost); if (nim) { nim.found = true; nim.stay = false; nim.post = false; const v = villages[2], nx = v.center.x + 3, nz = v.center.z + 2; nim.pos.set(nx, groundAt(nx, nz, v.center.y + 3), nz); nim.home.copy(nim.pos); nim.job = "explore"; nim.radius = 12; nim.village = 2; nim.heading = Math.atan2(v.center.x - nx, v.center.z - nz); syncNPCMesh(nim); } }
+      if (d.nimHome) sendNimHome();
       P.swordSheep = d.swordSheep || 0;
       P.swordDeer = d.swordDeer || 0;
       P.flint = d.flint;
@@ -14987,7 +15111,7 @@ const __boot = (async () => {
         }
       }
       for (const q of SIDE) if (sidePersonalFairy(q)) q.partyProgress = null;
-      FAIRY.quest.done = FAIRY.complete;
+      FAIRY.quest.done = FAIRY.quest.rewarded = FAIRY.complete;
       if (d.custom) {
         Object.assign(CUSTOM, d.custom);
         const nm = document.getElementById("c-name");
@@ -15085,7 +15209,7 @@ const __boot = (async () => {
       const bool = v => typeof v === "boolean", pickObj = (src, spec) => { if (!src || typeof src !== "object") return null; const out = {}; for (const k in spec) { const v = src[k]; if (v === undefined) continue; if (!spec[k](v)) return null; out[k] = v; } return out; };
       d.owned = pickObj(d.owned, { sword: bool, spear: bool, axe: bool }); if (!d.owned) return null;
       d.bonus = pickObj(d.bonus, { herbSight: bool, air: v => num(v, .5, 4), lung: v => num(v, .5, 4), stam: v => num(v, 0, 200), run: v => num(v, 0, 20), dmg: v => num(v, .5, 8), slime: v => num(v, .5, 8), guard: v => num(v, .2, 1), dash: v => num(v, 1, 3), dashCost: v => num(v, 4, 15), jumps: v => num(v, 1, 6) }); if (!d.bonus) return null;
-      d.story = pickObj(d.story, { logsGiven: v => num(v, 0, 99), gobKills0: v => num(v, 0, 1e6), partySlimes: v => num(v, 0, 6), clues: v => num(v, 0, 5), wick: bool, solved: bool, reported: bool, spear: bool, boots: bool, bearHeart: bool, kingTooth: bool, wolfDone: bool, campLeft: v => num(v, -1, 3), evidence: v => Array.isArray(v) && v.length <= 5 && v.every(x => ["cloth", "ring", "diary", "ritual", "note"].includes(x)), kingKills: v => num(v, 0, 1e6), weaverVisited: bool, weaver0: v => typeof v === "string" && v.length < 200, smith0: v => num(v, 0, 1e6), potter0: v => num(v, 0, 1e6), ferry0: v => num(v, 0, 99), wager0: v => Array.isArray(v) && v.length === 2 && v.every(x => num(x, 0, 1e6)) }); if (!d.story) return null;
+      d.story = pickObj(d.story, { logsGiven: v => num(v, 0, 99), gobKills0: v => num(v, 0, 1e6), partySlimes: v => num(v, 0, 6), clues: v => num(v, 0, 5), wick: bool, solved: bool, reported: bool, spear: bool, boots: bool, bearHeart: bool, kingTooth: bool, wolfDone: bool, campLeft: v => num(v, -1, 3), evidence: v => Array.isArray(v) && v.length <= 5 && v.every(x => ["cloth", "ring", "diary", "ritual", "note"].includes(x)), kingKills: v => num(v, 0, 1e6), weaverVisited: bool, weaver0: v => typeof v === "string" && v.length < 200, smith0: v => num(v, 0, 1e6), potter0: v => num(v, 0, 1e6), ferry0: v => num(v, 0, 99), herbsPicked: v => num(v, 0, 1e6), miller0: v => num(v, 0, 1e6), healer0: v => num(v, 0, 1e6), wager0: v => Array.isArray(v) && v.length === 2 && v.every(x => num(x, 0, 1e6)) }); if (!d.story) return null;
       if (d.settings !== undefined) { d.settings = pickObj(d.settings, { fps: bool, arrow: bool, rose: bool, gfx: v => num(v, 0, 99), hq: bool, grass: bool, voice: bool, sfx: v => num(v, 0, 1), music: v => num(v, 0, 1), amb: v => num(v, 0, 1), sens: v => num(v, 0, 5) }); if (!d.settings) return null; }
       if (!d.sk || typeof d.sk !== "object") return null;
       if (!Array.isArray(d.flags) || d.flags.length !== 5 || !d.flags.every(bool) || !strs(d.found, 2000) || !strs(d.items, 2000) || !strs(d.picked, 40)) return null;
@@ -15802,8 +15926,9 @@ const __boot = (async () => {
     const S = t.s,
       T = t.tk,
       m = new THREE.Matrix4().makeScale(0, 0, 0);
-    TREEMESH.trunkM.setMatrixAt(t.ix, m);
-    TREEMESH.trunkM.instanceMatrix.needsUpdate = true;
+    const tm = t.weak ? TREEMESH.paleM : TREEMESH.trunkM;
+    tm.setMatrixAt(t.ix, m);
+    tm.instanceMatrix.needsUpdate = true;
     for (let k = 0; k < 5; k++) TREEMESH.rootM.setMatrixAt(t.ix * 5 + k, m);
     TREEMESH.rootM.instanceMatrix.needsUpdate = true;
     for (let k = 0; k < 5; k++) TREEMESH.branchM.setMatrixAt(t.ix * 5 + k, m);
@@ -15819,13 +15944,13 @@ const __boot = (async () => {
     // so the copy is built from exactly those numbers. the materials are cloned per fall because the fade at the
     // end of updateFalling writes opacity into them; disposeTree frees them when the group goes.
     const g = new THREE.Group(),
-      bark = TREEMESH.trunkM.material.clone(),
+      bark = (t.weak ? TREEMESH.paleM : TREEMESH.trunkM).material.clone(),
       leafMat = TREEMESH.leafM[t.ix % TREEMESH.leafM.length].material.clone();
     // the standing tree is the bark texture multiplied by an instance colour, so the copy multiplies the same
     // numbers into its own material colour. cloning the live material rather than a stored one also means the
     // copy follows the floor-texture setting: with textures off the clone comes out already flattened to its
     // average colour, the same as the trunk it is replacing.
-    if (t.weak) bark.color.multiply(new THREE.Color(2.1, 2.0, 1.85));
+    // (a pale tree's copy comes from the pale mesh, whose bark is pale by texture, so it takes no tint)
     leafMat.color.multiply(new THREE.Color().setHSL(t.weak ? 0.2 : 0.28 + t.hue, t.weak ? 0.18 : 0.5, t.weak ? 0.5 : 0.35 + t.light * 0.3));
     const trunk = cyl(0.42 * S * T, 0.82 * S * T, 10 * S, bark, 0, 5 * S, 0, 10);
     g.add(trunk);
@@ -15850,8 +15975,9 @@ const __boot = (async () => {
   // advance falling state, animation and related scene objects for this frame
   function regrowTree(t) {
     if (!t.felled || !t.mats || !TREEMESH) return;
-    TREEMESH.trunkM.setMatrixAt(t.ix, t.mats.trunk);
-    TREEMESH.trunkM.instanceMatrix.needsUpdate = true;
+    const tm = t.weak ? TREEMESH.paleM : TREEMESH.trunkM;
+    tm.setMatrixAt(t.ix, t.mats.trunk);
+    tm.instanceMatrix.needsUpdate = true;
     t.mats.branches.forEach((m, k) => TREEMESH.branchM.setMatrixAt(t.ix * 5 + k, m));
     TREEMESH.branchM.instanceMatrix.needsUpdate = true;
     TREEMESH.leafM.forEach((lm, li) => {
@@ -17297,18 +17423,18 @@ const __boot = (async () => {
   // truthy, and then parseSaveKey rejects a boolean seed, so every save key that player wrote afterwards would be
   // refused as "bad save key" for the rest of the session. a non-boolean has to travel as its own field.
   const WS_SHARED = ["marenFreed", "haleExposed", "pyreDismantled", "blackPoolAwake", "hermitTold", "hermitWarned", "kingTrusts", "goblinKingDefeated", "bearDefeated", "finaleStarted", "wardenDead", "guardsOut", "gehUnlocked", "hermitChurchTaken", "hermitChurchFound", "hermitChurchDone"];
-  const beaconSlimeKills = () => Math.min(6, NET.role === "guest" ? STORY.partySlimes || 0 : Math.max(P.kills, STORY.partySlimes || 0));
+  const beaconSlimeKills = () => Math.min(6, Math.max(P.kills, STORY.partySlimes || 0)); // your own tally is a floor whoever you are; a guest's pre-join kills used to vanish
   function netUpdateSlimeCount() {
     if (NET.role !== "host") return;
     if (NET.mainKillBase === undefined) STORY.partySlimes = Math.min(6, Math.max(P.kills, STORY.partySlimes || 0));
     else STORY.partySlimes = Math.min(6, (STORY.partySlimes || 0) + Math.max(0, P.kills - NET.mainKillBase));
     NET.mainKillBase = P.kills;
   }
-  const mainProgress = () => ({ t: "mq", metKing, talkedKing, talkedOnce, gaveHerbs, lit, flint: !!P.flint, clues: STORY.clues, evidence: STORY.evidence.slice(), wick: !!STORY.wick, solved: !!STORY.solved, reported: !!STORY.reported, ws: Object.fromEntries(WS_SHARED.map(k => [k, k === "gehUnlocked" ? gehAccessOpen() : !!WORLDSTATE[k]])), relics: { ...WORLDSTATE.relics }, ending: WORLDSTATE.ending, kills: P.kills, slimes: beaconSlimeKills() });
+  const mainProgress = () => ({ t: "mq", metKing, talkedKing, talkedOnce, gaveHerbs, lit, flint: !!P.flint, nimHome: !!(npcs.find(n => n.lost) || {}).found, clues: STORY.clues, evidence: STORY.evidence.slice(), wick: !!STORY.wick, solved: !!STORY.solved, reported: !!STORY.reported, ws: Object.fromEntries(WS_SHARED.map(k => [k, k === "gehUnlocked" ? gehAccessOpen() : !!WORLDSTATE[k]])), relics: { ...WORLDSTATE.relics }, ending: WORLDSTATE.ending, kills: P.kills, slimes: beaconSlimeKills() });
   function applyMainProgress(m, peer) {
     if (NET.role === "guest" && !NET.gehPersonal) netBeginGehennaSession();
     if (NET.role === "guest" && m.ws && typeof m.ws.gehUnlocked === "boolean") { NET.gehAccess = m.ws.gehUnlocked; if (NET.gehEntered) WORLDSTATE.gehUnlocked = NET.gehAccess; }
-    if (NET.role === "guest" && Number.isInteger(m.slimes) && m.slimes >= 0 && m.slimes <= 6) STORY.partySlimes = m.slimes;
+    if (NET.role === "guest" && Number.isInteger(m.slimes) && m.slimes >= 0 && m.slimes <= 6) STORY.partySlimes = Math.max(STORY.partySlimes || 0, m.slimes);
     // a guest's world is the host's, and everything below folds the host's story into this player's own globals for
     // good. the autosave forfeits for the rest of the session rather than later writing a run this player never
     // played over the one they did: netGuest() stops being true the moment the host drops, and the folding does not.
@@ -17319,6 +17445,7 @@ const __boot = (async () => {
     if (m.talkedOnce && !talkedOnce) talkedOnce = true;
     if (m.gaveHerbs && !gaveHerbs) gaveHerbs = true;
     if (m.flint && !P.flint) { P.flint = true; if (typeof flintMesh !== "undefined" && flintMesh) flintMesh.visible = false; }
+    if (m.nimHome === true) sendNimHome();
     if (m.lit && !lit) lightBeacon(false);
     if (Number.isInteger(m.clues) && m.clues >= 0 && m.clues <= 5 && m.clues > STORY.clues) STORY.clues = m.clues;
     if (Array.isArray(m.evidence)) for (const k of m.evidence) if (["cloth", "ring", "diary", "ritual", "note"].includes(k)) evidence(k);
@@ -17439,6 +17566,8 @@ const __boot = (async () => {
       // kb and pierce were both computed here and then dropped on the floor: the local branch called hurtPlayer with
       // two arguments while the NETWORKED branch above forwarded kb faithfully. so the warden's 2.1x launch reached a
       // friend across the wire and never once reached the player standing in front of her.
+      P.struckBy = e; // who landed it, so a death a moment later knows whose it was
+      P.struckAt = time;
       if (e.kind === "kindly") gehKindlyHit(dmg, e.pos, kb, pierce);
       else hurtPlayer(dmg, e.pos, kb, pierce);
     }
@@ -17450,6 +17579,16 @@ const __boot = (async () => {
     if (death) return;
     if (gehFightDie()) return;
     death = { t: 0, msg, pieces: [], faded: false, woke: false };
+    // dying to the goblin king ends his night the same way killing him does: his lull starts, and he goes back into the
+    // earth, so you do not wake by the nearest bed with him still on the moor. the blow that did it is his, or his
+    // pack's with him beside you — either way you will not see him for a while.
+    {
+      const his = P.struckBy && P.struckBy.alive && P.struckBy.king && time - (P.struckAt === undefined ? -1e9 : P.struckAt) < 3;
+      if (his || goblins.some(g => g.king && g.alive && dist2D(g.pos, P.pos) < 12)) {
+        kingLull = 300;
+        for (const g of goblins) if (g.king && g.alive) { g.alive = false; g.gone = true; }
+      }
+    }
     clearPickupFlights(); // the update loop stops while you are dying, and a frozen herb would hang in the air until you loaded
     inputLock = true;
     inputLockT = -99;
@@ -21945,6 +22084,8 @@ const __boot = (async () => {
     GRAVE_PARTS.root.visible = done;
     GRAVE_PARTS.solid.gone = !done;
     if (!done) return;
+    // his errand cannot be left open behind a man nobody can speak to: paid if the herb is in hand, closed otherwise
+    { const mq = SIDE.find(q => q.giver === MILLER); if (mq && mq.taken && !mq.done) { if (mq.check()) sideComplete(mq); else { mq.done = true; mq.rewarded = true; } } }
     hermitPos.set(GRAVE.x + 3.5, groundAt(GRAVE.x + 3.5, GRAVE.z - 2, 1e9), GRAVE.z - 2);
     hermit.position.copy(hermitPos);
     const it = millerRoom();
@@ -22291,9 +22432,20 @@ const __boot = (async () => {
     m.visible = true;
     if (BURIAL.phase === "bury") {
       const q = clamp(burialAge() / BURIAL_SECONDS, 0, 1), lower = smooth(clamp((q - 0.22) / 0.48, 0, 1));
-      m.position.set(lerp(st.pos.x + rx * CARRY_ACROSS - fx * CARRY_BEHIND, GRAVE.x + 1.25, lower), lerp(st.pos.y + CARRY_SHOULDER, GRAVE.y + 0.08, lower), lerp(st.pos.z + rz * CARRY_ACROSS - fz * CARRY_BEHIND, GRAVE.z, lower));
+      // where she starts from is fixed at the start of the lowering, and the turn onto her back goes the short way
+      // round. both used to be read live: a carrier who turned on the spot swung her round with him as she went down,
+      // and a carry heading more than a half-turn from the grave's own line took her the long way — a body spinning
+      // into the ground. the token changes with the phase, so this is set once per burial
+      if (BURIAL.buryToken !== BURIAL.token) {
+        BURIAL.buryToken = BURIAL.token;
+        const from = heading + Math.PI / 2, d = Math.PI / 2 - from;
+        BURIAL.buryFrom = from;
+        BURIAL.buryTo = from + Math.atan2(Math.sin(d), Math.cos(d));
+        BURIAL.buryStart = V3(st.pos.x + rx * CARRY_ACROSS - fx * CARRY_BEHIND, st.pos.y + CARRY_SHOULDER, st.pos.z + rz * CARRY_ACROSS - fz * CARRY_BEHIND);
+      }
+      m.position.set(lerp(BURIAL.buryStart.x, GRAVE.x + 1.25, lower), lerp(BURIAL.buryStart.y, GRAVE.y + 0.08, lower), lerp(BURIAL.buryStart.z, GRAVE.z, lower));
       m.rotation.order = "YXZ";
-      m.rotation.set(-Math.PI / 2, lerp(heading + Math.PI / 2, Math.PI / 2, lower), lerp(0.18, 0, lower));
+      m.rotation.set(-Math.PI / 2, lerp(BURIAL.buryFrom, BURIAL.buryTo, lower), lerp(0.18, 0, lower));
       for (const arm of m.userData.arms || []) arm.rotation.x = (Math.PI / 2) * (1 - lower);
       for (const leg of m.userData.legs || []) leg.rotation.x = 0.7 * (1 - lower);
       BODY.pos.copy(m.position); return;
@@ -22783,7 +22935,9 @@ const __boot = (async () => {
       return speak(king, kline, "King", beatMs(kline));
     }
     if (WORLDSTATE.ending || isGameBeaten()) return speak(king, WORLDSTATE.ending === "break" ? "The pool is a hollow of stones and the miller sits by it in the evenings. I have ordered a bench put there. That is your doing." : WORLDSTATE.ending === "fairy" ? "My guards say the pool is full of petals and they hear singing at night. They are not afraid of it. That is your doing." : "The dark beneath has been laid to rest, Champion. The sky is clear, and the realm is at peace. That is your doing.", "King", 7000);
-    if (STORY.solved && !STORY.reported) {
+    // the report waits for the champion beat: taken at any time, it woke the pool with the beacon still dark, and the
+    // hermit's act-three lines then buried the errand that lights it (see the hermit). talkedKing implies lit.
+    if (talkedKing && STORY.solved && !STORY.reported) {
       STORY.reported = true;
       claimInvestigationHeart();
       return speak(
@@ -22936,7 +23090,7 @@ const __boot = (async () => {
       );
     }
     if (n === MAREN) {
-      if (WORLDSTATE.marenFreed && P.herbs >= 3 && (P.hp < P.maxHp || P.stam < stamMax())) { P.herbs -= 3; P.hp = P.maxHp; P.stam = stamMax(); SFX.pickupBig(); return speak(n, "Three moor-herbs. Give them here. There: drink. That's what they had me in the stocks for, that. Bring three more whenever you're hurt.", "Maren", 6000); }
+      if (WORLDSTATE.marenFreed && P.herbs - 3 >= herbsOwed() && (P.hp < P.maxHp || P.stam < stamMax())) { P.herbs -= 3; P.hp = P.maxHp; P.stam = stamMax(); SFX.pickupBig(); return speak(n, "Three moor-herbs. Give them here. There: drink. That's what they had me in the stocks for, that. Bring three more whenever you're hurt.", "Maren", 6000); }
       if (WORLDSTATE.marenFreed && (WORLDSTATE.ending || isGameBeaten())) {
         return speak(n, "You brought peace back to the valley, Champion. The herbs grow sweet again, and the mornings feel light.", "Maren", 6000);
       }
@@ -23228,6 +23382,10 @@ const __boot = (async () => {
   // the board comes up and she is out of it on her own feet. and he goes for her, once, which is the only moment in
   // the scene he is not a patient man — and it is not himself he is reaching for.
   function arrestRelease() {
+    // the lunge is a second and a half, whatever is being said. it used to end only once the speaking channel had
+    // drained, and the two lines on it take a dozen seconds — long enough for him to chase her across the whole
+    // square to her own door at a steady two metres a second, with the knights trotting after him.
+    if (HALE.arrest === "lunge" && ARREST.t - (ARREST.lungeAt || 0) > 1.5) { HALE.arrest = "held"; for (const k of ARREST.escorts) k.thrust = 0.35; }
     if (ARREST.legT < 2 || ARREST.queue.length || ARREST.lineT > 0 || Voice.current) return;
     if (!MAREN.arrest) {
       ARREST.warder.thrust = 0.35;
@@ -23239,11 +23397,11 @@ const __boot = (async () => {
       arrestSay(MAREN, "Maren", "Oh. Oh, I can move my hands.");
       arrestSay(HALE, "Hale", "No. Not her.");
       HALE.arrest = "lunge";
+      ARREST.lungeAt = ARREST.t;
       return;
     }
-    // a short lunge. measured at 2.4 m/s over 1.2 s it carried him three metres, which is not a man being held — it
-    // is a man getting past two knights and then changing his mind.
-    if (ARREST.legT > 1.5 && HALE.arrest === "lunge") { HALE.arrest = "held"; for (const k of ARREST.escorts) k.thrust = 0.35; }
+    // a short lunge (ended above, on its own clock). measured at 2.4 m/s over 1.2 s it carried him three metres, which
+    // is not a man being held — it is a man getting past two knights and then changing his mind.
     // he does not start walking on top of his own arrest. the march begins when the script has been said, so the walk
     // opens on an empty channel and the street is the thing you hear over it.
     if (ARREST.legT < 7 || ARREST.queue.length || ARREST.lineT > 0 || Voice.current) return;
@@ -23292,10 +23450,13 @@ const __boot = (async () => {
     ARREST.escorts[0].arrestSide = side(ARREST.escorts[0]) >= side(ARREST.escorts[1]) ? 1 : -1;
     ARREST.escorts[1].arrestSide = -ARREST.escorts[0].arrestSide;
   }
+  // everyone walking in faces the way they are walking, and turns to their charge only once they are there. the face
+  // used to be forced every frame, so a knight sliding round the fountain on his way across the square walked sideways
+  // and backwards with his eyes on the prisoner, and the three of them looked as if they had lost their minds.
   function arrestTickWarder(n, step) {
     const d = dist2D(n.pos, ARREST_WARDER_MARK);
     if (d > 0.5) { n.wantMove = true; step(ARREST_WARDER_MARK.x, ARREST_WARDER_MARK.z, d > 6 ? 3.4 : 2.2); }
-    arrestFace(n, MAREN.pos);
+    if (d <= 1.2) arrestFace(n, MAREN.pos);
   }
   // walking in, he aims at a point on his own line of approach, so the mark does not swing round the square every time
   // hale turns his head. from the seize onward it is a fixed shoulder: a stride and a bit out, a quarter stride back.
@@ -23312,11 +23473,16 @@ const __boot = (async () => {
     }
     const d = Math.hypot(mx - n.pos.x, mz - n.pos.z);
     if (d > 0.45) { n.wantMove = true; step(mx, mz, clamp(d * 2.6, 1.2, 4.2)); }
+    if (d > 0.9) return; // still walking in: the step above set the heading to the way he is going
     if (ARREST.phase === "gather") arrestFace(n, HALE.pos);
     else n.heading = HALE.heading;
   }
   function arrestTickHale(n, dt, step) {
-    if (n.arrest === "stand") { arrestFace(n, ARREST.escorts[0] ? ARREST.escorts[0].pos : MAREN.pos); return; }
+    // while they walk in he watches the first knight coming; once they have closed he faces the board. facing the
+    // knight after that fed back on itself — the knight's mark is at hale's shoulder, so hale turning to look at him
+    // moved the mark, the knight stepped to it, hale turned again — and the three of them wheeled round the fountain
+    // for as long as the street talked
+    if (n.arrest === "stand") { arrestFace(n, ARREST.phase === "gather" && ARREST.escorts[0] ? ARREST.escorts[0].pos : MAREN.pos); return; }
     if (n.arrest === "lunge") { n.wantMove = true; step(MAREN.pos.x, MAREN.pos.z, 2); arrestFace(n, MAREN.pos); return; }
     // held: he keeps the heading the lunge left him with, which is at her. letting him track her as she walks off
     // swings the two knights at his shoulders round him in a slow circle, and that reads as pathing, not as a grip.
@@ -23481,6 +23647,26 @@ const __boot = (async () => {
         speak(hermitVoice, WORLDSTATE.ending === "break" ? "Drained it. Ha. Nobody's owed anything now. I'll sleep tonight." : WORLDSTATE.ending === "fairy" ? "Sung to sleep. Never thought I'd see the little folk do a kindness for a monster. Or maybe it's the other way round." : "You put the dark back in the ground, champion. The sky is back where it belongs. I'll sleep tonight.", "Hermit", 6500);
         return;
       }
+      // the beacon errand comes first, whatever act the valley has reached. it used to sit under the act-three branches,
+      // every one of which returns — and the pool could wake before the beacon was lit, because the king took the murder
+      // report at any time — so once the water had turned the errand that lights the beacon was unreachable for good: no
+      // trick of the lamp, no light for nim to steer home by, no seal from the king, no finale. the herbs are counted
+      // as picked rather than held, so handing one to the miller cannot un-gather them.
+      if (!lit) {
+        if (!metKing) {
+          speak(hermitVoice, "The king's business, is it? Go and hear it from him first. I'll not be caught meddling above my station, not with a woman in the stocks.", "Hermit", 6000);
+          return;
+        }
+        if (!talkedOnce) {
+          talkedOnce = true;
+          speak(hermitVoice, "Slimes everywhere and the beacon's been dark a decade. Clear six of them, bring me four moor-herbs, and I'll tell you how to wake it.", "Hermit", 6500);
+        } else if (!gaveHerbs && (P.herbs >= 4 || (STORY.herbsPicked || 0) >= 4) && beaconSlimeKills() >= 6) {
+          gaveHerbs = true;
+          speak(hermitVoice, "Good work. There's a flint on the southern lakeshore. Carry it up to the old beacon on the mountain.", "Hermit", 6000);
+        } else if (!gaveHerbs) speak(hermitVoice, `Six slimes and four herbs. You've ${beaconSlimeKills()} and ${Math.max(P.herbs, STORY.herbsPicked || 0)}.`, "Hermit");
+        else speak(hermitVoice, "The flint. The lake. The mountain. Go on.", "Hermit");
+        return;
+      }
       if (WORLDSTATE.blackPoolAwake && !WORLDSTATE.hermitTold) {
         WORLDSTATE.hermitTold = true;
         speak(hermitVoice, "You felt it too. Hale was a murderer, and he was never a liar and never a fool. There's an old door under that pool, and this valley's been paying its rent in blood so long we forgot the tenant. He fed it the miller's girl and it went quiet, and quiet is not the same as paid. Now it's awake, and it's looking. Ask me again and I'll tell you how the old folk shut it.", "Hermit", 10500);
@@ -23515,29 +23701,7 @@ const __boot = (async () => {
         speak(hermitVoice, relicCount() < 4 ? `${relicCount()} of four. The seal, the root word, the warden's stone, the queen's thorn. Don't go near the water at night until you have them all.` : "Four. Then it's the pool, at night. I'll keep the fire lit. Come back and tell me the sky's still up.", "Hermit", 6500);
         return;
       }
-      if (!metKing) {
-        speak(
-          hermitVoice,
-          "The king's business, is it? Go and hear it from him first. I'll not be caught meddling above my station, not with a woman in the stocks.",
-          "Hermit",
-          6000
-        );
-        return;
-      }
-      if (!talkedOnce) {
-        talkedOnce = true;
-        speak(
-          hermitVoice,
-          "Slimes everywhere and the beacon's been dark a decade. Clear six of them, bring me four moor-herbs, and I'll tell you how to wake it.",
-          "Hermit",
-          6500
-        );
-      } else if (!gaveHerbs && P.herbs >= 4 && beaconSlimeKills() >= 6) {
-        gaveHerbs = true;
-        speak(hermitVoice, "Good work. There's a flint on the southern lakeshore. Carry it up to the old beacon on the mountain.", "Hermit", 6000);
-      } else if (!gaveHerbs) speak(hermitVoice, `Six slimes and four herbs. You've ${beaconSlimeKills()} and ${P.herbs}.`, "Hermit");
-      else if (!lit) speak(hermitVoice, "The flint. The lake. The mountain. Go on.", "Hermit");
-      else speak(hermitVoice, "You can see the light from here. Thank you, wanderer.", "Hermit");
+      speak(hermitVoice, "You can see the light from here. Thank you, wanderer.", "Hermit");
       return;
     }
     if (sleepT <= 0) {
@@ -23633,10 +23797,12 @@ const __boot = (async () => {
     for (const h of herbs)
       if (!h.taken && near(h.pos)) {
         h.taken = true;
+        h.takenAt = time; h.glow0 = h.glow.intensity; // for the regrowth
         launchPickupFlight(h.mesh, false);
         h.glow.intensity = 0;
         P.interactCd = TUNE.people.pickupPause;
         P.herbs++;
+        STORY.herbsPicked = (STORY.herbsPicked || 0) + 1; // every herb ever picked: the herb errands count from the day they were asked
         P.hp = Math.min(P.maxHp, P.hp + 2);
         SFX.pickup();
         say(`Picked a moor-herb (${P.herbs}). It restores two hearts.`, 1800);
@@ -23650,7 +23816,9 @@ const __boot = (async () => {
       return;
     }
     if (near(lighthousePos, 11, 40)) { // the tower is broad: from its foot, or up at the lamp
+      const atTop = P.pos.y >= lighthousePos.y + 9; // the lamp is lit from the top; the ledges and the old ladder go up to it
       if (lit) say("The lamp turns slowly overhead.");
+      else if (!atTop) say("The lamp is up top. The ledges climb to it, and the old ladder is still there.", 3200);
       else if (P.flint && gaveHerbs) {
         lightBeacon(true);
       } else if (P.flint) say("You have the flint, but not the trick of the lamp. The hermit wanted six slimes and four herbs before he'd tell you.", 5000);
@@ -24128,7 +24296,7 @@ const __boot = (async () => {
     fairyMilestones();
     if (FAIRY.found === FAIRY.total) {
       FAIRY.complete = true;
-      FAIRY.quest.done = true;
+      FAIRY.quest.done = FAIRY.quest.rewarded = true; // the queen pays in the rescue itself; unmarked, the book said a reward was waiting for ever
       say("All 25 children are home. Queen Rosabel will be delighted.", 6500, true, "fairy");
     } else {
       say(`A fairy: ${fairyLineFor(child)}`, 5200, true, "fairy");
@@ -24797,7 +24965,7 @@ const __boot = (async () => {
   {
         const st = stage(),
           watch = WORLDSTATE.hermitWarned && !lastWatchSatisfied(),
-          mk = watch ? (WORLDSTATE.hermitChurchTaken && churchClapperFound() ? "tick" : "bang") : st === 1 ? "bang" : st === 4 ? "tick" : null,
+          mk = watch ? (WORLDSTATE.hermitChurchTaken && churchClapperFound() ? "tick" : "bang") : WORLDSTATE.blackPoolAwake && !WORLDSTATE.hermitWarned ? "bang" : st === 1 ? "bang" : st === 4 ? "tick" : null, // the two act-three talks carry the mark too; the hermit was bare through the one act where he was the only way on
           dH = dist2D(hermitPos, P.pos);
         if (mk && !hermitMark) {
           hermitMark = new THREE.Sprite(new THREE.SpriteMaterial({ map: bangTex, transparent: true, depthTest: false, fog: false }));
@@ -24854,7 +25022,11 @@ const __boot = (async () => {
         const k = it.grow,
           ky = 1 + (k - 1) * (it.keep ? TUNE.world.keepGrowHeight : TUNE.world.houseGrowHeight);
         it.group.scale.set(k, ky, k);
-        if (it.floorTex && it.floorRepeat) it.floorTex.repeat.set(it.floorRepeat[0] * k, it.floorRepeat[1] * k); // the flagstones keep their size as the floor spreads
+        // the flagstones keep their size as the floor spreads — and their place: the slab's uv origin is its corner,
+        // which moves out from the room centre as it scales, so a repeat scaled on its own slid the whole pattern
+        // across the floor while the hall grew and the floor looked as if it were moving. the offset holds the
+        // pattern still in world space through the stretch (the top face's uv is x/W + 1/2 and 1/2 - z/D).
+        if (it.floorTex && it.floorRepeat) { it.floorTex.repeat.set(it.floorRepeat[0] * k, it.floorRepeat[1] * k); it.floorTex.offset.set(-it.floorRepeat[0] * (k - 1) / 2, -it.floorRepeat[1] * (k - 1) / 2); }
         if (it.dec) for (const c of it.dec.children) c.scale.set(1 / k, 1 / ky, 1 / k);
         if (it.baseH === undefined) it.baseH = it.h;
         it.h = it.baseH * ky;
@@ -24946,7 +25118,10 @@ const __boot = (async () => {
             P.heading = yaw;
             // visY already includes the room's floor height; bed.top is measured from the room origin.
             // Subtract that floor here so it is not added twice and the player does not hover in raised-floor beds.
-            P.lieY = (bd.top || 0.6) - (it.floorTop || 0) * ky + TUNE.player.lieHeightOverMattress;
+            // the bed rises with the room, so its height is stretched too (the floor is still subtracted once, because visY
+            // already carries it): the same sum the villagers use, or the player lay twenty centimetres under the blanket
+            // of a grown bed beside a villager who did not
+            P.lieY = ((bd.top || 0.6) - (it.floorTop || 0)) * ky + TUNE.player.lieHeightOverMattress;
           }
           if (sleepT <= 0) P.inBed = null;
         } // the model's origin is at its feet: the feet go to the foot of the bed and the body lies back toward the pillow
@@ -25899,6 +26074,10 @@ const __boot = (async () => {
   herbs.forEach(h => {
         if (h.taken) {
           if (h.prompt) h.prompt.visible = false;
+          // the moor grows its herbs back: fourteen of them, never replaced, and maren's heal taking three a press
+          // could leave a valley with nothing in it for the healer's errand. four minutes, and out of sight.
+          if (h.takenAt === undefined) h.takenAt = time;
+          if (time - h.takenAt > 240 && dist2D(h.pos, P.pos) > 70) { h.taken = false; h.mesh.visible = true; h.mesh.position.copy(h.pos); h.mesh.scale.setScalar(1); h.glow.intensity = h.glow0 !== undefined ? h.glow0 : 0.5; }
           return;
         }
         const d = dist2D(h.pos, P.pos);
@@ -26208,7 +26387,9 @@ const __boot = (async () => {
       P.stamRamp = Math.min(1, (P.stamRamp || 0) + hdt / 0.6);
       const before = P.stam;
       P.stam = Math.min(SM, P.stam + (18 + SK.endurance.lvl * 0.6) * hdt * P.stamRamp * P.stamRamp);
-      if (!gehFreeStamina()) gainXP("endurance", Math.max(0, P.stam - before) * 0.008);
+      // endurance grows with the time spent recovering, not with how much came back: a bar that is never emptied
+      // still fills a little every second, and every one of those seconds counts
+      if (!gehFreeStamina() && before < SM) gainXP("endurance", hdt * 0.16);
     } else P.stamRamp = 0;
     P.stam = gehFreeStamina() ? SM : clamp(P.stam, 0, SM);
     if (!P.grounded && !P.swim && P.jumps > 0) {
@@ -27324,7 +27505,7 @@ const __boot = (async () => {
     {
       const forced = priorityQuest();
       const watch = WORLDSTATE.hermitWarned && !lastWatchSatisfied() ? lastWatchObjective() : null;
-      const trackMain = !!forced || tracked === null || tracked.done;
+      const trackMain = !!forced || !tracked || (tracked.done && tracked.rewarded); // the same test the arrow uses
       const cur = forced ? { text: forced.text, hint: () => forced.hint } : watch ? { text: watch.text, hint: () => watch.hint } : objectives[st];
       let html = cur
         ? `<li class="active">${cur.text}${cur.hint() ? `<small>${cur.hint()}</small>` : ""}${trackMain ? "" : `<small style="opacity:.6">(arrow follows an errand — J to change)</small>`}</li>`
@@ -27574,6 +27755,29 @@ const __boot = (async () => {
 })();
 window.__boot = __boot;
 __boot.catch(e => showFault(e, "loading"));
+</script>
+<script>
+// the pause menu's tabs. a pane that comes on replays its entrance, and the menu opens on Play every time.
+(() => {
+  const menu = document.getElementById("pause"); if (!menu) return;
+  const tabs = [...menu.querySelectorAll(".pm-tab")], panes = [...menu.querySelectorAll(".pm-pane")];
+  const show = id => {
+    tabs.forEach(t => t.classList.toggle("on", t.dataset.pane === id));
+    panes.forEach(p => {
+      const on = p.id === id;
+      if (on && !p.classList.contains("on")) { p.classList.add("on"); [...p.children].forEach((c, i) => c.style.setProperty("--i", i)); }
+      else if (!on) p.classList.remove("on");
+    });
+  };
+  tabs.forEach(t => t.addEventListener("click", () => show(t.dataset.pane)));
+  let wasHidden = true;
+  new MutationObserver(() => {
+    const hidden = menu.classList.contains("hidden");
+    if (wasHidden && !hidden) { panes.forEach(p => p.classList.remove("on")); show("pm-play"); }
+    wasHidden = hidden;
+  }).observe(menu, { attributes: true, attributeFilter: ["class"] });
+  show("pm-play");
+})();
 </script>
 </body>
 </html>

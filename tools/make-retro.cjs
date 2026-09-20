@@ -9,13 +9,13 @@
 //
 //   node tools/make-retro.cjs [source.html] [target.html]
 //
-// defaults: legend_of_peanits_v3.3.3.html -> legend_of_peanits_v3.3.3_retro.html
+// defaults: legend_of_peanits_v3.4.html -> legend_of_peanits_v3.4_retro.html
 const fs = require("fs");
 const path = require("path");
 
-const SRC = path.resolve(process.argv[2] || "legend_of_peanits_v3.3.3.html");
-const OUT = path.resolve(process.argv[3] || "legend_of_peanits_v3.3.3_retro.html");
-const VERSION = "3.3.3";
+const SRC = path.resolve(process.argv[2] || "legend_of_peanits_v3.4.html");
+const OUT = path.resolve(process.argv[3] || "legend_of_peanits_v3.4_retro.html");
+const VERSION = "3.4";
 
 let html = fs.readFileSync(SRC, "utf8").replace(/\r\n/g, "\n");
 const edits = [];
@@ -63,7 +63,7 @@ after(
       <label>Vertex wobble <span id="r-wobble-val" style="opacity:.7;font-variant-numeric:tabular-nums">1</span></label><input type="range" id="r-wobble" min="0" max="3" step="1" value="1">
       <label>Texture detail <span id="r-tex-val" style="opacity:.7;font-variant-numeric:tabular-nums">native</span></label><input type="range" id="r-tex" min="0" max="2" step="1" value="2">
       <label>Texture warp <span id="r-affine-val" style="opacity:.7;font-variant-numeric:tabular-nums">0.0</span></label><input type="range" id="r-affine" min="0" max="1" step=".1" value="0">
-      <div class="row"><input type="checkbox" id="r-pixel" checked><label for="r-pixel" style="margin:0">Pixel textures, no smoothing</label></div>
+      <div class="row"><input type="checkbox" id="r-nearest"><label for="r-nearest" style="margin:0">Pixel textures, no smoothing</label></div>
       <div class="row"><input type="checkbox" id="r-dither" checked><label for="r-dither" style="margin:0">15-bit colour, dithered</label></div>
       <div class="row"><input type="checkbox" id="r-scan"><label for="r-scan" style="margin:0">Scanlines</label></div>
       <p id="r-status" role="status" aria-live="polite"></p>
@@ -101,7 +101,7 @@ before(
   // none of this touches gameplay, collision or saves; the settings below are machine preferences like the sound sliders
   // the warp is off by default: the affine swim is right on a wall a few metres wide, and wrong on a floor that is
   // one polygon forty metres across, which is most of this game's floors. the dial is still there.
-  const RETRO = { res: 4, wobble: 1, warp: 0, pixel: true, dither: true, scan: false, tex: 2 }; // the picture is the window's own by default since 3.2; the dial still goes down to 200 lines
+  const RETRO = { res: 4, wobble: 1, warp: 0, pixel: false, dither: true, scan: false, tex: 2 }; // the picture and the textures are the window's own by default since 3.2, and since 3.3.4 the textures are smoothed: unfiltered texels at full detail shimmer at every grazing angle
   const RETRO_RES = [200, 240, 320, 480, 0]; // picture height in lines; 0 is the window's own
   const RETRO_TEX_SIZES = [64, 128, 0]; // texture side in texels for the detail dial; 0 keeps the texture as painted
   const RETRO_U = { snap: { value: new THREE.Vector2(0, 0) }, warp: { value: 0 } }; // shared by every program, so a change reaches all of them without a recompile
@@ -278,12 +278,13 @@ before(
   function retroTexture(t, register = true, mips = true) {
     if (register && RETRO_TEXTURES.indexOf(t) < 0) RETRO_TEXTURES.push(t); // a texture made afresh every few seconds (the name tags) is filtered but never listed, or the list would only grow
     const mag = RETRO.pixel ? THREE.NearestFilter : THREE.LinearFilter,
-      min = !mips ? mag : RETRO.pixel ? THREE.NearestMipmapLinearFilter : THREE.LinearMipmapLinearFilter;
+      min = !mips ? mag : RETRO.pixel ? THREE.NearestMipmapLinearFilter : THREE.LinearMipmapLinearFilter,
+      aniso = RETRO.pixel ? 1 : 4; // smoothed textures get the main build's anisotropy back; unfiltered ones have none, as the console had none
     if (!mips) t.generateMipmaps = false;
-    if (t.magFilter === mag && t.minFilter === min && t.anisotropy === 1) return;
+    if (t.magFilter === mag && t.minFilter === min && t.anisotropy === aniso) return;
     t.magFilter = mag;
     t.minFilter = min;
-    t.anisotropy = 1;
+    t.anisotropy = aniso;
     t.needsUpdate = true;
   }
   // the round shadow that stood in for a real one on every 1998 machine: a dark disc, sat just above the ground
@@ -308,12 +309,12 @@ before(
     RETRO.wobble = clamp(Math.round(num("r-wobble", 1)), 0, 3);
     RETRO.warp = clamp(num("r-affine", 0), 0, 1);
     RETRO.tex = clamp(Math.round(num("r-tex", 2)), 0, RETRO_TEX_SIZES.length - 1);
-    RETRO.pixel = on("r-pixel", true);
+    RETRO.pixel = on("r-nearest", false);
     RETRO.dither = on("r-dither", true);
     RETRO.scan = on("r-scan", false);
     if (retroReady) applyRetro();
   }
-  for (const id of ["r-picture", "r-wobble", "r-affine", "r-tex", "r-pixel", "r-dither", "r-scan"]) {
+  for (const id of ["r-picture", "r-wobble", "r-affine", "r-tex", "r-nearest", "r-dither", "r-scan"]) {
     const el = document.getElementById(id);
     if (el) el.oninput = el.onchange = readRetroControls;
   }
@@ -664,7 +665,7 @@ edit(
 edit(
   "pref ids",
   'const PREF_IDS = ["s-sens", "s-sfx", "s-music", "s-amb", "s-voice", "s-arrow"];',
-  'const PREF_IDS = ["s-sens", "s-sfx", "s-music", "s-amb", "s-voice", "s-arrow", "r-picture", "r-wobble", "r-affine", "r-tex", "r-pixel", "r-dither", "r-scan"]; // r-affine and r-picture rather than r-warp and r-res: both defaults changed in 3.2, and a saved old value would have come straight back'
+  'const PREF_IDS = ["s-sens", "s-sfx", "s-music", "s-amb", "s-voice", "s-arrow", "r-picture", "r-wobble", "r-affine", "r-tex", "r-nearest", "r-dither", "r-scan"]; // r-affine, r-picture and r-nearest rather than r-warp, r-res and r-pixel: each default changed, and a saved old value would have come straight back'
 );
 edit(
   "apply pixel ratio",

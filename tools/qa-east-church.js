@@ -31,6 +31,7 @@
   WORLDSTATE.hermitChurchTaken = false;
   WORLDSTATE.hermitChurchFound = false;
   WORLDSTATE.hermitChurchDone = false;
+  lit = true; // 3.4: the hermit offers the beacon errand before anything else while the beacon is dark, and play cannot reach his warning without it
   WORLDSTATE.hermitWarned = true;
   WORLDSTATE.finaleStarted = false;
   WORLDSTATE.wardenDead = false;

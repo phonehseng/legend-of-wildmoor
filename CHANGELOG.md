@@ -2,6 +2,56 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.4 — the pause menu, and a third playthrough's worth of fixes
+
+[screenshots](docs/updates/3.4.md) · [test notes](docs/QA_3.4.md)
+
+`legend_of_peanits_v3.4.html` and `legend_of_peanits_v3.4_retro.html`. everything here is in both.
+
+### the pause menu
+- **rebuilt.** one wide panel of every setting at once has become a menu: a slam-in title, six tabs down the side cut on the diagonal — play, skills, sound, picture, save, friends — and a card that slides its contents in one line at a time, the way the logs do. every control keeps its id and its behaviour; the retro edition's dials land in the picture tab. it opens on play every time, and esc still resumes.
+- **tab for the stats no longer stops the world.** the stats panel counted as an overlay, which froze the clock and the input; it is a side panel and reads as one now.
+
+### the story
+- **the game could soft-lock after the burial.** the objective sent you to rest, and rest only opens the pool once the king has heard it from you — so a player who went to bed first rested for ever with the errand still up. the king comes first in the objective now, then the bed. (guests take their access from the host and were never gated on the king.)
+- **nim's mother has her errand from the first day.** she was gated on nim already being found, and her not-yet line named the pool, which had nothing to do with it. "find nim" is offered from the start with the arrow on nim; nim will not come home until the beacon is lit (she says so herself); found before her mother is ever asked, it simply completes.
+- **the herb errands counted the hermit's herbs.** the four moor-herbs the hermit is shown stay in the bag, so the miller's and the healer's errands were complete before they had been spoken. each now counts only the herbs picked after it was asked for (the save keeps the tally and the two baselines).
+- **the beacon is lit from the top.** the flint worked from the foot of the tower; it wants the lamp now, and at the foot it tells you the ledges climb to it.
+- **endurance grows with time spent recovering**, not with how much came back: every second the bar is filling counts, and a bar that is never emptied still levels.
+- **dying to the goblin king starts his lull, the same as killing him.** killing him set a five-minute lull before he could rise again; dying to him set nothing, so you woke by the nearest bed with him still on the moor. the blow that killed you is remembered now, and a death to him — or to his pack with him beside you — starts the same lull and sends him back into the earth.
+
+### the quest audit
+five reviewers read every errand and story gate after the nim's-mother report, and three refuters tried each finding; forty-five survived, collapsing to these. all fixed here.
+
+- **the beacon could become impossible to light, and with it the whole ending.** the king took the murder report at any time — before the beacon — and the report wakes the pool; once the pool had woken, the hermit's act-three lines all returned before the branch that offers his beacon errand, so the flint's trick could never be learned, nim never had a light to steer by, the seal could never be granted and the finale could never start. the beacon errand comes first in the hermit's talk now whatever act the valley is in, and the king takes the report only once the beacon has made you champion. a save already in the dead state recovers on the next visit to the hermit.
+- **handing a herb to the miller un-gathered the hermit's four.** the objective and the hermit's gate both counted herbs held; they count herbs picked now.
+- **maren's heal ate the herbs the story still wanted**, three a press with no way to refuse, out of a moor that grows fourteen and never grew them back. she heals from the surplus over what the hermit and any open errand still want, and the moor grows its herbs back four minutes after they are picked, out of sight.
+- **a hosted game's errands froze when the party ended.** the party's count replaced your own and nothing wrote to it offline, so an errand taken while hosting could never be handed in from that save. the higher of the two counts stands.
+- **the ashfall smith promised the pool too.** the not-yet line was picked by village number and named the pool for two villages whose real gate is the hermit's warning; it names the hermit now.
+- **the hermit and the king wore no mark at the visits where they had something new to say** — the hermit through the whole of act three, the king at the murder report, the seal and the mourning. both marks follow the story's flags now.
+- **the weaver's arrow turned round the moment you opened wren's mirror**, changed or not; it follows the errand's own target.
+- **ysolde's father's errand could be left open behind a man nobody can speak to**; it is paid or closed when he is hidden.
+- **nim's homecoming did not cross the wire**: a guest could finish her errand while she still stood in the host's wood with a mark over her head. it travels with the story now, both ways.
+- **the rose queen's errand said a reward was waiting for ever**; the rescue is the reward, and it says so.
+- a guest's own slime kills count toward the hermit's six; the hud's arrow note agrees with the arrow; a tick over a villager means the errand can be handed in to them here; the root word's arrow points at nim while she is being looked for and at her mother otherwise; a dead branch in the party merge is gone.
+- **known, deferred:** the four kingdom errands (the woodpile, sir corrin, the miller's herb, the weaver) still ride the party wire though they are personal, so a host can see a guest's count for one they must finish themselves; the ashfall smith's quest slimes still land downhill of the village; a guest re-completing an errand already paid solo hears the thanks with nothing granted. all three are multiplayer only and wait for a session to test them in.
+
+### scenes
+- **the arrest of hale wheeled round the fountain.** three faults. the two knights closing on his shoulders pressed to a mark inside the crowding radius and shoved him a tenth of a metre a tick, walking him backwards across the square at a steady pace while the scene said he stood; his lunge at maren ended only when the speaking channel drained, a dozen seconds, so he chased her to her own door; and while "standing" he faced the first knight, whose mark is at his shoulder, so his turning moved the mark, the knight stepped, he turned again — a slow circle. the arrest party no longer shove one another, the lunge is a second and a half on its own clock, he faces the board once they have closed, and everyone walking in faces the way they walk. measured: the escorts' movement in the held phase fell from 104 samples to 10, and hale walks backwards in none.
+- **ysolde spun into the ground.** her turn onto her back was lerped from the carrier's live heading, the long way round; the start point and the turn are fixed at the start of the lowering now, by the short way.
+- **the castle hid its houses but not the people in them.** when the throne hall swells over the houses beside it, the houses go; a villager's mesh is the scene's, so a sleeper lay on the hall floor in full view. anyone inside a hidden house is hidden with it.
+- **the hall floor slid as the hall grew.** the flagstone repeat scaled with the room from the slab's corner, so the pattern flowed across the floor during the growth; an offset holds it still in world space.
+- **the hall floor's edge, and a band of street inside the doorway** (3.3.3's slab stopped short of the walls): the slab reaches under the walls and through the doorway now, and the room's walkable floor is padded to match, so walking out does not put the slab over your boots.
+- **the player lay under the blanket beside a villager who did not** — the same bed-height bug 3.3.3 fixed for villagers, on the player's own line.
+- **hale's note sank into the raised hall floor** (fixed in 3.3.2, here for the record).
+
+### drawing
+- **the streets flickered where they crossed.** the slabs cycled through seven heights, so the west side street and the north cross street shared one and their two cobble textures fought for the pixel in a sawtooth. every slab has its own step now.
+- **the retro edition smooths its textures by default.** unfiltered texels at full detail shimmer at every grazing angle; the pixel-texture toggle is still there, under a new preference name so a saved old value does not come back.
+- **pale trees are pale.** they were the oak's bark, lines and all, under a whitening tint. they have a trunk mesh of their own on a birch-white bark with a handful of dark lenticels, and the fallen copy is built from it.
+- **the axe is carried, not dragged.** its haft is a metre and a half, and hanging straight down from the hand it dragged its head along the ground; it is carried the way the drawn sword is, and the hand turns only for the swing.
+- **the satchel's discoveries list showed `<br>`.** one of its two renderers un-escaped `&lt;br>` without the closing entity, which never matched.
+
 ## 3.3.3 — beds and the hall's edge
 
 - **children sank into their beds when asleep.** a sleeper's height was deliberately left unscaled when a house grows around the player, but the bed is a child of the room and rises with it — one and a half times taller inside — so every sleeper sat twenty centimetres deeper in a grown bed than authored. an adult still showed a chest; a child at two-thirds size showed only hair. the sleeper's height follows the bed's top through the stretch now (the lie height itself is not stretched), so the body sits on the blanket at any room scale: measured in a grown house, a sleeping child shows thirty-nine centimetres above the blanket.
