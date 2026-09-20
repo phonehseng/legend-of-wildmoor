@@ -3,7 +3,7 @@ const path = require('path');
 const assert = require('assert');
 const vm = require('vm');
 
-const htmlPath = path.resolve(process.argv[2] || path.join(__dirname, '..', 'legend_of_peanits_v3.4.html'));
+const htmlPath = path.resolve(process.argv[2] || path.join(__dirname, '..', 'legend_of_peanits_v3.4.1.html'));
 const html = fs.readFileSync(htmlPath, 'utf8');
 
 console.log('Testing ' + path.basename(htmlPath) + ' post-game peaceful state...');

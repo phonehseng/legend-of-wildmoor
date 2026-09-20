@@ -2,6 +2,14 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.4.1 — the hall's floor, off the hot path
+
+[test notes](docs/QA_3.4.md#341)
+
+`legend_of_peanits_v3.4.1.html` and `legend_of_peanits_v3.4.1_retro.html`. one change, in both.
+
+- **every ground query outside a room scanned every room in the valley.** 3.4 taught the ground lookup that the hall's floor slab reaches a metre past its walkable boundary, so walking out through the doorway keeps the flagstones under your boots. it did so with a fallback that ran whenever the point was not inside a room — which is nearly every call, since every villager, goblin and blob shadow asks for the ground under it every frame — and the fallback built a closure and walked all seventy-five interiors looking for the one with a padded floor. the padded rooms are listed once now, rebuilt only when the interior list changes, and a miss costs a single bounds check against the hall. measured over fifty thousand queries at points no room contains: 0.69 µs a query on 3.4, 0.30 on 3.4.1, on both builds. the ten probe points around the hall — the centre, inside the pad on every side and at a corner, beyond the pad on every side — return the same heights as 3.4 to the millimetre. found by the standing review; nothing was visible in play.
+
 ## 3.4 — the pause menu, and a third playthrough's worth of fixes
 
 [screenshots](docs/updates/3.4.md) · [test notes](docs/QA_3.4.md)

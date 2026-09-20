@@ -39,3 +39,17 @@ what was run against `legend_of_peanits_v3.4.html` and `legend_of_peanits_v3.4_r
 ## multiplayer soak
 
 two minutes, four clients, each build, run last against the released files: green on both, 15 of 15 combat checks, no runtime or shader errors.
+
+## 3.4.1
+
+one change: the ground lookup's padded-room fallback (the hall's floor reaching out through the doorway) no longer builds a closure and scans every interior on every miss. run against `legend_of_peanits_v3.4.1.html` and `legend_of_peanits_v3.4.1_retro.html`, same machine, real gpu.
+
+| suite | main 3.4.1 | retro 3.4.1 |
+|---|---|---|
+| `qa-game` (headless edge, real gpu) | clean, world built, game started | same |
+| `qa-repair-reload` | all checks | all checks |
+| `qa-kingdom-geometry` | passes | passes |
+| `qa-lucifer-visuals` | passes | passes |
+| `qa-pride-river` | passes | passes |
+
+measured: ten probe points around the hall — the centre; half a metre inside the pad on the south, north, east and west sides and at a corner; sixty centimetres beyond the pad on each side — return the same heights on 3.4, 3.4.1 and 3.4.1 retro: the floor at 8.06 inside the pad, the ground at 8.00 beyond it (the north side reads 8.60 on all three, a raised structure behind the hall). fifty thousand ground queries at sixty-four points no room contains: 0.694 µs each on 3.4, 0.302 on 3.4.1, 0.294 on 3.4.1 retro, with the same summed result on all three. the multiplayer suites were not rerun: the change touches no packet and no shared state.

@@ -9,13 +9,13 @@
 //
 //   node tools/make-retro.cjs [source.html] [target.html]
 //
-// defaults: legend_of_peanits_v3.4.html -> legend_of_peanits_v3.4_retro.html
+// defaults: legend_of_peanits_v3.4.1.html -> legend_of_peanits_v3.4.1_retro.html
 const fs = require("fs");
 const path = require("path");
 
-const SRC = path.resolve(process.argv[2] || "legend_of_peanits_v3.4.html");
-const OUT = path.resolve(process.argv[3] || "legend_of_peanits_v3.4_retro.html");
-const VERSION = "3.4";
+const SRC = path.resolve(process.argv[2] || "legend_of_peanits_v3.4.1.html");
+const OUT = path.resolve(process.argv[3] || "legend_of_peanits_v3.4.1_retro.html");
+const VERSION = "3.4.1";
 
 let html = fs.readFileSync(SRC, "utf8").replace(/\r\n/g, "\n");
 const edits = [];
