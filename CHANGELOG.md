@@ -2,6 +2,11 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.3.1 — the hall floor
+
+- **the throne hall's floor broke into patches of street when the hall grew.** the hall's flagstones are a two-centimetre slab; the avenue and the cross streets around the keep are slabs with tops at eight to ten centimetres. when the hall swells around you — one and a half times wider, two and a half times taller — its floor spreads out over those streets, and at five centimetres (grown) they came up through it in rectangular patches, each with its own cobble scale. the floor sits at six centimetres now, fifteen grown, which covers them; the carpet lies on top of it; and the standing height inside follows the slab as it always did. the flagstones also have a texture of their own now whose repeat follows the growth, so the stones stay the size they were laid at instead of swelling with the room.
+- a first cut of this put the base repeat on the texture's `userData`, which a texture in this three does not have; the world build threw and the game never left the loading screen. it lives on the room record instead. caught before release.
+
 ## 3.3 — the second playthrough
 
 [screenshots + download](docs/updates/3.3.md) · [test notes](docs/QA_3.3.md)

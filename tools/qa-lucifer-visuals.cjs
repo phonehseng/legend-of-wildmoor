@@ -1,7 +1,7 @@
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {loadPlaywright,browserPath}=require('./qa-game.cjs');
 async function main(){
- const file=path.resolve(process.argv[2]||'legend_of_peanits_v3.3.html'),out=path.resolve(process.argv[3]||'artifacts/lucifer-visuals');
+ const file=path.resolve(process.argv[2]||'legend_of_peanits_v3.3.1.html'),out=path.resolve(process.argv[3]||'artifacts/lucifer-visuals');
  const source=fs.readFileSync(file,'utf8').replace(/\r\n/g,'\n'),scripts=[...source.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map(m=>m[1]);scripts.forEach(s=>new Function(s));
  const start=source.indexOf('  function gehBuildFinale() {'),end=source.indexOf('  function gehInteractLucifer(',start);assert.ok(start>0&&end>start);
  const beginPose=source.indexOf('  function gehPoseLuciferThrow('),endPose=source.indexOf('  function gehPoseLucifer(',beginPose);
