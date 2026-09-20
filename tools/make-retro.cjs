@@ -9,13 +9,13 @@
 //
 //   node tools/make-retro.cjs [source.html] [target.html]
 //
-// defaults: legend_of_peanits_v3.0.html -> legend_of_peanits_v3.1.1_retro.html
+// defaults: legend_of_peanits_v3.0.html -> legend_of_peanits_v3.2_retro.html
 const fs = require("fs");
 const path = require("path");
 
 const SRC = path.resolve(process.argv[2] || "legend_of_peanits_v3.0.html");
-const OUT = path.resolve(process.argv[3] || "legend_of_peanits_v3.1.1_retro.html");
-const VERSION = "3.1.1";
+const OUT = path.resolve(process.argv[3] || "legend_of_peanits_v3.2_retro.html");
+const VERSION = "3.2";
 
 let html = fs.readFileSync(SRC, "utf8").replace(/\r\n/g, "\n");
 const edits = [];
@@ -30,6 +30,13 @@ function edit(name, anchor, replacement) {
 }
 const after = (name, anchor, insert) => edit(name, anchor, anchor + insert);
 const before = (name, anchor, insert) => edit(name, anchor, insert + anchor);
+// replace every occurrence, and refuse unless there are exactly as many as expected
+function editAll(name, anchor, replacement, count) {
+  const parts = html.split(anchor);
+  if (parts.length - 1 !== count) throw new Error(`${name}: expected ${count} occurrences, found ${parts.length - 1}:\n${anchor.slice(0, 200)}`);
+  html = parts.join(replacement);
+  edits.push(name);
+}
 
 // ------------------------------------------------------------------ page
 edit(
@@ -52,9 +59,10 @@ after(
   "settings controls",
   '      <p id="graphics-status" role="status" aria-live="polite"></p>\n',
   `      <!-- the 1998 renderer. each of these is a machine preference (PREF_IDS), saved and restored with the sound sliders -->
-      <label>Picture <span id="r-res-val" style="opacity:.7;font-variant-numeric:tabular-nums">240p</span></label><input type="range" id="r-res" min="0" max="4" step="1" value="1">
+      <label>Picture <span id="r-res-val" style="opacity:.7;font-variant-numeric:tabular-nums">native</span></label><input type="range" id="r-picture" min="0" max="4" step="1" value="4">
       <label>Vertex wobble <span id="r-wobble-val" style="opacity:.7;font-variant-numeric:tabular-nums">1</span></label><input type="range" id="r-wobble" min="0" max="3" step="1" value="1">
-      <label>Texture warp <span id="r-warp-val" style="opacity:.7;font-variant-numeric:tabular-nums">0.5</span></label><input type="range" id="r-warp" min="0" max="1" step=".1" value=".5">
+      <label>Texture detail <span id="r-tex-val" style="opacity:.7;font-variant-numeric:tabular-nums">native</span></label><input type="range" id="r-tex" min="0" max="2" step="1" value="2">
+      <label>Texture warp <span id="r-affine-val" style="opacity:.7;font-variant-numeric:tabular-nums">0.0</span></label><input type="range" id="r-affine" min="0" max="1" step=".1" value="0">
       <div class="row"><input type="checkbox" id="r-pixel" checked><label for="r-pixel" style="margin:0">Pixel textures, no smoothing</label></div>
       <div class="row"><input type="checkbox" id="r-dither" checked><label for="r-dither" style="margin:0">15-bit colour, dithered</label></div>
       <div class="row"><input type="checkbox" id="r-scan"><label for="r-scan" style="margin:0">Scanlines</label></div>
@@ -91,11 +99,15 @@ before(
   //   - a chunk patch snaps every vertex to the picture grid and lets the texture mapping ignore perspective
   //   - the screen pass cuts the colour to five bits a channel through a 4x4 ordered dither
   // none of this touches gameplay, collision or saves; the settings below are machine preferences like the sound sliders
-  const RETRO = { res: 1, wobble: 1, warp: 0.5, pixel: true, dither: true, scan: false };
+  // the warp is off by default: the affine swim is right on a wall a few metres wide, and wrong on a floor that is
+  // one polygon forty metres across, which is most of this game's floors. the dial is still there.
+  const RETRO = { res: 4, wobble: 1, warp: 0, pixel: true, dither: true, scan: false, tex: 2 }; // the picture is the window's own by default since 3.2; the dial still goes down to 200 lines
   const RETRO_RES = [200, 240, 320, 480, 0]; // picture height in lines; 0 is the window's own
-  const RETRO_TEX = 64; // texture side in texels, the budget a 1998 cartridge gave a wall
-  const RETRO_U = { snap: { value: new THREE.Vector2(0, 0) }, warp: { value: 0.5 } }; // shared by every program, so a change reaches all of them without a recompile
+  const RETRO_TEX_SIZES = [64, 128, 0]; // texture side in texels for the detail dial; 0 keeps the texture as painted
+  const RETRO_U = { snap: { value: new THREE.Vector2(0, 0) }, warp: { value: 0 } }; // shared by every program, so a change reaches all of them without a recompile
   const RETRO_TEXTURES = [];
+  const RETRO_SOURCES = new Map(); // texture -> { c, alpha }: the canvas it was painted on, kept so the detail dial can shrink it again
+  let retroTexApplied = 2; // the detail the textures on the list were last made at
   const RETRO_POINTS = [], RETRO_POINT_SCALE = { value: 1 }; // every points material and the picture-to-window ratio its size is scaled by
   let RETRO_BLOBS = []; // the discs under villagers, checked each frame for a group that has been laid flat
   let retroReady = false; // the render target exists once the renderer does; until then the controls only write RETRO
@@ -105,7 +117,7 @@ before(
     const Physical = THREE.MeshStandardMaterial;
     THREE.MeshStandardMaterialPBR = Physical;
     const DROP = ["roughness", "metalness", "roughnessMap", "metalnessMap", "envMapIntensity", "normalMap", "normalScale", "displacementMap", "displacementScale", "displacementBias", "flatShading"];
-    class MeshStandardMaterial extends THREE.MeshLambertMaterial {
+    class MeshStandardMaterialFlat extends THREE.MeshLambertMaterial {
       constructor(p) {
         let q = p;
         if (p) {
@@ -119,7 +131,31 @@ before(
         this.flatShading = !!(p && p.flatShading);
       }
     }
-    THREE.MeshStandardMaterial = MeshStandardMaterial;
+    // what shone in the main build shines here too. a metal — metalness past a half: the knights' plate, the crown,
+    // the gold, gehenna's black water — is built as a phong material with a specular colour and a shininess worked
+    // out from the roughness, its base colour darkened the way a metal's diffuse is. the highlight is per pixel
+    // rather than per vertex, which is near enough what a console's environment map gave a breastplate.
+    class MeshStandardMaterialShiny extends THREE.MeshPhongMaterial {
+      constructor(p) {
+        let q = p;
+        if (p) {
+          q = Object.assign({}, p);
+          for (const k of DROP) if (k !== "flatShading") delete q[k];
+          const m = p.metalness !== undefined ? p.metalness : 0,
+            r = p.roughness !== undefined ? p.roughness : 1,
+            base = new THREE.Color(q.color !== undefined ? q.color : 0xffffff);
+          q.specular = base.clone().multiplyScalar(0.3 + 0.7 * m);
+          q.shininess = 8 + 92 * (1 - r) * (1 - r);
+          q.color = base.multiplyScalar(1 - 0.42 * m);
+        }
+        super(q);
+        this.roughness = p && p.roughness !== undefined ? p.roughness : 1;
+        this.metalness = p && p.metalness !== undefined ? p.metalness : 0;
+      }
+    }
+    // a plain function under the old name: \`new\` on it hands back whichever of the two it returns, and each
+    // instance's own constructor is the class it was built from, so clone() keeps working
+    THREE.MeshStandardMaterial = function MeshStandardMaterial(p) { return p && p.metalness >= 0.5 ? new MeshStandardMaterialShiny(p) : new MeshStandardMaterialFlat(p); };
     // fewer sides on everything round. anything already at or under the floor keeps its count: the limbs are built
     // from six-sided cylinders and would fold flat at three
     const fewer = (n, floor) => (n === undefined || n <= floor ? n : Math.max(floor, Math.round(n * 0.5)));
@@ -161,6 +197,8 @@ before(
     THREE.Texture.prototype.clone = function () {
       const c = clone0.call(this);
       if (RETRO_TEXTURES.indexOf(this) >= 0) retroTexture(c);
+      const src = RETRO_SOURCES.get(this);
+      if (src) RETRO_SOURCES.set(c, src); // the clone shares the painting, so the detail dial reaches it too
       return c;
     };
     // the chunk patches. these are the strings every built-in program is assembled from, so changing them here
@@ -210,11 +248,13 @@ before(
   // textures: painted at the size the main build paints them, then shrunk to the cartridge budget and cut to
   // sixteen shades a channel, which is the banding a palette texture had
   function retroTexel(c, alpha) {
-    const size = Math.min(RETRO_TEX, c.width);
-    let d = c;
-    if (c.width > size) {
-      d = document.createElement("canvas");
-      d.width = d.height = size;
+    const want = RETRO_TEX_SIZES[RETRO.tex];
+    if (!want) return c; // native: the painting itself, untouched, so the dial can always come back to it
+    const size = Math.min(want, c.width);
+    // always a fresh canvas, even at the same size: the painting is kept for the dial and must not be cut in place
+    const d = document.createElement("canvas");
+    d.width = d.height = size;
+    {
       const g = d.getContext("2d");
       g.imageSmoothingEnabled = true;
       g.imageSmoothingQuality = "high";
@@ -264,15 +304,16 @@ before(
   function readRetroControls() {
     const num = (id, d) => { const el = document.getElementById(id), v = el ? +el.value : NaN; return Number.isFinite(v) ? v : d; };
     const on = (id, d) => { const el = document.getElementById(id); return el ? !!el.checked : d; };
-    RETRO.res = clamp(Math.round(num("r-res", 1)), 0, RETRO_RES.length - 1);
+    RETRO.res = clamp(Math.round(num("r-picture", 4)), 0, RETRO_RES.length - 1);
     RETRO.wobble = clamp(Math.round(num("r-wobble", 1)), 0, 3);
-    RETRO.warp = clamp(num("r-warp", 0.5), 0, 1);
+    RETRO.warp = clamp(num("r-affine", 0), 0, 1);
+    RETRO.tex = clamp(Math.round(num("r-tex", 2)), 0, RETRO_TEX_SIZES.length - 1);
     RETRO.pixel = on("r-pixel", true);
     RETRO.dither = on("r-dither", true);
     RETRO.scan = on("r-scan", false);
     if (retroReady) applyRetro();
   }
-  for (const id of ["r-res", "r-wobble", "r-warp", "r-pixel", "r-dither", "r-scan"]) {
+  for (const id of ["r-picture", "r-wobble", "r-affine", "r-tex", "r-pixel", "r-dither", "r-scan"]) {
     const el = document.getElementById(id);
     if (el) el.oninput = el.onchange = readRetroControls;
   }
@@ -287,7 +328,7 @@ if (html.indexOf("rp = floor( rp * uRetroSnap + 0.5 ) / uRetroSnap;") < 0) throw
 edit(
   "makeTex canvas",
   "    draw(g, size);\n    const t = new THREE.CanvasTexture(c);",
-  "    draw(g, size);\n    const t = new THREE.CanvasTexture(retroTexel(c, alpha)); // painted at full size, shown at the cartridge's"
+  "    draw(g, size);\n    const t = new THREE.CanvasTexture(retroTexel(c, alpha)); // painted at full size, shown at the detail dial's\n    RETRO_SOURCES.set(t, { c, alpha }); // the painting is kept, so the dial can make it again at another size"
 );
 edit(
   "makeTex filters",
@@ -304,7 +345,7 @@ edit(
 edit(
   "quality profile",
   '{ id: "very-low", name: "Very low", pixel: 0.75, far: 185, shadow: 0, textures: false, grass: false, particles: 0.12, clouds: 0, hud: 0.12 }',
-  '{ id: "very-low", name: "Very low", pixel: 1, far: 185, shadow: 0, textures: true, grass: false, particles: 0.12, clouds: 0, hud: 0.12 } // textures stay on: at 240 lines the fill rate is nothing, and the 64-texel walls are the look'
+  '{ id: "very-low", name: "Very low", pixel: 1, far: 240, shadow: 0, textures: true, grass: false, particles: 0.12, clouds: 0, hud: 0.12 } // textures stay on and the world draws further: at 240 lines the fill rate is nothing, and a house that arrives at the edge of the fog arrives late'
 );
 edit(
   "renderer construction",
@@ -397,15 +438,60 @@ after(
     retroPost.uniforms.uDither.value = RETRO.dither ? 1 : 0;
     retroPost.uniforms.uScan.value = RETRO.scan ? 1 : 0;
     for (const t of RETRO_TEXTURES) retroTexture(t);
+    if (retroTexApplied !== RETRO.tex) {
+      // every painting is shrunk again at the new detail, clones included: they share the painting through the map
+      retroTexApplied = RETRO.tex;
+      for (const [t, src] of RETRO_SOURCES) {
+        t.image = retroTexel(src.c, src.alpha);
+        t.needsUpdate = true;
+      }
+    }
     retroStatus();
   }
+  const retroTexName = () => (RETRO_TEX_SIZES[RETRO.tex] ? RETRO_TEX_SIZES[RETRO.tex] + "-texel" : "native");
   function retroStatus() {
     const el = document.getElementById("r-status");
-    if (el) el.textContent = \`\${retroRT.width}×\${retroRT.height} picture · wobble \${RETRO.wobble} · warp \${RETRO.warp.toFixed(1)} · \${RETRO.pixel ? "pixel" : "smooth"} textures · \${RETRO.dither ? "15-bit dithered" : "24-bit"} colour\${RETRO.scan ? " · scanlines" : ""}.\`;
+    if (el) el.textContent = \`\${retroRT.width}×\${retroRT.height} picture · wobble \${RETRO.wobble} · warp \${RETRO.warp.toFixed(1)} · \${retroTexName()} \${RETRO.pixel ? "pixel" : "smooth"} textures · \${RETRO.dither ? "15-bit dithered" : "24-bit"} colour\${RETRO.scan ? " · scanlines" : ""}.\`;
     const put = (id, s) => { const e = document.getElementById(id); if (e) e.textContent = s; };
     put("r-res-val", RETRO_RES[RETRO.res] ? RETRO_RES[RETRO.res] + "p" : "native");
     put("r-wobble-val", String(RETRO.wobble));
-    put("r-warp-val", RETRO.warp.toFixed(1));
+    put("r-affine-val", RETRO.warp.toFixed(1));
+    put("r-tex-val", retroTexName());
+  }
+  // gehenna is raised at boot and kept, hidden, so the dive needs no building during the fall: the same guarded,
+  // error-swallowing kickoff the main build uses when the whirlpool wakes, run whenever there is no gehenna and
+  // nothing is building one. the seed it is raised on is provisional — held in GEH.seed and adopted by the world the
+  // moment it wants one of its own — and is never written to WORLDSTATE, because a player who has never been below
+  // is known by having no seed there. a loaded save that carries its own seed gets its own gehenna: gehBuildWorld
+  // takes the standing one down when asked to build for a different seed. a guest never builds their own — the
+  // host's arrives over the wire and is built by netGehennaEnsure.
+  function retroGehennaResident() {
+    if (GEH.netBuilding || GEH.failed || typeof window.gehBuildWorld !== "function") return;
+    if (NET.role === "guest") {
+      // a guest's gehenna is the host's. the provisional one raised before they joined comes down, so a guest who
+      // never goes below has none, exactly as in the main build; the host's arrives through netGehennaEnsure
+      if (GEH.root && !WORLDSTATE.gehSeed && GEH.root.userData.retroSeed !== undefined && !netGehennaActive()) gehTeardown("a guest takes the host's gehenna");
+      return;
+    }
+    if (GEH.root) {
+      const built = GEH.root.userData.retroSeed;
+      if (!WORLDSTATE.gehSeed || built === undefined || built === WORLDSTATE.gehSeed) return;
+      GEH.seed = WORLDSTATE.gehSeed; // the world has a seed of its own now; the build below replaces the provisional one
+    } else GEH.seed = WORLDSTATE.gehSeed || GEH.seed || 1 + Math.floor(Math.random() * 999999);
+    GEH.netBuilding = true;
+    Promise.resolve()
+      .then(window.gehBuildWorld)
+      .then(() => { GEH.netBuilding = false; })
+      .catch(err => {
+        GEH.netBuilding = false;
+        GEH.failed = true;
+        console.error("Gehenna: the resident build threw", err);
+        if (GEH.root) {
+          if (GEH.root.parent) scene.remove(GEH.root);
+          try { disposeTree(GEH.root); } catch (_) {}
+          GEH.root = null;
+        }
+      });
   }
   // the hero's blob shadow lives in the scene rather than under the model, because the model rises with a jump and
   // the shadow has to stay on the ground and shrink. other players get the same treatment, one pooled disc each,
@@ -512,6 +598,52 @@ edit(
   "tex.minFilter = THREE.LinearFilter; return tex;",
   "retroTexture(tex, false, false); return tex;"
 );
+// the valley draws further in this edition; the picture is small and the fill is cheap
+edit(
+  "town draw distance",
+  "      townDrawDistance: 60, // metres you can see inside the walls before the beacon is lit",
+  "      townDrawDistance: 110, // metres you can see inside the walls before the beacon is lit (sixty in the main build: at 240 lines the fill is cheap, and a house that arrived at sixty arrived late)"
+);
+// the keep is the castle. drawn only within thirty metres like any other room, it vanished from the far side of the
+// square and left the king sitting on the grass
+edit(
+  "keep always drawn",
+  "      it.group.visible = !it.keepHides && (it === roomNow || Math.hypot(it.cx - P.pos.x, it.cz - P.pos.z) < ROOM_DRAW_R);",
+  "      it.group.visible = !it.keepHides && (it.keep || it === roomNow || Math.hypot(it.cx - P.pos.x, it.cz - P.pos.z) < camera.far); // the keep is the castle, and is drawn from anywhere; every other room is drawn as far as the view reaches, so a house does not arrive with its inside missing (thirty metres in the main build)"
+);
+// gehenna stays built once it is built (retroGehennaResident raises it at boot); only the after-story's own grace
+// period still takes it down, so its closing beat can be the valley heard from outside as it was written
+edit(
+  "gehenna stays",
+  '      if (GEH.away > (api && api.done ? 14 : 2)) gehTeardown("the player is no longer under the seam");',
+  '      if (api && api.done && GEH.away > 14) gehTeardown("the after-story is over"); // this edition keeps gehenna standing between visits; it is raised again at once if this takes it down'
+);
+// a build asked for on a different seed than the standing gehenna was raised on takes that one down first, rather
+// than returning as if the work were done: the resident one is raised on a provisional seed, and a loaded save, a
+// host's shared visit or a test suite may each arrive with a seed of their own
+edit(
+  "build for the seed asked for",
+  "  window.gehBuildWorld = async function gehBuildWorld() {\n    if (GEH.root) return;",
+  "  window.gehBuildWorld = async function gehBuildWorld() {\n    if (GEH.root) {\n      const built = GEH.root.userData.retroSeed;\n      if (built === undefined || built === GEH.seed) return;\n      gehTeardown(\"raised again for its own seed\");\n    }"
+);
+edit(
+  "remember the seed a gehenna was raised on",
+  "    GEH.root = g;\n    const cityGroup = new THREE.Group();",
+  "    GEH.root = g;\n    g.userData.retroSeed = GEH.seed; // so a later build for another seed knows this one is not it\n    const cityGroup = new THREE.Group();"
+);
+// the world adopts the provisional seed the resident gehenna was raised on, rather than rolling a fresh one it
+// would then have to rebuild for
+editAll(
+  "adopt the resident seed",
+  "if (!WORLDSTATE.gehSeed) WORLDSTATE.gehSeed = 1 + Math.floor(Math.random() * 999999);",
+  "if (!WORLDSTATE.gehSeed) WORLDSTATE.gehSeed = GEH.seed || 1 + Math.floor(Math.random() * 999999); // the resident gehenna's own seed, when there is one",
+  2
+);
+edit(
+  "adopt the resident seed (shared visit)",
+  "if (!netGehennaSeed(WORLDSTATE.gehSeed)) WORLDSTATE.gehSeed = 1 + Math.floor(Math.random() * 999999);",
+  "if (!netGehennaSeed(WORLDSTATE.gehSeed)) WORLDSTATE.gehSeed = netGehennaSeed(GEH.seed) ? GEH.seed : 1 + Math.floor(Math.random() * 999999); // the resident gehenna's own seed, when there is one"
+);
 // a frame that throws after retroBegin would otherwise leave the renderer aimed at the small picture with nothing
 // copied to the window; if it throws every frame the screen freezes while the game runs on underneath. the copy is
 // made on the way into the error handler, so whatever was drawn is shown and the next frame starts clean.
@@ -532,7 +664,7 @@ edit(
 edit(
   "pref ids",
   'const PREF_IDS = ["s-sens", "s-sfx", "s-music", "s-amb", "s-voice", "s-arrow"];',
-  'const PREF_IDS = ["s-sens", "s-sfx", "s-music", "s-amb", "s-voice", "s-arrow", "r-res", "r-wobble", "r-warp", "r-pixel", "r-dither", "r-scan"];'
+  'const PREF_IDS = ["s-sens", "s-sfx", "s-music", "s-amb", "s-voice", "s-arrow", "r-picture", "r-wobble", "r-affine", "r-tex", "r-pixel", "r-dither", "r-scan"]; // r-affine and r-picture rather than r-warp and r-res: both defaults changed in 3.2, and a saved old value would have come straight back'
 );
 edit(
   "apply pixel ratio",
@@ -547,7 +679,7 @@ edit(
 edit(
   "frame begin",
   "    gehFightSpectate(dt);\n    renderer.clippingPlanes = P.pos.y < DIVIDE ? GEH_CLIP : NO_CLIP;\n    renderer.render(scene, camera);",
-  "    gehFightSpectate(dt);\n    sky.material.uniforms.uTime.value = now * 0.001;\n    retroBlobUpdate();\n    retroBegin(); // every pass below lands in the small picture\n    renderer.clippingPlanes = P.pos.y < DIVIDE ? GEH_CLIP : NO_CLIP;\n    renderer.render(scene, camera);"
+  "    gehFightSpectate(dt);\n    sky.material.uniforms.uTime.value = now * 0.001;\n    retroGehennaResident();\n    if (GEH.root) GEH.root.visible = netGehennaActive(); // built and kept, but drawn only when someone is under the seam\n    retroBlobUpdate();\n    retroBegin(); // every pass below lands in the small picture\n    renderer.clippingPlanes = P.pos.y < DIVIDE ? GEH_CLIP : NO_CLIP;\n    renderer.render(scene, camera);"
 );
 edit(
   "frame end",

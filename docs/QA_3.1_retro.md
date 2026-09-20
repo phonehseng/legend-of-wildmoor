@@ -36,6 +36,10 @@ six independent reviews of the retro layer (shaders, class substitutions, pipeli
 
 after the fixes, on the regenerated file: the E and ? prompts draw whole at warp 0.5; a person group laid flat hides its disc and an upright one at half scale keeps it; the render target reports depth and stencil; 106 textures are on the retro list including both river clones of the water; the stars' points material keeps its 2.2 picture pixels while the picture-to-window ratio for attenuated points is 0.333 at 240p in a 720-line window; the interior of a house shows planks and plaster with no swim up close.
 
+## 3.2
+
+the same suites rerun on `legend_of_peanits_v3.2_retro.html` after the first-playthrough fixes (metals, warp off, native textures and picture, the keep, draw distances, rooms to the view distance, resident gehenna). measured at start on that file: 290 phong materials (the metals) beside 11,551 lambert ones and the four physical ones lucifer's hand keeps; the grass texture 256 texels; warp 0; draw distance 240 m, 110 m inside the walls; 27 of 75 rooms drawn from the south gate (the ones within the view); gehenna built and hidden two seconds after the title with no seed written into the save, and replaced within 311 ms by one raised on a save's own seed when one arrived; the keep drawn from 64 m; 87 fps and no frame errors. `qa-pride-river` now knows the edition keeps gehenna standing after an ascent and checks for that instead of the main build's teardown; `qa-bystander-live` passes as written because a guest's provisional gehenna comes down when they join.
+
 ## looked at
 
 screenshots in [the update page](updates/3.1_retro.md): the south gate, the meadow with the clouds, looking up at the sky, the square, the title flight, night on the water. tone mapping was chosen by screenshot: aces 1.22 (the main build's) left the meadow pale, linear 0.7–1.0 clipped it to neon green, reinhard washed it, cineon 1.0 kept the saturated green with the sun still rolling off.
