@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 3.3.2</title>
+<title>Legend of Peanits 3.3.3</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#1b1626, #0d0a14); --edge: #6c583a; --hi: #8a6a3e; }
@@ -534,7 +534,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.3.2</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.3.3</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -604,7 +604,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 3.3.2</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 3.3.3</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
@@ -6797,8 +6797,11 @@ const __boot = (async () => {
             n.pos.set(bw.x, it.y + (it.floorTop || 0) * ky, bw.z);
             n.mesh.position.set(
               bw.x + fx * along,
-              // unscaled, for the same reason the player's is: scaling by the room stretch lifts a sleeper off the blanket
-              it.y + b.top + TUNE.player.lieHeightOverMattress + Math.sin(time * 0.8) * 0.015,
+              // the bed is a child of the room and rises with it when the room grows around the player, so the sleeper's
+              // height follows the bed's top through the stretch. left unscaled, every sleeper sat twenty centimetres
+              // deeper in a grown bed than authored: an adult still showed a chest, a child at two-thirds size showed
+              // only hair. the lie height itself is not stretched, so the body sits on the blanket at any room scale.
+              it.y + b.top * ky + TUNE.player.lieHeightOverMattress + Math.sin(time * 0.8) * 0.015,
               bw.z + fz * along
             );
             n.mesh.rotation.order = "YXZ";
@@ -8465,7 +8468,9 @@ const __boot = (async () => {
     cg.add(
       boxM(K.door * 2 + 0.4, K.h - 7, 1.6, stoneM, 0, K.h - (K.h - 7) / 2, K.d),
       boxM(K.w * 2 + 2, 1.4, K.d * 2 + 2, stoneDarkM, 0, K.h + 0.7, 0),
-      boxM(K.w * 2 - 1.6, 0.02, K.d * 2 - 1.6, keepFloorM, 0, 0.05, 0)
+      // and it reaches under the walls and out through the doorway (0.2 past the wall centre lines, inside the 0.35 the
+      // walls are thick), so there is no band of street between the flagstones and the door and no slab edge to see
+      boxM(K.w * 2 + 0.4, 0.02, K.d * 2 + 0.4, keepFloorM, 0, 0.05, 0)
     );
     for (let k = -3; k <= 3; k++)
       cg.add(boxM(2, 1.2, 1.6, stoneDarkM, k * 3.8, K.h + 2, K.d + 0.5), boxM(2, 1.2, 1.6, stoneDarkM, k * 3.8, K.h + 2, -K.d - 0.5));

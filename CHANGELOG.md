@@ -2,6 +2,11 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.3.3 — beds and the hall's edge
+
+- **children sank into their beds when asleep.** a sleeper's height was deliberately left unscaled when a house grows around the player, but the bed is a child of the room and rises with it — one and a half times taller inside — so every sleeper sat twenty centimetres deeper in a grown bed than authored. an adult still showed a chest; a child at two-thirds size showed only hair. the sleeper's height follows the bed's top through the stretch now (the lie height itself is not stretched), so the body sits on the blanket at any room scale: measured in a grown house, a sleeping child shows thirty-nine centimetres above the blanket.
+- **the hall floor's edge, and a band of street inside the doorway.** the flagstone slab stopped forty-five centimetres short of the walls and eighty short of the door line, so a strip of the avenue showed inside the doorway (over a metre, grown) and the slab's edge could be seen from the door. the slab reaches under the walls and out through the doorway now — twenty centimetres past the wall centre lines, inside the thirty-five the walls are thick — so there is no exposed edge and no band of street anywhere inside the hall.
+
 ## 3.3.2 — hale's note
 
 - **hale's note sank into the raised hall floor.** it is the one pickup laid by hand at the old floor height, two centimetres up, and the 3.3.1 slab passes over it when the hall is grown: the book spent most of its bob half-buried in the flagstones. it is placed from the room's own floor height at full growth now, with the book's half-height on top, so it cannot go stale with the floor again. found in review before anyone saw it.
