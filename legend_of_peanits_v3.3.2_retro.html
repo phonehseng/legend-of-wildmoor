@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
 <!-- legend of peanits, formerly wildmoor: a single-file 3d rpg built on three r128 (bundled below for offline play)
+this is the retro edition: the valley is drawn the way a 1998 console drew it. a 240-line picture scaled up without smoothing, 64-pixel textures with no
+filtering, lighting worked out per vertex, vertices snapped to the pixel grid, affine texture warp and 15-bit dithered colour. gameplay, saves and
+multiplayer are the main build's, untouched; look for "the 1998 renderer" in the script. built from the main file by tools/make-retro.cjs
 html: canvas, hud, title, character creation and pause controls; css: layout and state classes; javascript runs in one async boot scope:
 utilities/audio/textures, world generation, characters/quests/enemies, player skills/input/combat, weather/update/hud, graphics/frame loop
 units are world metres and seconds unless noted; p holds player state, sk holds practiced skills, ps holds cosmetic particle pools
@@ -10,7 +13,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 3.3.1</title>
+<title>Legend of Peanits 3.3.2 Retro</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#1b1626, #0d0a14); --edge: #6c583a; --hi: #8a6a3e; }
@@ -19,7 +22,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   /* appearance and layout for html, body */
   html, body { height: 100%; background: var(--ink); overflow: hidden; user-select: none; -webkit-user-select: none; -ms-user-select: none; font-family: "Trebuchet MS", "Verdana", Georgia, "Times New Roman", serif; color: var(--bone); }
   /* appearance and layout for canvas#game */
-  canvas#game { display: block; width: 100vw; height: 100vh; cursor: none; }
+  canvas#game { display: block; width: 100vw; height: 100vh; cursor: none; image-rendering: pixelated; image-rendering: crisp-edges; }
   /* appearance and layout for #hud */
   #hud { position: fixed; inset: 0; pointer-events: none; }
   body.title #hud > :not(#loading):not(#title):not(#intro) { visibility: hidden; }
@@ -534,7 +537,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.3.1</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.3.2r</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -604,11 +607,20 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="panel">
-      <div class="edition">LEGEND OF PEANITS 3.3.1</div><h2>Take a breather<span class="brand-dot">.</span></h2>
+      <div class="edition">LEGEND OF PEANITS 3.3.2 RETRO</div><h2>Take a breather<span class="brand-dot">.</span></h2>
       <div class="pause-grid"><div>
       <!-- graphics presets control rendering only; combat, collisions and quests keep running -->
       <div class="row"><input type="checkbox" id="s-hq"><label for="s-hq" style="margin:0">High-quality shaders (detailed terrain on steep ground)</label></div>
       <p id="graphics-status" role="status" aria-live="polite"></p>
+      <!-- the 1998 renderer. each of these is a machine preference (PREF_IDS), saved and restored with the sound sliders -->
+      <label>Picture <span id="r-res-val" style="opacity:.7;font-variant-numeric:tabular-nums">native</span></label><input type="range" id="r-picture" min="0" max="4" step="1" value="4">
+      <label>Vertex wobble <span id="r-wobble-val" style="opacity:.7;font-variant-numeric:tabular-nums">1</span></label><input type="range" id="r-wobble" min="0" max="3" step="1" value="1">
+      <label>Texture detail <span id="r-tex-val" style="opacity:.7;font-variant-numeric:tabular-nums">native</span></label><input type="range" id="r-tex" min="0" max="2" step="1" value="2">
+      <label>Texture warp <span id="r-affine-val" style="opacity:.7;font-variant-numeric:tabular-nums">0.0</span></label><input type="range" id="r-affine" min="0" max="1" step=".1" value="0">
+      <div class="row"><input type="checkbox" id="r-pixel" checked><label for="r-pixel" style="margin:0">Pixel textures, no smoothing</label></div>
+      <div class="row"><input type="checkbox" id="r-dither" checked><label for="r-dither" style="margin:0">15-bit colour, dithered</label></div>
+      <div class="row"><input type="checkbox" id="r-scan"><label for="r-scan" style="margin:0">Scanlines</label></div>
+      <p id="r-status" role="status" aria-live="polite"></p>
       <!-- s-sfx: pause-menu setting or control -->
       <label>Sound effects</label><input type="range" id="s-sfx" min="0" max="1" step=".05" value=".8">
       <!-- s-amb: pause-menu setting or control -->
@@ -827,7 +839,7 @@ const __boot = (async () => {
     bear: { hp: 34, radius: 2.6, denDepth: 8, flashBeforeSwing: 0.4 },
     slimes: { respawn: 90, startGraceMin: 60, startGraceMax: 85 },
     world: {
-      townDrawDistance: 60, // metres you can see inside the walls before the beacon is lit
+      townDrawDistance: 110, // metres you can see inside the walls before the beacon is lit (sixty in the main build: at 240 lines the fill is cheap, and a house that arrived at sixty arrived late)
       houseGrow: 1.75, // rooms grow this much when you step in
       houseGrowHeight: 0.6, // and this fraction of the growth goes into their height
       keepGrow: 1.6, // the great hall grows this much
@@ -1787,6 +1799,264 @@ const __boot = (async () => {
   };
 
   await __stage(4, "Painting stone and grass…");
+  // ============================================================ the 1998 renderer
+  // the retro edition draws the same world through a different eye. everything here is arranged before a single
+  // texture, geometry or material exists, because most of it works by changing what those constructors hand back:
+  //   - the picture is rendered into a 240-line target and scaled up to the window without smoothing (retroBegin/End)
+  //   - textures are painted at their old size, then shrunk to 64 pixels, cut to 16 shades a channel and shown unfiltered
+  //   - every lit material becomes a lambert one, so light is worked out at the vertices and smeared across the face
+  //   - the round geometries lose half their segments
+  //   - a chunk patch snaps every vertex to the picture grid and lets the texture mapping ignore perspective
+  //   - the screen pass cuts the colour to five bits a channel through a 4x4 ordered dither
+  // none of this touches gameplay, collision or saves; the settings below are machine preferences like the sound sliders
+  // the warp is off by default: the affine swim is right on a wall a few metres wide, and wrong on a floor that is
+  // one polygon forty metres across, which is most of this game's floors. the dial is still there.
+  const RETRO = { res: 4, wobble: 1, warp: 0, pixel: true, dither: true, scan: false, tex: 2 }; // the picture is the window's own by default since 3.2; the dial still goes down to 200 lines
+  const RETRO_RES = [200, 240, 320, 480, 0]; // picture height in lines; 0 is the window's own
+  const RETRO_TEX_SIZES = [64, 128, 0]; // texture side in texels for the detail dial; 0 keeps the texture as painted
+  const RETRO_U = { snap: { value: new THREE.Vector2(0, 0) }, warp: { value: 0 } }; // shared by every program, so a change reaches all of them without a recompile
+  const RETRO_TEXTURES = [];
+  const RETRO_SOURCES = new Map(); // texture -> { c, alpha }: the canvas it was painted on, kept so the detail dial can shrink it again
+  let retroTexApplied = 2; // the detail the textures on the list were last made at
+  const RETRO_POINTS = [], RETRO_POINT_SCALE = { value: 1 }; // every points material and the picture-to-window ratio its size is scaled by
+  let RETRO_BLOBS = []; // the discs under villagers, checked each frame for a group that has been laid flat
+  let retroReady = false; // the render target exists once the renderer does; until then the controls only write RETRO
+  {
+    // gouraud: what the main build draws with the physical material is drawn per vertex here. the physical class is
+    // kept under a second name for the one material whose shader hook reads per-pixel normals (lucifer's hand).
+    const Physical = THREE.MeshStandardMaterial;
+    THREE.MeshStandardMaterialPBR = Physical;
+    const DROP = ["roughness", "metalness", "roughnessMap", "metalnessMap", "envMapIntensity", "normalMap", "normalScale", "displacementMap", "displacementScale", "displacementBias", "flatShading"];
+    class MeshStandardMaterialFlat extends THREE.MeshLambertMaterial {
+      constructor(p) {
+        let q = p;
+        if (p) {
+          q = Object.assign({}, p);
+          for (const k of DROP) delete q[k]; // lambert would warn about each of these and ignore it
+        }
+        super(q);
+        // kept as plain numbers so code that tunes them after construction still runs and still means nothing
+        this.roughness = p && p.roughness !== undefined ? p.roughness : 1;
+        this.metalness = p && p.metalness !== undefined ? p.metalness : 0;
+        this.flatShading = !!(p && p.flatShading);
+      }
+    }
+    // what shone in the main build shines here too. a metal — metalness past a half: the knights' plate, the crown,
+    // the gold, gehenna's black water — is built as a phong material with a specular colour and a shininess worked
+    // out from the roughness, its base colour darkened the way a metal's diffuse is. the highlight is per pixel
+    // rather than per vertex, which is near enough what a console's environment map gave a breastplate.
+    class MeshStandardMaterialShiny extends THREE.MeshPhongMaterial {
+      constructor(p) {
+        let q = p;
+        if (p) {
+          q = Object.assign({}, p);
+          for (const k of DROP) if (k !== "flatShading") delete q[k];
+          const m = p.metalness !== undefined ? p.metalness : 0,
+            r = p.roughness !== undefined ? p.roughness : 1,
+            base = new THREE.Color(q.color !== undefined ? q.color : 0xffffff);
+          q.specular = base.clone().multiplyScalar(0.3 + 0.7 * m);
+          q.shininess = 8 + 92 * (1 - r) * (1 - r);
+          q.color = base.multiplyScalar(1 - 0.42 * m);
+        }
+        super(q);
+        this.roughness = p && p.roughness !== undefined ? p.roughness : 1;
+        this.metalness = p && p.metalness !== undefined ? p.metalness : 0;
+      }
+    }
+    // a plain function under the old name: `new` on it hands back whichever of the two it returns, and each
+    // instance's own constructor is the class it was built from, so clone() keeps working
+    THREE.MeshStandardMaterial = function MeshStandardMaterial(p) { return p && p.metalness >= 0.5 ? new MeshStandardMaterialShiny(p) : new MeshStandardMaterialFlat(p); };
+    // fewer sides on everything round. anything already at or under the floor keeps its count: the limbs are built
+    // from six-sided cylinders and would fold flat at three
+    const fewer = (n, floor) => (n === undefined || n <= floor ? n : Math.max(floor, Math.round(n * 0.5)));
+    const S0 = THREE.SphereGeometry;
+    THREE.SphereGeometry = class SphereGeometry extends S0 { constructor(r, ws, hs, ...a) { super(r, fewer(ws, 8), fewer(hs, 6), ...a); } };
+    const C0 = THREE.CylinderGeometry;
+    THREE.CylinderGeometry = class CylinderGeometry extends C0 { constructor(rt, rb, h, rs, ...a) { super(rt, rb, h, fewer(rs, 8), ...a); } };
+    const K0 = THREE.ConeGeometry; // cone was declared on the original cylinder class, so it is wrapped on its own
+    THREE.ConeGeometry = class ConeGeometry extends K0 { constructor(r, h, rs, ...a) { super(r, h, fewer(rs, 8), ...a); } };
+    const T0 = THREE.TorusGeometry;
+    THREE.TorusGeometry = class TorusGeometry extends T0 { constructor(r, t, rs, ts, ...a) { super(r, t, rs, fewer(ts, 12), ...a); } };
+    const D0 = THREE.CircleGeometry;
+    THREE.CircleGeometry = class CircleGeometry extends D0 { constructor(r, s, ...a) { super(r, fewer(s, 8), ...a); } };
+    const R0 = THREE.RingGeometry;
+    THREE.RingGeometry = class RingGeometry extends R0 { constructor(ri, ro, ts, ...a) { super(ri, ro, fewer(ts, 8), ...a); } };
+    const L0 = THREE.LatheGeometry;
+    THREE.LatheGeometry = class LatheGeometry extends L0 { constructor(p, s, ...a) { super(p, fewer(s, 8), ...a); } };
+    // r128 sizes a point against the window's height, never the bound target's, so a size-attenuated mote drawn into
+    // a 240-line picture came out four and a half times too big. every points material remembers the size it was
+    // given and is rescaled with the picture (retroFit). the stars are not attenuated and stay in picture pixels.
+    const P0 = THREE.PointsMaterial;
+    THREE.PointsMaterial = class PointsMaterial extends P0 {
+      constructor(p) {
+        super(p);
+        this.userData.retroSize = this.size;
+        RETRO_POINTS.push(this);
+        if (this.sizeAttenuation) this.size = this.userData.retroSize * RETRO_POINT_SCALE.value;
+      }
+      copy(src) {
+        super.copy(src);
+        this.userData.retroSize = src.userData && src.userData.retroSize !== undefined ? src.userData.retroSize : src.size;
+        this.size = this.sizeAttenuation ? this.userData.retroSize * RETRO_POINT_SCALE.value : this.userData.retroSize;
+        return this;
+      }
+    };
+    // any clone of a retro texture is a retro texture. the rivers clone TEX.water directly rather than through cloneTex,
+    // and the next texture someone clones will not go through it either
+    const clone0 = THREE.Texture.prototype.clone;
+    THREE.Texture.prototype.clone = function () {
+      const c = clone0.call(this);
+      if (RETRO_TEXTURES.indexOf(this) >= 0) retroTexture(c);
+      const src = RETRO_SOURCES.get(this);
+      if (src) RETRO_SOURCES.set(c, src); // the clone shares the painting, so the detail dial reaches it too
+      return c;
+    };
+    // the chunk patches. these are the strings every built-in program is assembled from, so changing them here
+    // changes every material at once, the game's own shader hooks included: those replace begin_vertex, common and
+    // emissivemap_fragment and never touch the three chunks edited below.
+    const CH = THREE.ShaderChunk;
+    CH.common += "\nuniform vec2 uRetroSnap;";
+    // the vertex stage keeps its perspective-correct uv under a new name and adds the affine one beside it
+    CH.uv_pars_vertex = CH.uv_pars_vertex.replace("varying vec2 vUv;", "varying vec2 vUvP; varying vec3 vUvA;\n\t\t#define vUv vUvP");
+    if (CH.uv_pars_vertex.indexOf("vUvA") < 0) throw new Error("retro: uv_pars_vertex did not take the patch");
+    // uv_vertex is the first line of every built-in main(), so this seeds the affine uv with the plain one. the snap
+    // block after projection overwrites it wherever there is a projection; a shader that has uvs but never reaches
+    // project_vertex (the sprite) would otherwise read a varying nobody wrote and sample a quarter of its texture
+    CH.uv_vertex = CH.uv_vertex.replace("vUv = ( uvTransform * vec3( uv, 1 ) ).xy;", "vUv = ( uvTransform * vec3( uv, 1 ) ).xy;\n\t#ifndef UVS_VERTEX_ONLY\n\t\tvUvA = vec3( vUvP, 1.0 );\n\t#endif");
+    if (CH.uv_vertex.indexOf("vUvA") < 0) throw new Error("retro: uv_vertex did not take the patch");
+    CH.project_vertex += `
+	// the 1998 renderer: every vertex lands on a pixel of the small picture, which is where the wobble comes from.
+	// uRetroSnap holds half the picture size in cells (zero turns it off); the same value in both stages is what
+	// makes the affine warp below line up with the snapped corners.
+	if ( uRetroSnap.x > 0.0 ) {
+		vec2 rp = gl_Position.xy / gl_Position.w;
+		rp = floor( rp * uRetroSnap + 0.5 ) / uRetroSnap;
+		gl_Position.xy = rp * gl_Position.w;
+	}
+#if defined( USE_UV ) && ! defined( UVS_VERTEX_ONLY )
+	// the affine warp: a uv scaled by w in the vertex and divided by w again in the fragment is interpolated the way
+	// a console with no perspective divide interpolated it. how much of that reaches the screen is uRetroWarp.
+	vUvA = vec3( vUvP * gl_Position.w, gl_Position.w );
+#endif
+`;
+    // the warp fades in with distance: the affine error is worst on the big triangles nearest the camera — a room's
+    // floor and walls, the road at the bottom of the screen — and a console hid exactly that by cutting its near
+    // geometry into pieces. this keeps the swim on everything past a dozen metres and takes it off what you stand on.
+    // vUvA.z is the clip-space w, which is the view depth in metres.
+    CH.uv_pars_fragment = `#if ( defined( USE_UV ) && ! defined( UVS_VERTEX_ONLY ) )
+	varying vec2 vUvP; varying vec3 vUvA; uniform float uRetroWarp;
+	vec2 retroUv() { return mix( vUvP, vUvA.xy / max( vUvA.z, 1e-4 ), uRetroWarp * smoothstep( 1.5, 12.0, vUvA.z ) ); }
+	#define vUv retroUv()
+#endif`;
+    // sprites build gl_Position in their own shader rather than through project_vertex, so they take the same block
+    // by hand: the snap, and the affine uv (a billboard's four corners share one w, so for it the warp is exactly nothing)
+    THREE.ShaderLib.sprite.vertexShader = THREE.ShaderLib.sprite.vertexShader.replace("gl_Position = projectionMatrix * mvPosition;", "gl_Position = projectionMatrix * mvPosition;" + `
+	// the 1998 renderer: every vertex lands on a pixel of the small picture, which is where the wobble comes from.
+	// uRetroSnap holds half the picture size in cells (zero turns it off); the same value in both stages is what
+	// makes the affine warp below line up with the snapped corners.
+	if ( uRetroSnap.x > 0.0 ) {
+		vec2 rp = gl_Position.xy / gl_Position.w;
+		rp = floor( rp * uRetroSnap + 0.5 ) / uRetroSnap;
+		gl_Position.xy = rp * gl_Position.w;
+	}
+#if defined( USE_UV ) && ! defined( UVS_VERTEX_ONLY )
+	// the affine warp: a uv scaled by w in the vertex and divided by w again in the fragment is interpolated the way
+	// a console with no perspective divide interpolated it. how much of that reaches the screen is uRetroWarp.
+	vUvA = vec3( vUvP * gl_Position.w, gl_Position.w );
+#endif
+`);
+    if (THREE.ShaderLib.sprite.vertexShader.indexOf("uRetroSnap") < 0 || THREE.ShaderLib.sprite.vertexShader.indexOf("vUvA =") < 0) throw new Error("retro: sprite shader did not take the patch");
+    // the two uniforms above have to be registered on every program. materials reach the compiler through
+    // onBeforeCompile, and five of the game's own materials set their own; so the prototype slot becomes an accessor
+    // that keeps the material's hook aside and runs it first. the program cache key is rebuilt to carry the kept
+    // hook's text, since the wrapper's own text is the same for every material and would otherwise merge programs
+    // that must stay apart.
+    const wrap = function (shader, renderer) {
+      if (this._retroHook) this._retroHook.call(this, shader, renderer);
+      shader.uniforms.uRetroSnap = RETRO_U.snap;
+      shader.uniforms.uRetroWarp = RETRO_U.warp;
+    };
+    Object.defineProperty(THREE.Material.prototype, "onBeforeCompile", {
+      configurable: true,
+      get() { return wrap; },
+      set(fn) { this._retroHook = fn; }
+    });
+    THREE.Material.prototype.customProgramCacheKey = function () { return (this._retroHook ? this._retroHook.toString() : "") + "|retro"; };
+  }
+  // textures: painted at the size the main build paints them, then shrunk to the cartridge budget and cut to
+  // sixteen shades a channel, which is the banding a palette texture had
+  function retroTexel(c, alpha) {
+    const want = RETRO_TEX_SIZES[RETRO.tex];
+    if (!want) return c; // native: the painting itself, untouched, so the dial can always come back to it
+    const size = Math.min(want, c.width);
+    // always a fresh canvas, even at the same size: the painting is kept for the dial and must not be cut in place
+    const d = document.createElement("canvas");
+    d.width = d.height = size;
+    {
+      const g = d.getContext("2d");
+      g.imageSmoothingEnabled = true;
+      g.imageSmoothingQuality = "high";
+      g.drawImage(c, 0, 0, size, size);
+    }
+    const g = d.getContext("2d"),
+      id = g.getImageData(0, 0, d.width, d.height),
+      p = id.data;
+    for (let i = 0; i < p.length; i += 4) {
+      p[i] = Math.round(p[i] / 17) * 17;
+      p[i + 1] = Math.round(p[i + 1] / 17) * 17;
+      p[i + 2] = Math.round(p[i + 2] / 17) * 17;
+      if (alpha) p[i + 3] = Math.round(p[i + 3] / 17) * 17; // alpha keeps its ramp in the same sixteen steps: the glow's soft edge shares this path with the leaf cutouts, and a cutout's own alphaTest already decides where it ends
+    }
+    g.putImageData(id, 0, 0);
+    return d;
+  }
+  // unfiltered up close, the mip chain still there so the far ground does not boil; the smooth setting is the n64's
+  // mips = false is for a transparent canvas drawn afresh all the time (the name tags): a mip chain averages the
+  // clear pixels into the glyphs and goes muddy at a distance, and would be rebuilt on every change of health
+  function retroTexture(t, register = true, mips = true) {
+    if (register && RETRO_TEXTURES.indexOf(t) < 0) RETRO_TEXTURES.push(t); // a texture made afresh every few seconds (the name tags) is filtered but never listed, or the list would only grow
+    const mag = RETRO.pixel ? THREE.NearestFilter : THREE.LinearFilter,
+      min = !mips ? mag : RETRO.pixel ? THREE.NearestMipmapLinearFilter : THREE.LinearMipmapLinearFilter;
+    if (!mips) t.generateMipmaps = false;
+    if (t.magFilter === mag && t.minFilter === min && t.anisotropy === 1) return;
+    t.magFilter = mag;
+    t.minFilter = min;
+    t.anisotropy = 1;
+    t.needsUpdate = true;
+  }
+  // the round shadow that stood in for a real one on every 1998 machine: a dark disc, sat just above the ground
+  const retroBlobGeo = new THREE.CircleGeometry(1, 16), // sixteen asked for, eight after the halving above: the renderer's own geometry is not exempt
+    retroBlobMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+  retroBlobGeo.userData.shared = retroBlobMat.userData.shared = true; // shared by every villager; disposeTree and disposeCharacter are taught below to step over shared geometry as they already do shared materials
+  function retroBlob(r, mat = retroBlobMat, track = false) {
+    const m = new THREE.Mesh(retroBlobGeo, mat);
+    m.rotation.x = -Math.PI / 2;
+    m.position.y = 0.06;
+    m.scale.setScalar(r);
+    m.renderOrder = 1;
+    if (track) RETRO_BLOBS.push(m); // a villager's disc: watched for the group being laid flat
+    return m;
+  }
+  // the controls. they are read here so the values are known before the renderer exists, and again by loadPrefs
+  // once the saved machine preferences come back
+  function readRetroControls() {
+    const num = (id, d) => { const el = document.getElementById(id), v = el ? +el.value : NaN; return Number.isFinite(v) ? v : d; };
+    const on = (id, d) => { const el = document.getElementById(id); return el ? !!el.checked : d; };
+    RETRO.res = clamp(Math.round(num("r-picture", 4)), 0, RETRO_RES.length - 1);
+    RETRO.wobble = clamp(Math.round(num("r-wobble", 1)), 0, 3);
+    RETRO.warp = clamp(num("r-affine", 0), 0, 1);
+    RETRO.tex = clamp(Math.round(num("r-tex", 2)), 0, RETRO_TEX_SIZES.length - 1);
+    RETRO.pixel = on("r-pixel", true);
+    RETRO.dither = on("r-dither", true);
+    RETRO.scan = on("r-scan", false);
+    if (retroReady) applyRetro();
+  }
+  for (const id of ["r-picture", "r-wobble", "r-affine", "r-tex", "r-pixel", "r-dither", "r-scan"]) {
+    const el = document.getElementById(id);
+    if (el) el.oninput = el.onchange = readRetroControls;
+  }
+  readRetroControls();
+
   // ============================================================ procedural textures
   function makeTex(size, draw, repeat = 1, alpha = false) {
     const c = document.createElement("canvas");
@@ -1797,14 +2067,15 @@ const __boot = (async () => {
       g.fillRect(0, 0, size, size);
     }
     draw(g, size);
-    const t = new THREE.CanvasTexture(c);
+    const t = new THREE.CanvasTexture(retroTexel(c, alpha)); // painted at full size, shown at the detail dial's
+    RETRO_SOURCES.set(t, { c, alpha }); // the painting is kept, so the dial can make it again at another size
     // cutout textures are sampled once over 0..1, and repeat-wrapping them bleeds the opaque bottom row back in at the
     // top edge: on a crossed-quad billboard that drew a solid bar across both quads, which read as a cross hanging above
     // the grass. tiling surfaces still need repeat, and cloneTex inherits this, so only the alpha cutouts are clamped.
     t.wrapS = t.wrapT = alpha ? THREE.ClampToEdgeWrapping : THREE.RepeatWrapping;
     t.repeat.set(repeat, repeat);
     t.encoding = THREE.sRGBEncoding;
-    t.anisotropy = 4;
+    retroTexture(t); // no anisotropy, no smoothing: the texel is the unit
     return t;
   }
   const speck = (g, s, n, cols, w = 2, h = 2) => {
@@ -3208,13 +3479,13 @@ const __boot = (async () => {
   // presets are ordered from least to most expensive auto begins conservatively at very low and climbs while the frame rate holds
   // one rendering profile the only lever is "high-quality shaders", which turns on the triplanar terrain sampling
   const QUALITY = [
-    { id: "very-low", name: "Very low", pixel: 0.75, far: 185, shadow: 0, textures: false, grass: false, particles: 0.12, clouds: 0, hud: 0.12 }
+    { id: "very-low", name: "Very low", pixel: 1, far: 240, shadow: 0, textures: true, grass: false, particles: 0.12, clouds: 0, hud: 0.12 } // textures stay on and the world draws further: at 240 lines the fill rate is nothing, and a house that arrives at the edge of the fog arrives late
   ];
   let qualityIndex = 0,
     graphics = QUALITY[0],
     hqShaders = true; // textured ground is the default look; a driver that refuses the program is caught below and drops back to flat colours
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 0.75)); // the profile the game runs at; nothing larger is ever allocated
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false }); // no smoothing anywhere: the picture is small on purpose
+  renderer.setPixelRatio(1); // the canvas is the window's own size; the world is drawn into the small target and scaled up in retroEnd
   // a shader that fails to compile (safari is the usual suspect) falls back to the flat terrain instead of rendering nothing
   // r128 has no renderer.debug.onShaderError (added in r136), so set it for newer builds and poll compiled programs below for this one
   if (renderer.debug) renderer.debug.onShaderError = (gl, program, vs, fs) => {
@@ -3223,14 +3494,197 @@ const __boot = (async () => {
   };
   let terrainShaderWatch = 0; // frames left to watch for a failed terrain link; reset whenever the textured program is asked for
   if (renderer.domElement && renderer.domElement.addEventListener) renderer.domElement.addEventListener("webglcontextlost", e => { e.preventDefault(); console.error("webgl context lost"); const el = document.getElementById("loadtext"); if (el) { el.textContent = "The graphics context was lost. Reloading…"; document.getElementById("loading").classList.remove("hidden"); } setTimeout(() => location.reload(), 1500); });
-  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.enabled = false; // 1998 had no shadow maps; the blob under each character is the shadow
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputEncoding = THREE.sRGBEncoding;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.22;
+  renderer.toneMapping = THREE.CineonToneMapping; // the aces curve made the meadow pale; a plain linear one clipped it to neon. cineon keeps the saturated 1998 green and still rolls the sun off
+  renderer.toneMappingExposure = 1.0;
   const toLin = c => new THREE.Color(c).convertSRGBToLinear();
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(toLin(0xc7dcef), 160, 700);
+  // ---- the 1998 renderer: the picture. the world is drawn into a small target and copied to the window by one
+  // full-screen pass that cuts the colour depth and scales without smoothing
+  // stencil on: without it r128 backs the target with a 16-bit depth buffer, 1/256 of what the window had, and the
+  // town's cobbles z-fight past a few metres. with it the target gets the window's 24 bits, for two bytes a pixel.
+  const retroRT = new THREE.WebGLRenderTarget(320, 240, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true, stencilBuffer: true });
+  retroRT.texture.encoding = THREE.sRGBEncoding; // every material writes finished srgb bytes into it, as it would to the screen, so the copy is a copy
+  retroRT.texture.generateMipmaps = false;
+  const retroPost = new THREE.ShaderMaterial({
+    uniforms: { tDiffuse: { value: retroRT.texture }, uRes: { value: new THREE.Vector2(320, 240) }, uScreen: { value: new THREE.Vector2(1, 1) }, uDither: { value: 1 }, uScan: { value: 0 } },
+    vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4( position.xy, 0.0, 1.0 ); }`,
+    fragmentShader: `uniform sampler2D tDiffuse; uniform vec2 uRes, uScreen; uniform float uDither, uScan; varying vec2 vUv;
+    float m2( vec2 p ) { return 2.0 * p.x + 3.0 * p.y - 4.0 * p.x * p.y; } // the 2x2 bayer cell, 0 2 / 3 1
+    void main() {
+      vec3 c = texture2D( tDiffuse, vUv ).rgb;
+      vec2 px = floor( vUv * uRes ); // the small picture's own pixel, so the pattern is one cell per texel however far it is scaled
+      if ( uDither > 0.5 ) {
+        float d = ( 4.0 * m2( mod( px, 2.0 ) ) + m2( mod( floor( px * 0.5 ), 2.0 ) ) ) / 16.0 - 0.5; // 4x4 ordered dither
+        c = floor( c * 31.0 + d + 0.5 ) / 31.0; // five bits a channel: the 15-bit frame buffer
+      }
+      // one dark line per picture row, and never finer than every other window line: at the window's own size a
+      // picture row is one line, and darkening the whole of it would only dim the screen
+      if ( uScan > 0.5 ) { float period = max( 2.0, uScreen.y / uRes.y ); c *= 1.0 - 0.22 * step( 0.5, mod( gl_FragCoord.y, period ) / period ); }
+      gl_FragColor = vec4( c, 1.0 );
+    }`,
+    depthTest: false,
+    depthWrite: false,
+    toneMapped: false
+  });
+  const retroScreen = new THREE.Scene(),
+    retroCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  {
+    const q = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), retroPost);
+    q.frustumCulled = false;
+    retroScreen.add(q);
+  }
+  const RETRO_NOCLIP = [];
+  // size the target to the chosen line count at the window's shape; called every frame and does nothing until either changes
+  function retroFit() {
+    const wantH = RETRO_RES[RETRO.res] || Math.max(1, Math.round(innerHeight)),
+      h = Math.max(1, Math.min(wantH, Math.round(innerHeight) || wantH)),
+      w = Math.max(1, Math.round((h * (innerWidth || 1)) / (innerHeight || 1)));
+    retroPost.uniforms.uScreen.value.set(Math.max(1, innerWidth || 1), Math.max(1, innerHeight || 1));
+    // the point scale is set before the size test, not after: a 4:3 window asks for exactly the 320×240 the target
+    // was born at, and the early return below would otherwise leave every attenuated point at the window's size
+    RETRO_POINT_SCALE.value = h / Math.max(1, innerHeight || h);
+    for (const m of RETRO_POINTS) if (m.sizeAttenuation) m.size = m.userData.retroSize * RETRO_POINT_SCALE.value;
+    if (retroRT.width === w && retroRT.height === h) return;
+    retroRT.setSize(w, h);
+    retroPost.uniforms.uRes.value.set(w, h);
+    const k = RETRO.wobble;
+    RETRO_U.snap.value.set(k > 0 ? w / (2 * k) : 0, k > 0 ? h / (2 * k) : 0);
+    retroStatus();
+  }
+  function retroBegin() {
+    retroFit();
+    renderer.setRenderTarget(retroRT);
+  }
+  // the copy to the window. the world's clipping planes are global to the renderer and would cut the quad too
+  function retroEnd() {
+    renderer.setRenderTarget(null);
+    const clip = renderer.clippingPlanes;
+    renderer.clippingPlanes = RETRO_NOCLIP;
+    renderer.render(retroScreen, retroCam);
+    renderer.clippingPlanes = clip;
+  }
+  function applyRetro() {
+    retroFit();
+    const k = RETRO.wobble;
+    RETRO_U.snap.value.set(k > 0 ? retroRT.width / (2 * k) : 0, k > 0 ? retroRT.height / (2 * k) : 0);
+    RETRO_U.warp.value = RETRO.warp;
+    retroPost.uniforms.uDither.value = RETRO.dither ? 1 : 0;
+    retroPost.uniforms.uScan.value = RETRO.scan ? 1 : 0;
+    for (const t of RETRO_TEXTURES) retroTexture(t);
+    if (retroTexApplied !== RETRO.tex) {
+      // every painting is shrunk again at the new detail, clones included: they share the painting through the map
+      retroTexApplied = RETRO.tex;
+      for (const [t, src] of RETRO_SOURCES) {
+        t.image = retroTexel(src.c, src.alpha);
+        t.needsUpdate = true;
+      }
+    }
+    retroStatus();
+  }
+  const retroTexName = () => (RETRO_TEX_SIZES[RETRO.tex] ? RETRO_TEX_SIZES[RETRO.tex] + "-texel" : "native");
+  function retroStatus() {
+    const el = document.getElementById("r-status");
+    if (el) el.textContent = `${retroRT.width}×${retroRT.height} picture · wobble ${RETRO.wobble} · warp ${RETRO.warp.toFixed(1)} · ${retroTexName()} ${RETRO.pixel ? "pixel" : "smooth"} textures · ${RETRO.dither ? "15-bit dithered" : "24-bit"} colour${RETRO.scan ? " · scanlines" : ""}.`;
+    const put = (id, s) => { const e = document.getElementById(id); if (e) e.textContent = s; };
+    put("r-res-val", RETRO_RES[RETRO.res] ? RETRO_RES[RETRO.res] + "p" : "native");
+    put("r-wobble-val", String(RETRO.wobble));
+    put("r-affine-val", RETRO.warp.toFixed(1));
+    put("r-tex-val", retroTexName());
+  }
+  // gehenna is raised at boot and kept, hidden, so the dive needs no building during the fall: the same guarded,
+  // error-swallowing kickoff the main build uses when the whirlpool wakes, run whenever there is no gehenna and
+  // nothing is building one. the seed it is raised on is provisional — held in GEH.seed and adopted by the world the
+  // moment it wants one of its own — and is never written to WORLDSTATE, because a player who has never been below
+  // is known by having no seed there. a loaded save that carries its own seed gets its own gehenna: gehBuildWorld
+  // takes the standing one down when asked to build for a different seed. a guest never builds their own — the
+  // host's arrives over the wire and is built by netGehennaEnsure.
+  function retroGehennaResident() {
+    if (GEH.netBuilding || GEH.failed || typeof window.gehBuildWorld !== "function") return;
+    if (NET.role === "guest") {
+      // a guest's gehenna is the host's. the provisional one raised before they joined comes down, so a guest who
+      // never goes below has none, exactly as in the main build; the host's arrives through netGehennaEnsure
+      if (GEH.root && !WORLDSTATE.gehSeed && GEH.root.userData.retroSeed !== undefined && !netGehennaActive()) gehTeardown("a guest takes the host's gehenna");
+      return;
+    }
+    if (GEH.root) {
+      const built = GEH.root.userData.retroSeed;
+      if (!WORLDSTATE.gehSeed || built === undefined || built === WORLDSTATE.gehSeed) return;
+      GEH.seed = WORLDSTATE.gehSeed; // the world has a seed of its own now; the build below replaces the provisional one
+    } else GEH.seed = WORLDSTATE.gehSeed || GEH.seed || 1 + Math.floor(Math.random() * 999999);
+    GEH.netBuilding = true;
+    Promise.resolve()
+      .then(window.gehBuildWorld)
+      .then(() => { GEH.netBuilding = false; })
+      .catch(err => {
+        GEH.netBuilding = false;
+        GEH.failed = true;
+        console.error("Gehenna: the resident build threw", err);
+        if (GEH.root) {
+          if (GEH.root.parent) scene.remove(GEH.root);
+          try { disposeTree(GEH.root); } catch (_) {}
+          GEH.root = null;
+        }
+      });
+  }
+  // the hero's blob shadow lives in the scene rather than under the model, because the model rises with a jump and
+  // the shadow has to stay on the ground and shrink. other players get the same treatment, one pooled disc each,
+  // for the same reason. villagers get theirs from makePerson, carried by the group.
+  let retroHeroBlob = null, retroBlobFrame = 0;
+  const retroAvatarBlobs = new Map();
+  // put a scene-level disc on the ground under a character, shrinking and fading with height; hidden when swimming,
+  // when there is no ground to speak of, or when they are more than seven metres above it
+  function retroPlaceBlob(b, x, y, z, hide) {
+    if (hide) { b.visible = false; return; }
+    const g = groundAt(x, z, y + 0.4),
+      lift = y - g;
+    if (!Number.isFinite(g) || !(lift < 7)) { b.visible = false; return; }
+    const k = clamp(1 - lift / 7, 0, 1);
+    b.visible = true;
+    b.position.set(x, g + 0.05, z);
+    b.scale.setScalar(0.55 + 0.45 * k);
+    b.material.opacity = 0.5 * (0.4 + 0.6 * k);
+  }
+  function retroBlobUpdate() {
+    retroBlobFrame++;
+    // a villager laid flat — a body, the burial carry, a sleeper in a bed — turns the disc under them on its edge.
+    // the group's up axis is read out of last frame's world matrix (column two, scaled by the group's own scale) and
+    // the disc is hidden whenever it is not roughly upright
+    for (let i = 0; i < RETRO_BLOBS.length; i++) {
+      const m = RETRO_BLOBS[i], p = m.parent;
+      if (!p) continue;
+      const e = p.matrixWorld.elements;
+      m.visible = e[5] > 0.7 * Math.hypot(e[4], e[5], e[6]);
+    }
+    if ((retroBlobFrame & 255) === 0) RETRO_BLOBS = RETRO_BLOBS.filter(m => { let o = m; while (o.parent) o = o.parent; return o === scene; }); // goblins come and go; do not keep their groups alive through their discs
+    if (!retroHeroBlob) {
+      retroHeroBlob = retroBlob(1, retroBlobMat.clone());
+      retroHeroBlob.material.userData.shared = true;
+      retroHeroBlob.position.y = 0;
+      scene.add(retroHeroBlob);
+    }
+    retroPlaceBlob(retroHeroBlob, P.pos.x, P.pos.y, P.pos.z, !started || titleMode || !hero || hero.visible === false || P.swim || P.lying); // lying in a bed, like a villager laid flat, is no time for a disc
+    // the other players, if any: a disc per avatar, made when they arrive and dropped when they leave
+    const avatars = typeof NET === "object" && NET && NET.avatars instanceof Map ? NET.avatars : null;
+    if (avatars) {
+      for (const [id, a] of avatars) {
+        let b = retroAvatarBlobs.get(id);
+        if (!b) { b = retroBlob(1, retroBlobMat.clone()); b.material.userData.shared = true; b.position.y = 0; scene.add(b); retroAvatarBlobs.set(id, b); }
+        const m = a && a.mesh, s = a && a.state;
+        retroPlaceBlob(b, m ? m.position.x : 0, m ? m.position.y : 0, m ? m.position.z : 0, !m || m.visible === false || !s || s.dead || s.swim || s.lying);
+      }
+      // the disc's material is its own (it fades on its own); the geometry is the shared one and stays
+      for (const [id, b] of retroAvatarBlobs) if (!avatars.has(id)) { scene.remove(b); b.material.dispose(); retroAvatarBlobs.delete(id); }
+    } else if (retroAvatarBlobs.size) {
+      for (const b of retroAvatarBlobs.values()) { scene.remove(b); b.material.dispose(); }
+      retroAvatarBlobs.clear();
+    }
+  }
+  retroReady = true;
+  applyRetro();
   const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 8000);
   const hemi = new THREE.HemisphereLight(toLin(0xcfe4ff), toLin(0x7aa050), 0.85);
   hemi.layers.enable(1);
@@ -3245,7 +3699,9 @@ const __boot = (async () => {
     camera.position.set(Math.sin(a) * 250, 120 + Math.sin(a * 1.7) * 15, Math.cos(a) * 250);
     camera.lookAt(0, 18, 0);
     renderer.setSize(innerWidth, innerHeight, false);
+    retroBegin();
     renderer.render(scene, camera);
+    retroEnd();
   }; // while the world is built it is drawn as it stands
   { const loadLoop = () => { if (!window.__drawLoading) return; try { window.__drawLoading(); } catch (_) {} requestAnimationFrame(loadLoop); }; requestAnimationFrame(loadLoop); } // it keeps drawing whenever the builder pauses for breath
   const sun = new THREE.DirectionalLight(toLin(0xfff1d6), 1.6);
@@ -3262,12 +3718,20 @@ const __boot = (async () => {
         top: { value: new THREE.Color() },
         horizon: { value: new THREE.Color() },
         sunDir: { value: V3(0, 1, 0) },
-        sunCol: { value: new THREE.Color() }
+        sunCol: { value: new THREE.Color() },
+        uTime: { value: 0 }
       },
       side: THREE.BackSide,
       depthWrite: false,
       vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); vec4 p = projectionMatrix * modelViewMatrix * vec4(position,1.0); gl_Position = vec4(p.xy, p.w * 0.99999, p.w); }`, // the dome is pinned just inside the far plane, so it is never clipped however short the draw distance
-      fragmentShader: `uniform vec3 top, horizon, sunDir, sunCol; varying vec3 vDir; void main(){ float h = clamp(vDir.y, 0., 1.); vec3 col = mix(horizon, top, pow(h, .55)); float s = max(dot(normalize(vDir), sunDir), 0.); col += sunCol * (pow(s, 90.) * 2.0 + pow(s, 6.) * .12); gl_FragColor = vec4(col, 1.0);
+      fragmentShader: `uniform vec3 top, horizon, sunDir, sunCol; uniform float uTime; varying vec3 vDir;
+    float rhash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float rnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(rhash(i), rhash(i + vec2(1.0, 0.0)), f.x), mix(rhash(i + vec2(0.0, 1.0)), rhash(i + vec2(1.0, 1.0)), f.x), f.y); }
+    void main(){ float h = clamp(vDir.y, 0., 1.); vec3 col = mix(horizon, top, pow(h, .55)); float s = max(dot(normalize(vDir), sunDir), 0.); col += sunCol * (pow(s, 90.) * 2.0 + pow(s, 6.) * .12);
+    // the clouds: two octaves of value noise on the sky's flat projection, cut to two tones. a console had no room for a soft edge,
+    // and at 240 lines the cut reads as the chunky cloud every 1998 skybox had. their colour follows the horizon so night keeps them dark.
+    if (h > 0.02) { vec2 cp = vDir.xz / (vDir.y + 0.25) * 2.2 + vec2(uTime * 0.012, uTime * 0.004); float n = rnoise(cp) * 0.62 + rnoise(cp * 2.7 + 13.1) * 0.38; float body = step(0.56, n), lit = step(0.66, n); float lum = dot(horizon, vec3(0.3, 0.59, 0.11)); vec3 cc = horizon + (1.0 - horizon) * clamp(lum * 1.25, 0.0, 1.0); float fade = smoothstep(0.02, 0.14, h) * 0.9; col = mix(col, mix(cc * 0.78, cc, lit), body * fade); }
+    gl_FragColor = vec4(col, 1.0);
     #include <tonemapping_fragment>
     #include <encodings_fragment>
   }`
@@ -3635,6 +4099,7 @@ const __boot = (async () => {
     const c = t.clone();
     c.needsUpdate = true;
     c.repeat.set(rx, ry);
+    retroTexture(c); // the clone copied the filters, but it has to be on the list so a filter change reaches it
     return c;
   };
   const stoneM = keepTex(texMat(cloneTex(TEX.cobble, 3, 3), 0xd8d0c4)),
@@ -5029,6 +5494,7 @@ const __boot = (async () => {
       skin = lam(o.skin || 0xf0cdb0),
       robe = lam(o.robe),
       pants = lam(o.pants || 0x3a2e24);
+    g.add(retroBlob(0.95, retroBlobMat, true)); // the 1998 shadow: a disc at the feet, carried by the group and hidden whenever the group is laid flat. well wider than the body: from the usual camera height a disc the body's own width hides under the model entirely
     u.legs = [-1, 1].map(s => {
       const p = pivot(s * 0.18, 1.02, 0, g);
       const c = capsule(0.13, 0.74, pants);
@@ -7751,7 +8217,7 @@ const __boot = (async () => {
       // any one sprite deletes the GPU buffer behind every sprite in the game — the E bubbles, the quest marks, the
       // player nametags, the zzz — and they all have to be re-uploaded on next sight. it has been latent here for as
       // long as removeEnemy has existed; it becomes reachable the moment a tree with a prompt in it is torn down.
-      if (o.geometry && !o.isSprite) o.geometry.dispose();
+      if (o.geometry && !o.isSprite && !o.geometry.userData.shared) o.geometry.dispose(); // the blob shadow's disc is one geometry under every villager
       const m = o.material;
       if (m) (Array.isArray(m) ? m : [m]).forEach(x => x && !(x.userData && x.userData.shared) && x.dispose && x.dispose());
     });
@@ -11535,7 +12001,7 @@ const __boot = (async () => {
       rune.rotation.x = -Math.PI / 2; rune.position.y = 0.03; site.add(rune); site.position.copy(rs); scene.add(site); POOL_RUNE = rune;
       addPickup(V3(rs.x + 1.2, rs.y, rs.z), "clue", "Burned candle stubs in a ring, and a five-pointed mark scratched in the mud. Somebody has been praying here, and not to any god the keep would own", () => { evidence("ritual"); }, { shape: "cloth", id: "clue:ritual" });
     }
-    addPickup(V3(KEEP.cx - KEEP.w + 3, PLATEAU + 0.02, KEEP.cz - KEEP.d + 3), "clue", "Hale's private note, folded small: 'The pool took the miller's girl before I could give it the sheep. It has never taken one of us before. Better her than the town. Better anyone than the town.'", () => { evidence("note"); }, { shape: "book", id: "clue:note" });
+    addPickup(V3(KEEP.cx - KEEP.w + 3, PLATEAU + KEEP_ROOM.floorTop * (1 + (TUNE.world.keepGrow - 1) * TUNE.world.keepGrowHeight) + 0.16, KEEP.cz - KEEP.d + 3), "clue", "Hale's private note, folded small: 'The pool took the miller's girl before I could give it the sheep. It has never taken one of us before. Better her than the town. Better anyone than the town.'", () => { evidence("note"); }, { shape: "book", id: "clue:note" });
     // the pool's darker face, hidden until something wakes: black reeds, dead fish, cold fog, a violet light, and the marks that begin to glow
     {
       const g = new THREE.Group();
@@ -13986,7 +14452,7 @@ const __boot = (async () => {
     gust = 0,
     sens = 1;
   // the settings that are a property of this machine rather than of this playthrough
-  const PREF_IDS = ["s-sens", "s-sfx", "s-music", "s-amb", "s-voice", "s-arrow"];
+  const PREF_IDS = ["s-sens", "s-sfx", "s-music", "s-amb", "s-voice", "s-arrow", "r-picture", "r-wobble", "r-affine", "r-tex", "r-pixel", "r-dither", "r-scan"]; // r-affine and r-picture rather than r-warp and r-res: both defaults changed in 3.2, and a saved old value would have come straight back
   function savePrefs() {
     try {
       const o = {};
@@ -16343,7 +16809,7 @@ const __boot = (async () => {
     if (!root) return;
     const geometries = new Set(), materials = new Set();
     root.traverse(o => {
-      if (o.geometry && !o.isSprite) geometries.add(o.geometry);
+      if (o.geometry && !o.isSprite && !o.geometry.userData.shared) geometries.add(o.geometry); // the blob shadow's disc is one geometry under every villager
       for (const value of [o.material, o.userData.livingMaterials, o.userData.ghostMaterials]) for (const m of Array.isArray(value) ? value : [value]) if (m && !m.userData.shared) materials.add(m);
     });
     for (const g of geometries) g.dispose();
@@ -16821,7 +17287,7 @@ const __boot = (async () => {
     const c = document.createElement("canvas"); c.width = 512; c.height = 128; const g = c.getContext("2d");
     g.clearRect(0, 0, 512, 128); g.font = "bold 44px Georgia"; g.textAlign = "center"; g.fillStyle = "#ffd23c"; g.strokeStyle = "#1a1030"; g.lineWidth = 6; g.strokeText(name, 256, 52); g.fillText(name, 256, 52);
     const n = Math.max(1, Math.round(maxHp || 4)), full = Math.max(0, Math.round(hp || 0)); g.font = "36px Georgia"; let hearts = ""; for (let i = 0; i < Math.min(n, 12); i++) hearts += i < full ? "\u2665" : "\u2661"; g.fillStyle = "#ff6a8a"; g.strokeText(hearts, 256, 104); g.fillText(hearts, 256, 104);
-    const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearFilter; return tex;
+    const tex = new THREE.CanvasTexture(c); retroTexture(tex, false, false); return tex;
   }
   function netApplyState(a, m) {
     // a peer used to be able to NaN you at will from here: Vector3.set does not coerce, so a string or an Infinity went
@@ -16996,7 +17462,7 @@ const __boot = (async () => {
   function netGehennaEnsure() {
     if (GEH.root || GEH.netBuilding || GEH.failed || !WORLDSTATE.gehUnlocked || !netGehennaActive()) return;
     if (netGuest() && !NET.gehState) return;
-    if (!netGehennaSeed(WORLDSTATE.gehSeed)) WORLDSTATE.gehSeed = 1 + Math.floor(Math.random() * 999999);
+    if (!netGehennaSeed(WORLDSTATE.gehSeed)) WORLDSTATE.gehSeed = netGehennaSeed(GEH.seed) ? GEH.seed : 1 + Math.floor(Math.random() * 999999); // the resident gehenna's own seed, when there is one
     GEH.seed = WORLDSTATE.gehSeed;
     GEH.netBuilding = true;
     Promise.resolve(window.gehBuildWorld()).then(() => {
@@ -17657,7 +18123,7 @@ const __boot = (async () => {
     // to null the moment the title appears so the title camera cannot fight the game camera, and what is left is two
     // writes onto a hidden bar and a 20 ms yield.
     if (!GEH.root && !GEH.netBuilding) {
-      if (!WORLDSTATE.gehSeed) WORLDSTATE.gehSeed = 1 + Math.floor(Math.random() * 999999);
+      if (!WORLDSTATE.gehSeed) WORLDSTATE.gehSeed = GEH.seed || 1 + Math.floor(Math.random() * 999999); // the resident gehenna's own seed, when there is one
       GEH.seed = WORLDSTATE.gehSeed;
       const build = typeof window.gehBuildWorld === "function" ? window.gehBuildWorld : gehBuildFloor;
       Promise.resolve()
@@ -18334,7 +18800,11 @@ const __boot = (async () => {
   }
 
   window.gehBuildWorld = async function gehBuildWorld() {
-    if (GEH.root) return;
+    if (GEH.root) {
+      const built = GEH.root.userData.retroSeed;
+      if (built === undefined || built === GEH.seed) return;
+      gehTeardown("raised again for its own seed");
+    }
     let nodes0 = 0;
     scene.traverse(() => nodes0++);
     GEH.nodes0 = nodes0;
@@ -18342,6 +18812,7 @@ const __boot = (async () => {
     const g = new THREE.Group();
     g.name = "gehenna";
     GEH.root = g;
+    g.userData.retroSeed = GEH.seed; // so a later build for another seed knows this one is not it
     const cityGroup = new THREE.Group();
     cityGroup.name = "gehenna-city";
     g.add(cityGroup);
@@ -20617,7 +21088,7 @@ const __boot = (async () => {
       child.userData.home = child.position.clone();
       room.add(child); GEH.prideChildren.push(child);
     }
-    const hand = new THREE.Group(), handParts = batch(hand), handWhite = lit(0xf2ead9), handCrease = lit(0xc7baa0);
+    const hand = new THREE.Group(), handParts = batch(hand), handWhite = remember(new (THREE.MeshStandardMaterialPBR || THREE.MeshStandardMaterial)({ color: toLin(0xf2ead9), roughness: 0.88, metalness: 0, fog: false })) /* its hook reads per-pixel normals, which the lambert stand-in has none of; the fallback is for the sandbox suites, which load this function without the prologue */, handCrease = lit(0xc7baa0);
     handWhite.roughness = 0.22; handWhite.metalness = 0.12;
     handWhite.emissive = toLin(0xffdf9b); handWhite.emissiveIntensity = 0.3;
     const shine = { value: 0 }; hand.userData.shine = shine;
@@ -21629,7 +22100,7 @@ const __boot = (async () => {
     if (api) { try { api.tick(dt); } catch (err) { console.error("Gehenna: the after-story tick threw", err); } }
     if (!netGehennaActive()) {
       GEH.away = (GEH.away || 0) + rdt;
-      if (GEH.away > (api && api.done ? 14 : 2)) gehTeardown("the player is no longer under the seam");
+      if (api && api.done && GEH.away > 14) gehTeardown("the after-story is over"); // this edition keeps gehenna standing between visits; it is raised again at once if this takes it down
       return;
     }
     GEH.away = 0;
@@ -22310,7 +22781,7 @@ const __boot = (async () => {
       // instancing, so the sooner this kicks off the less of it is left to compress into that fall. same guarded,
       // error-swallowing kickoff gehBeginDive itself uses when nothing has pre-built the world yet.
       if (!GEH.root && !GEH.netBuilding && !GEH.failed) {
-        if (!WORLDSTATE.gehSeed) WORLDSTATE.gehSeed = 1 + Math.floor(Math.random() * 999999);
+        if (!WORLDSTATE.gehSeed) WORLDSTATE.gehSeed = GEH.seed || 1 + Math.floor(Math.random() * 999999); // the resident gehenna's own seed, when there is one
         GEH.seed = WORLDSTATE.gehSeed;
         GEH.netBuilding = true;
         const build = typeof window.gehBuildWorld === "function" ? window.gehBuildWorld : gehBuildFloor;
@@ -24839,7 +25310,7 @@ const __boot = (async () => {
       // the keep is the castle and is drawn from anywhere: hidden past thirty metres like any other room, it vanished from
       // the far side of the square with the king left sitting on the grass. the church carries its own radius (drawR),
       // so it is seen from the road rather than appearing thirty metres out.
-      it.group.visible = !it.keepHides && (it.keep || it === roomNow || Math.hypot(it.cx - P.pos.x, it.cz - P.pos.z) < (it.drawR || ROOM_DRAW_R));
+      it.group.visible = !it.keepHides && (it.keep || it === roomNow || Math.hypot(it.cx - P.pos.x, it.cz - P.pos.z) < camera.far); // retro: every room is drawn as far as the view reaches, so a house does not arrive with its inside missing
         const want = it === roomNow ? it.growTo || TUNE.world.houseGrow : 1;
         if (Math.abs(it.grow - want) < 0.002) {
           it.grow = want;
@@ -27354,7 +27825,7 @@ const __boot = (async () => {
   function applyGraphics(index) {
     qualityIndex = clamp(index, 0, QUALITY.length - 1);
     graphics = QUALITY[qualityIndex];
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, graphics.pixel));
+    renderer.setPixelRatio(1); // the picture's size is the retro target's; the canvas stays 1:1 with the window
     resize();
     camera.far = graphics.far;
     camera.updateProjectionMatrix();
@@ -27439,6 +27910,7 @@ const __boot = (async () => {
   // ============================================================ loop
   function resize() {
     renderer.setSize(innerWidth, innerHeight, false);
+    retroFit(); // the small picture follows the window's shape, not its size
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
   }
@@ -27458,6 +27930,7 @@ const __boot = (async () => {
     try {
       loopTick(now);
     } catch (e) {
+      try { retroEnd(); } catch (_) {}
       frameErrors++;
       console.error("frame", frameErrors, e);
       if (now - frameErrorAt > 5000) frameErrors = 1; frameErrorAt = now;
@@ -27513,6 +27986,11 @@ const __boot = (async () => {
       hudElapsed = 0;
     }
     gehFightSpectate(dt);
+    sky.material.uniforms.uTime.value = now * 0.001;
+    retroGehennaResident();
+    if (GEH.root) GEH.root.visible = netGehennaActive(); // built and kept, but drawn only when someone is under the seam
+    retroBlobUpdate();
+    retroBegin(); // every pass below lands in the small picture
     renderer.clippingPlanes = P.pos.y < DIVIDE ? GEH_CLIP : NO_CLIP;
     renderer.render(scene, camera);
     {
@@ -27542,6 +28020,7 @@ const __boot = (async () => {
       scene.background = bgSave;
       camera.layers.set(0);
     }
+    retroEnd(); // and the picture goes to the window
   }
   // place the title camera above the ground before exposing the first frame
   P.pos.y = Math.max(P.pos.y, terrainH(P.pos.x, P.pos.z));

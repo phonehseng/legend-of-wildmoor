@@ -2,6 +2,10 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.3.2 — hale's note
+
+- **hale's note sank into the raised hall floor.** it is the one pickup laid by hand at the old floor height, two centimetres up, and the 3.3.1 slab passes over it when the hall is grown: the book spent most of its bob half-buried in the flagstones. it is placed from the room's own floor height at full growth now, with the book's half-height on top, so it cannot go stale with the floor again. found in review before anyone saw it.
+
 ## 3.3.1 — the hall floor
 
 - **the throne hall's floor broke into patches of street when the hall grew.** the hall's flagstones are a two-centimetre slab; the avenue and the cross streets around the keep are slabs with tops at eight to ten centimetres. when the hall swells around you — one and a half times wider, two and a half times taller — its floor spreads out over those streets, and at five centimetres (grown) they came up through it in rectangular patches, each with its own cobble scale. the floor sits at six centimetres now, fifteen grown, which covers them; the carpet lies on top of it; and the standing height inside follows the slab as it always did. the flagstones also have a texture of their own now whose repeat follows the growth, so the stones stay the size they were laid at instead of swelling with the room.
