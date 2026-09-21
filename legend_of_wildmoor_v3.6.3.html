@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Wildmoor 3.6.2</title>
+<title>Legend of Wildmoor 3.6.3</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#1b1626, #0d0a14); --edge: #6c583a; --hi: #8a6a3e; }
@@ -576,7 +576,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.6.2</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.6.3</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -646,7 +646,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="pmenu">
-      <div class="pm-head"><div class="edition">LEGEND OF WILDMOOR 3.6.2</div><h2 class="pm-title">Take a<br>breather<span class="brand-dot">.</span></h2></div>
+      <div class="pm-head"><div class="edition">LEGEND OF WILDMOOR 3.6.3</div><h2 class="pm-title">Take a<br>breather<span class="brand-dot">.</span></h2></div>
       <nav class="pm-tabs" aria-label="Pause menu">
         <button class="pm-tab pm-go" data-act="resume" style="--i:0">Play</button>
         <button class="pm-tab on" data-pane="pm-play" style="--i:1">Controls</button>
@@ -5682,8 +5682,13 @@ const __boot = (async () => {
     // a drawn sword is carried blade forward, not hanging at the leg; the axe is carried the same way whenever it is
     // in the hand, drawn or not — its haft is a metre and a half, and hanging straight down it dragged its head along
     // the ground. the swing itself is the arm's (rA), so the hand only turns for that
-    const carried = !P.atk && !P.airSlash && !P.dive && ((armed && P.weapon === "sword") || (P.weapon === "axe" && P.owned.axe && !P.carry));
+    // the sword is carried blade forward; the axe hangs head-down at the leg when it is not in use, held a little further
+    // down its haft so the head clears the ground (at the hand's own height it dragged), and drops back into the hand
+    // for the swing
+    const carried = !P.atk && !P.airSlash && !P.dive && armed && P.weapon === "sword";
+    const axeIdle = !P.atk && !P.airSlash && !P.dive && P.weapon === "axe" && P.owned.axe && !P.carry;
     u.hand.rotation.x = damp(u.hand.rotation.x, carried ? -1.0 : 0, 14, dt);
+    u.weapons.axe.position.y = damp(u.weapons.axe.position.y, axeIdle ? 0.55 : 0, 14, dt);
     u.lArm.rotation.x = damp(u.lArm.rotation.x, lA.x, 18, dt);
     u.lArm.rotation.y = damp(u.lArm.rotation.y, lA.y, 18, dt);
     u.shield.rotation.y = damp(u.shield.rotation.y, P.block ? 1.2 : 0, 14, dt);
@@ -14700,10 +14705,9 @@ const __boot = (async () => {
     const sp = document.getElementById("statsPanel");
     sp.classList.toggle("hidden");
     document.body.classList.toggle("stats-open", !sp.classList.contains("hidden"));
-    releaseKeys();
-    if (!sp.classList.contains("hidden")) {
-      if (document.pointerLockElement) document.exitPointerLock();
-    } else tryLock();
+    // the panel is read-only, so the mouse stays locked: letting it go was what paused the game outright on tab, since
+    // losing the lock in play is how the pause menu is reached
+    if (sp.classList.contains("hidden")) tryLock();
   }
   function toggleFullscreen() {
     if (document.fullscreenElement) {
@@ -26582,8 +26586,14 @@ const __boot = (async () => {
       P.stam = Math.min(SM, P.stam + (18 + SK.endurance.lvl * 0.6) * hdt * P.stamRamp * P.stamRamp);
       // endurance grows with the time spent recovering, not with how much came back: a bar that is never emptied
       // still fills a little every second, and every one of those seconds counts
-      if (!gehFreeStamina() && before < SM) gainXP("endurance", hdt * 0.16);
-    } else P.stamRamp = 0;
+      if (!gehFreeStamina() && before < SM) {
+        // three points the moment the bar starts to fill and one and a quarter a second while it does, up from a sixth
+        // of a point a second: a level's twenty-two came in two minutes of standing still and nothing at all from the
+        // short breathers that make up most of a fight
+        if (!P.stamGrant) { P.stamGrant = true; gainXP("endurance", 3); }
+        gainXP("endurance", hdt * 1.25);
+      }
+    } else { P.stamRamp = 0; P.stamGrant = false; }
     P.stam = gehFreeStamina() ? SM : clamp(P.stam, 0, SM);
     if (!P.grounded && !P.swim && P.jumps > 0) {
       P.airT += rdt;
@@ -27926,7 +27936,10 @@ const __boot = (async () => {
       scene.overrideMaterial = heroOccludedMaterial;
       renderer.autoClear = false;
       scene.autoUpdate = false;
-      if (started && (clearCameraArm(camDist) < camDist - 0.3 || rayCameraArm(camDist) < camDist - 0.3)) renderer.render(scene, camera);
+      // drawn every frame: the pass costs the hero's forty meshes and paints only where the depth test says the body is
+      // behind something. gated on the camera arm being blocked, it missed every case where the arm ran clear through a
+      // doorway or over a wall while the walls hid the body — the castle gate most of all
+      if (started) renderer.render(scene, camera);
       scene.overrideMaterial = null;
       scene.autoUpdate = true;
       renderer.autoClear = true;

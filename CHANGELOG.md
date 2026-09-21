@@ -2,6 +2,15 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.6.3 — the axe at the leg
+
+`legend_of_wildmoor_v3.6.3.html` and `legend_of_wildmoor_v3.6.3_retro.html`. everything here is in both.
+
+- **the axe hangs head-down when it is not in use.** it was carried blade-forward like a drawn sword; it hangs at the leg now, held a little further down its haft so the head clears the ground (at the hand's own height it dragged, which is why 3.4 carried it), and drops back into the hand for the swing.
+- **tab paused the game outright.** the stats panel let go of the mouse when it opened, and losing the pointer lock in play is how the pause menu is reached. the panel is read-only, so the mouse stays locked; tab opens and closes it without touching the game.
+- **endurance grows from every breather.** a sixth of a point a second while the bar filled meant a level from two minutes of standing still and nothing from the short recoveries a fight is made of. three points the moment the bar starts to fill and one and a quarter a second while it does: measured 3.9 points from 1.2 s of recovery, against a first level of twenty-two.
+- **your outline shows behind castle walls.** the see-through silhouette was drawn only when the camera arm was blocked, so it missed every case where the arm ran clear through a doorway or over a wall while the walls hid the body — the castle gate most of all. it is drawn every frame now; it costs the hero's forty meshes and paints only where the depth test says the body is hidden.
+
 ## 3.6.2 — picking up where you were
 
 `legend_of_wildmoor_v3.6.2.html` and `legend_of_wildmoor_v3.6.2_retro.html`. everything here is in both.
