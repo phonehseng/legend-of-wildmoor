@@ -6,7 +6,7 @@ const { instrument, serve, loadPlaywright, browserPath } = require('./qa-game.cj
 
 async function main() {
   const args = process.argv.slice(2);
-  const htmlFile = path.resolve(args.includes('--html') ? args[args.indexOf('--html') + 1] : 'legend_of_wildmoor_v3.6.3.html');
+  const htmlFile = path.resolve(args.includes('--html') ? args[args.indexOf('--html') + 1] : 'legend_of_wildmoor_v3.7.html');
   const out = path.resolve(args.includes('--out') ? args[args.indexOf('--out') + 1] : 'artifacts/full-journey');
   fs.mkdirSync(out, {recursive: true});
   let html = fs.readFileSync(htmlFile, 'utf8').replace(/\r\n/g, '\n');

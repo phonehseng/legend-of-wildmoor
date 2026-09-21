@@ -8,7 +8,7 @@ const HOST_PEERS = 15;
 const ATTEMPTED_PEERS = HOST_PEERS + 1;
 
 async function main() {
-  const html = process.argv[2] || 'legend_of_wildmoor_v3.6.3.html';
+  const html = process.argv[2] || 'legend_of_wildmoor_v3.7.html';
   const source = fs.readFileSync(html, 'utf8').replace(/\r\n/g, '\n');
   const server = await serve(instrument(source));
   const chromium = loadPlaywright().chromium;

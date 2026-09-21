@@ -65,3 +65,7 @@ three fixes (the context-loss reload stages a save; the first slimes wait for th
 ## 3.6.3
 
 four changes (the hanging axe, tab without the pause, the endurance grant, the silhouette every frame). measured on the retro build at the castle gate: tab opens the stats with `paused` false; the axe's hand at 0 and the axe raised 0.55 in it, head clear of the ground (screenshot); on main, 3.91 endurance points from 1.2 s of recovery at level 1. `qa-game` clean on both; repair-reload, network-live and lucifer-ending green on main.
+
+## 3.7
+
+the dialogue pass, the open errands, the herb tally and the faster regrowth. measured on main: 8 of 14 errands available at the start; the healer's errand taken the plain way stamps its baseline at the picked count (5) and two picks later reads 2/3; an unstamped baseline with one herb in hand reads 1; the deeds line reads "the woman out of the stocks and the beacon lit" with those two flags set. all ten suites, both builds, below.

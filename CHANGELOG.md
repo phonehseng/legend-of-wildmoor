@@ -2,6 +2,20 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.7 — what the valley owes
+
+`legend_of_wildmoor_v3.7.html` and `legend_of_wildmoor_v3.7_retro.html`. everything here is in both.
+
+### the words
+- **the people of gehenna know who walked in.** the unburdened, the sweeper, the porter, the rope seller, the matron, the caller, the clerk and the kindly one all speak of what you did for the living — a line of deeds built from the flags the valley keeps (the stocks, the beacon, the goblin king, the bear, the girl in the water, the grave, the queen's children, the errands) — and every one of the bosses that stands in the road is kind to you while doing it: the almoner nods at your hands, the matron asks rather than warns and says "go on, you always do" as she falls, the unclaimed only wants to hold your burdens too, the kindly one names what your bleeding hands already carried. the shape of the fights is unchanged.
+- **lucifer knows your name.** his welcome counts what you carried down, he asks you to stand with him before his father returns — he would rather set it all down beside you than against you — and his answers in the fight are to the one sword he hoped for, not to a stranger.
+- **wildmoor says it too**: the hermit at the lit beacon, maren after the peace, the king at ysolde's grave and hale in the stocks each name what it cost you.
+
+### the errands
+- **the villages' errands are open from the first morning.** they waited for the hermit's warning, which put the whole valley's asking behind the second act. nothing in them contradicts an early start — nim will not come home until the beacon is lit, and her mother says so — so eight of the fourteen can be taken at the start and a good stretch of them done before the story asks.
+- **the herb errands count again.** the healer's and the miller's tallies start from a baseline stamped when the errand is taken, so the hermit's herbs do not count; that stamp was made on every take path but the plain solo one, so in solo play the tally read nought for every herb picked after. the plain path stamps it now, and a baseline that was never stamped is stamped on first reading at the picked count less the herbs in hand, so what is carried counts. measured: the errand taken with five picked, two picked after, 2/3; an old save with no stamp and one herb in hand, 1.
+- **moor-herbs grow back sooner**: two minutes and forty metres away, from four and seventy, which read as never.
+
 ## 3.6.3 — the axe at the leg
 
 `legend_of_wildmoor_v3.6.3.html` and `legend_of_wildmoor_v3.6.3_retro.html`. everything here is in both.
