@@ -2,7 +2,7 @@ const fs = require("fs"), path = require("path");
 const { instrument, serve, loadPlaywright, browserPath } = require("./qa-game.cjs");
 
 (async () => {
-  const html = path.resolve(process.argv[2] || "legend_of_peanits_v3.5.html");
+  const html = path.resolve(process.argv[2] || "legend_of_peanits_v3.5.1.html");
   const server = await serve(instrument(fs.readFileSync(html, "utf8").replace(/\r\n/g, "\n")));
   const { chromium } = loadPlaywright(), errors = [];
   let browser;

@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 3.5</title>
+<title>Legend of Peanits 3.5.1</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#1b1626, #0d0a14); --edge: #6c583a; --hi: #8a6a3e; }
@@ -576,7 +576,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.5</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.5.1</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -646,7 +646,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="pmenu">
-      <div class="pm-head"><div class="edition">LEGEND OF PEANITS 3.5</div><h2 class="pm-title">Take a<br>breather<span class="brand-dot">.</span></h2></div>
+      <div class="pm-head"><div class="edition">LEGEND OF PEANITS 3.5.1</div><h2 class="pm-title">Take a<br>breather<span class="brand-dot">.</span></h2></div>
       <nav class="pm-tabs" aria-label="Pause menu">
         <button class="pm-tab pm-go" data-act="resume" style="--i:0">Play</button>
         <button class="pm-tab on" data-pane="pm-play" style="--i:1">Controls</button>
@@ -8417,8 +8417,7 @@ const __boot = (async () => {
     // its u on x, and the repeat and offset then land every stone where the streets' formula puts it. in the streets'
     // own tint, with its top four and a half centimetres up rather than thirteen: above the avenue and the cross
     // streets it covers, and under the shadow discs — at thirteen every disc on the square was hidden inside the stone
-    const plazaTex = cloneTex(TEX.cobble, 34 / 4, 34 / 4);
-    plazaTex.offset.set(-34 / 8, -(30 / 4 + 34 / 8));
+    const plazaTex = cobbleTex(0, 30, 34, 34); // the streets' own mapping, for a slab 34 m square centred on the fountain
     const plaza = new THREE.Mesh(new THREE.CylinderGeometry(17, 17, 0.1, 40), texMat(plazaTex, 0xd0c8bc));
     plaza.rotation.y = Math.PI / 2;
     TOWN_STONE.push({ x: 0, z: 30, r: 17.4 });
@@ -22963,7 +22962,16 @@ const __boot = (async () => {
     // a plain line that matches the newest box still on screen is said once; story beats and tagged lines keep their own
     if (!story && !kind) {
       const last = box.lastElementChild, ls = last && last.__sub;
-      if (ls && !ls.gone && !last.classList.contains("story") && !last.classList.contains("fade") && last.textContent === t) return ls;
+      // never a box a voice is holding: speak() hands the sub it gets back to Voice.say, which owns it until the voice is
+      // done, and a second chain on the same sub released the first one's hold mid-sentence. and the repeated line gets
+      // its own reading time on the box it joins, so a match arriving as the box was about to retire is still read
+      if (ls && !ls.gone && !ls.holding && !last.classList.contains("story") && !last.classList.contains("fade") && last.textContent === t) {
+        const now0 = performance.now();
+        ls.floorAt = Math.max(ls.floorAt, now0 + ms);
+        ls.capAt = Math.max(ls.capAt, now0 + subCapFor(ms));
+        subTick(ls);
+        return ls;
+      }
     }
     const el = document.createElement("div");
     el.className = "sub" + (story ? " story" : "") + (kind ? " " + kind : "");

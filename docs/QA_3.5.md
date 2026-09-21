@@ -41,3 +41,7 @@ what was run against `legend_of_peanits_v3.5.html` and `legend_of_peanits_v3.5_r
 ## multiplayer soak
 
 two minutes, four clients, each build, run last against the released files: green on both, 15 of 15 combat checks, 152 checks, 22 pvp, 44 quest and 3 pressure events with a reconnect, no runtime or shader errors.
+
+## 3.5.1
+
+one fix: the subtitle dedupe never joins a box a voice is holding, and extends the reading time of the box it joins. run against `legend_of_peanits_v3.5.1.html` and `legend_of_peanits_v3.5.1_retro.html`: `qa-game` clean on both (world built, game started), and a state test on both builds — a held line said twice makes two boxes; a plain line said twice 400 ms apart makes one box with its floor pushed out and its timer re-armed. the plaza's texture offset and repeat are unchanged by the helper rewrite: (-4.25, -11.75) and (8.5, 8.5), rotation π/2.

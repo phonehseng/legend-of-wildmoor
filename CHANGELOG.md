@@ -2,6 +2,14 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.5.1 — a held line
+
+[test notes](docs/QA_3.5.md#351)
+
+`legend_of_peanits_v3.5.1.html` and `legend_of_peanits_v3.5.1_retro.html`. one fix, in both.
+
+- **a repeated spoken line could let its voice's hold go.** 3.5 made an identical plain subtitle join the newest box rather than stack under it. speak() hands the box it gets back to the voice, which holds it until it has finished talking; press E twice on a villager saying the same thing and the second chain got the first chain's box, and when the first chain wound down it released the hold on a box the second voice was still speaking to — the line could retire mid-sentence. a box a voice is holding is never joined now, and a line that does join gets its own reading time on the box, so a match arriving as the box was about to retire is still read. found in review before anyone saw it. the plaza's texture mapping is written through the streets' own helper now, the same numbers in fewer words.
+
 ## 3.5 — solid trees, a dark doorway, and the square underfoot
 
 [screenshots](docs/updates/3.5.md) · [test notes](docs/QA_3.5.md)
