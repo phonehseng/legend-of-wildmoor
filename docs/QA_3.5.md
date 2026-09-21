@@ -81,3 +81,7 @@ the wall put back. measured on the retro build: one mesh of the wall's stone in 
 ## 3.8.2
 
 the build audit: 896 materials tracked through the architecture stages, none on nothing, both builds; `window.__lostMaterials` holds the list for a state test. the sandbox trio, repair-reload and network-live green on both builds.
+
+## 3.8.3
+
+the audit's whole net: 1,059 materials tracked (the streets, the plaza, the canopy and mountain huts and the church added), none lost, both builds. the sandbox trio, repair-reload, network-live and personal-fairies-live green on both.

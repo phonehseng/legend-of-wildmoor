@@ -13,7 +13,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Wildmoor 3.8.2 Retro</title>
+<title>Legend of Wildmoor 3.8.3 Retro</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#1b1626, #0d0a14); --edge: #6c583a; --hi: #8a6a3e; }
@@ -579,7 +579,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.8.2r</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.8.3r</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -649,7 +649,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="pmenu">
-      <div class="pm-head"><div class="edition">LEGEND OF WILDMOOR 3.8.2 RETRO</div><h2 class="pm-title">Take a<br>breather<span class="brand-dot">.</span></h2></div>
+      <div class="pm-head"><div class="edition">LEGEND OF WILDMOOR 3.8.3 RETRO</div><h2 class="pm-title">Take a<br>breather<span class="brand-dot">.</span></h2></div>
       <nav class="pm-tabs" aria-label="Pause menu">
         <button class="pm-tab pm-go" data-act="resume" style="--i:0">Play</button>
         <button class="pm-tab on" data-pane="pm-play" style="--i:1">Controls</button>
@@ -4156,6 +4156,7 @@ const __boot = (async () => {
   // the villagers — because the people built after them are remade by design (a swapped body, the hero after the
   // character screen) and their skin and hair would report as lost every boot
   const BUILD_MATS = new Map(); // material -> a name for the report
+  const BUILD_AUDIT_OK = new Set(); // materials a deliberate build-time removal has declared, at the point of removal, as meant to go
   let BUILD_AUDIT = false;
   const shadowed = m => {
     m.castShadow = true;
@@ -5443,6 +5444,7 @@ const __boot = (async () => {
             hz = z + Math.cos(b) * 9.5,
             HR2 = 3.4,
             HH2 = 3.6;
+          BUILD_AUDIT = true; // the canopy huts are batched with the houses, so they are watched like them
           const hut = new THREE.Group(),
             face2 = Math.atan2(x - hx, z - hz);
           hut.add(shadowed(new THREE.Mesh(new THREE.CylinderGeometry(HR2, HR2 + 0.1, HH2, 16, 1, true, 0.5, 6.28 - 1), plasterM)));
@@ -5475,6 +5477,7 @@ const __boot = (async () => {
           const lp = vlight(0xffc070, 0, 14);
           lp.position.set(hx, y + 2.6, hz);
           houseLamps.push(lp);
+          BUILD_AUDIT = false;
           interiors.push({
             cx: hx,
             cz: hz,
@@ -8959,7 +8962,8 @@ const __boot = (async () => {
     // stones in the same places, so a crossing is no longer a patch of finer, darker cobbles laid over the street
     const cobbleTex = (x, z, w, d) => { const t = cloneTex(TEX.cobble, w / 4, d / 4); t.offset.set(x / 4 - w / 8, -(z / 4 + d / 8)); return t; };
     const road = (x, z, w, d) => {
-      const r = new THREE.Mesh(new THREE.BoxGeometry(w, 0.08, d), texMat(cobbleTex(x, z, w, d), 0xd0c8bc));
+      const r = shadowed(new THREE.Mesh(new THREE.BoxGeometry(w, 0.08, d), texMat(cobbleTex(x, z, w, d), 0xd0c8bc))); // through shadowed so the build audit sees the street's material
+      r.castShadow = false; // a slab on the ground casts nothing worth the pass
       // every slab on its own step: the old seven-step cycle put the west side street and the north cross street on
       // the same height, and where they crossed the two cobble textures fought for the pixel in a sawtooth.
       // and the tops are two and a half to four centimetres above the plateau, not eight to fourteen: the slabs are
@@ -8992,7 +8996,8 @@ const __boot = (async () => {
     // own tint, with its top four and a half centimetres up rather than thirteen: above the avenue and the cross
     // streets it covers, and under the shadow discs — at thirteen every disc on the square was hidden inside the stone
     const plazaTex = cobbleTex(0, 30, 34, 34); // the streets' own mapping, for a slab 34 m square centred on the fountain
-    const plaza = new THREE.Mesh(new THREE.CylinderGeometry(17, 17, 0.1, 40), texMat(plazaTex, 0xd0c8bc));
+    const plaza = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(17, 17, 0.1, 40), texMat(plazaTex, 0xd0c8bc)));
+    plaza.castShadow = false;
     plaza.rotation.y = Math.PI / 2;
     TOWN_STONE.push({ x: 0, z: 30, r: 17.4 });
     plaza.position.set(0, PLATEAU - 0.005, 30);
@@ -9554,6 +9559,7 @@ const __boot = (async () => {
         r = 12 + (i % 2) * 7,
         s = V3(c.x + Math.cos(a) * r, 0, c.z + Math.sin(a) * r);
       s.y = terrainH(s.x, s.z);
+      BUILD_AUDIT = true; // the mountain huts are built between the villagers, so the flag is raised for the hut alone
       const hut = new THREE.Group(),
         face = Math.atan2(c.x - s.x, c.z - s.z);
       const HR = 4.6,
@@ -9603,6 +9609,7 @@ const __boot = (async () => {
       const lamp = vlight(0xffb060, 0, 13);
       lamp.position.set(s.x, s.y + 2.6, s.z);
       houseLamps.push(lamp);
+      BUILD_AUDIT = false;
       interiors.push({
         cx: s.x,
         cz: s.z,
@@ -12300,6 +12307,7 @@ const __boot = (async () => {
     addPickup(V3(KEEP.cx - KEEP.w + 3, PLATEAU + KEEP_ROOM.floorTop * (1 + (TUNE.world.keepGrow - 1) * TUNE.world.keepGrowHeight) + 0.16, KEEP.cz - KEEP.d + 3), "clue", "Hale's private note, folded small: 'The pool took the miller's girl before I could give it the sheep. It has never taken one of us before. Better her than the town. Better anyone than the town.'", () => { evidence("note"); }, { shape: "book", id: "clue:note" });
     // the pool's darker face, hidden until something wakes: black reeds, dead fish, cold fog, a violet light, and the marks that begin to glow
     {
+      BUILD_AUDIT = true; // the church is batched with the rooms, and built long after the town
       const g = new THREE.Group();
       const reedM = new THREE.MeshStandardMaterial({ color: toLin(0x101018), roughness: 0.95 });
       for (let k = 0; k < 16; k++) { const a = hash(k, 91) * 6.28, r = 7.5 + hash(k, 92) * 5; const reed = cone(0.12, 1.6 + hash(k, 93) * 1.2, reedM, POOL.x + Math.cos(a) * r, POOL.y + 0.7, POOL.z + Math.sin(a) * r, 5); reed.rotation.z = (hash(k, 94) - 0.5) * 0.3; g.add(reed); }
@@ -12958,6 +12966,7 @@ const __boot = (async () => {
       props.traverse(o => { if (o.isMesh) o.castShadow = false; });
       for (const m of nocast) m.castShadow = false;
       scene.add(g);
+      BUILD_AUDIT = false;
 
       // enterable, and registered exactly like a house, so footsteps, the camera, the indoor grade and every
       // villager's "that room is not mine" test read it without one of them being told it exists.
@@ -27918,7 +27927,7 @@ const __boot = (async () => {
     const onScene = new Set();
     scene.traverse(o => { if (o.material) for (const m of [].concat(o.material)) onScene.add(m); });
     const lost = [];
-    for (const [m, name] of BUILD_MATS) if (!onScene.has(m)) lost.push(name);
+    for (const [m, name] of BUILD_MATS) if (!onScene.has(m) && !BUILD_AUDIT_OK.has(m)) lost.push(name);
     window.__lostMaterials = lost;
     if (lost.length) console.error("build audit: " + lost.length + " material(s) given to meshes during the build are on nothing in the scene: " + lost.slice(0, 12).join(", "));
   }

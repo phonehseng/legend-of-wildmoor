@@ -2,6 +2,12 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.8.3 — the audit's whole net
+
+`legend_of_wildmoor_v3.8.3.html` and `legend_of_wildmoor_v3.8.3_retro.html`. in both.
+
+- **the build audit watches everything the batching touches.** 3.8.2's window covered the wall and the houses — what 3.8 broke — and not the rest: the streets and the plaza were made without the recorder, and the canopy huts, the mountain huts and the church are built outside the window yet merged by the same pass. the streets go through the recorder now, and the three builders raise the flag for themselves (the mountain huts are built between the villagers, so a wider window was never possible). a deliberate build-time removal can declare its material meant to go, at the point of removal, rather than weakening the check. measured: 1,059 materials tracked, none lost, both builds (3.8.2: 896).
+
 ## 3.8.2 — the build audit
 
 `legend_of_wildmoor_v3.8.2.html` and `legend_of_wildmoor_v3.8.2_retro.html`. a guard, in both.
