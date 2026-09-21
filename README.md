@@ -1,4 +1,4 @@
-# legend of peanits
+# legend of wildmoor
 
 a one-file browser action rpg set in wildmoor and gehenna.
 
