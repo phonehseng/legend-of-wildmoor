@@ -2,6 +2,14 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.6.2 — picking up where you were
+
+`legend_of_wildmoor_v3.6.2.html` and `legend_of_wildmoor_v3.6.2_retro.html`. everything here is in both.
+
+- **a lost graphics context read as a crash.** when the browser loses its WebGL context (a driver reset, the machine waking, another program taking the card — the game holds no more on the card than 3.4.1 did, measured: 64 textures and the same six thousand geometries) the page has to reload, and it came back to the title screen with everything since the last autosave gone. the moment is staged as a save key first now, the way the load button stages one, so the reload puts you back where you were with the health you had. forced in the harness on both builds: the staged key carries the position and the health, and the card reads "picking up where you were".
+- **the first slimes wait for the knight.** they were on the moor from the first frame; they are loosed once the gate knight has had his word and walked back to his post, at once on a loaded game (the welcome is long past), and at once for a guest, whose slimes are the host's. the flag rides in the save. measured: none at the start, none while he is walking, thirty-one the frame after he is back.
+- **the gap in the rose queen's dress.** her cape was an open tube, so from above or from beside her you looked down into the hollow between the cape and the dress — a dark gap where her back should be. it is closed at both ends.
+
 ## 3.6.1 — the name on the door
 
 `legend_of_wildmoor_v3.6.1.html` and `legend_of_wildmoor_v3.6.1_retro.html`.

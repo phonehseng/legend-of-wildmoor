@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Wildmoor 3.6.1</title>
+<title>Legend of Wildmoor 3.6.2</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#1b1626, #0d0a14); --edge: #6c583a; --hi: #8a6a3e; }
@@ -576,7 +576,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.6.1</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.6.2</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -646,7 +646,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="pmenu">
-      <div class="pm-head"><div class="edition">LEGEND OF WILDMOOR 3.6.1</div><h2 class="pm-title">Take a<br>breather<span class="brand-dot">.</span></h2></div>
+      <div class="pm-head"><div class="edition">LEGEND OF WILDMOOR 3.6.2</div><h2 class="pm-title">Take a<br>breather<span class="brand-dot">.</span></h2></div>
       <nav class="pm-tabs" aria-label="Pause menu">
         <button class="pm-tab pm-go" data-act="resume" style="--i:0">Play</button>
         <button class="pm-tab on" data-pane="pm-play" style="--i:1">Controls</button>
@@ -3317,7 +3317,19 @@ const __boot = (async () => {
     if (typeof terrainMat !== "undefined" && terrainMat.map) { terrainMat.map = null; terrainMat.needsUpdate = true; console.warn("terrain: textured shader off, flat colours on"); }
   };
   let terrainShaderWatch = 0; // frames left to watch for a failed terrain link; reset whenever the textured program is asked for
-  if (renderer.domElement && renderer.domElement.addEventListener) renderer.domElement.addEventListener("webglcontextlost", e => { e.preventDefault(); console.error("webgl context lost"); const el = document.getElementById("loadtext"); if (el) { el.textContent = "The graphics context was lost. Reloading…"; document.getElementById("loading").classList.remove("hidden"); } setTimeout(() => location.reload(), 1500); });
+  // a lost context (a driver reset, the machine waking, another program taking the card) cannot be drawn on again; the
+  // page reloads. before it does, the moment is staged as a save key exactly the way the load button stages one, so the
+  // reload comes back into the game where you were — it used to come back to the title with everything since the last
+  // autosave gone, which read as a crash
+  if (renderer.domElement && renderer.domElement.addEventListener) renderer.domElement.addEventListener("webglcontextlost", e => {
+    e.preventDefault();
+    console.error("webgl context lost");
+    let staged = false;
+    try { if (started && !titleMode && typeof makeSaveKey === "function" && typeof stageSaveKey === "function") staged = !!stageSaveKey(makeSaveKey()); } catch (err) { console.error("context lost: could not stage the save", err); }
+    const el = document.getElementById("loadtext");
+    if (el) { el.textContent = staged ? "The graphics context was lost. Picking up where you were…" : "The graphics context was lost. Reloading…"; document.getElementById("loading").classList.remove("hidden"); }
+    setTimeout(() => location.reload(), 1500);
+  });
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputEncoding = THREE.sRGBEncoding;
@@ -13169,16 +13181,27 @@ const __boot = (async () => {
     enemiesTick = -1;
     return slimes[slimes.length - 1];
   }
-  for (let i = 0; i < 6; i++) spawnSlime(hermitPos.x + Math.cos(i * 1.05) * (16 + i * 3), hermitPos.z + Math.sin(i * 1.05) * (16 + i * 3), i === 2);
-  for (let i = 0; i < 40; i += 2) { // every other scattered slime: half as many on the moor
-    const x = (hash(i, 70) - 0.5) * 900,
-      z = (hash(i, 71) - 0.5) * 900;
-    if (Math.hypot(x, z) < 100 || Math.hypot(x - ELDER.x, z - ELDER.z) < 60) continue;
-    spawnSlime(x, z, hash(i, 72) < 0.25);
+  // the first slimes are not on the moor when you arrive. they are loosed once the gate knight has had his word and
+  // walked back to his post — the moor is quiet for the whole of that welcome — and at once on a loaded game, where the
+  // welcome is long past, or for a guest, whose slimes are the host's anyway. STORY.slimesLoosed remembers it was done.
+  function looseSlimes() {
+    if (STORY.slimesLoosed) return;
+    STORY.slimesLoosed = true;
+    for (let i = 0; i < 6; i++) spawnSlime(hermitPos.x + Math.cos(i * 1.05) * (16 + i * 3), hermitPos.z + Math.sin(i * 1.05) * (16 + i * 3), i === 2);
+    for (let i = 0; i < 40; i += 2) { // every other scattered slime: half as many on the moor
+      const x = (hash(i, 70) - 0.5) * 900,
+        z = (hash(i, 71) - 0.5) * 900;
+      if (Math.hypot(x, z) < 100 || Math.hypot(x - ELDER.x, z - ELDER.z) < 60) continue;
+      spawnSlime(x, z, hash(i, 72) < 0.25);
+    }
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * 6.28;
+      spawnSlime(Math.sin(a) * 130, 110 + Math.cos(a) * 60, i === 1);
+    }
   }
-  for (let i = 0; i < 6; i++) {
-    const a = (i / 6) * 6.28;
-    spawnSlime(Math.sin(a) * 130, 110 + Math.cos(a) * 60, i === 1);
+  function looseSlimesWhenReady() {
+    if (STORY.slimesLoosed || !started || titleMode) return;
+    if (NET.role === "guest" || !npcs.some(n => n.escort)) looseSlimes(); // no knight on his way to or from you: the welcome is over, or never was
   }
   // ---- the old bear: asleep in a cave in the deep wood; noise wakes it ----
   let BEAR = null;
@@ -15352,6 +15375,7 @@ const __boot = (async () => {
           logsGiven: v => num(v, 0, 999),
           gobKills0: v => num(v, 0, 1e6),
           partySlimes: v => num(v, 0, 6),
+          slimesLoosed: bool,
           clues: v => num(v, 0, 5),
           evidence: v => Array.isArray(v) && v.length <= 5 && v.every(e => evidenceIds.includes(e)),
           campLeft: v => num(v, -1, 1e6),
@@ -24098,7 +24122,9 @@ const __boot = (async () => {
         new THREE.Mesh(
           // sixteen sides, not ten: the retro edition halves every round count, and at five a cape that wraps most of
           // the way round was three flat boards, the front one hanging out beside her a good half-metre from the dress
-          new THREE.CylinderGeometry(1.35, 1.85, 2.4, 16, 1, true, Math.PI * 0.7, Math.PI * 1.6),
+          // and closed at both ends: open, it was a tube, and from above or from beside her you looked down into the hollow
+          // between the cape and the dress — a dark gap where her back should be
+          new THREE.CylinderGeometry(1.35, 1.85, 2.4, 16, 1, false, Math.PI * 0.7, Math.PI * 1.6),
           M.cape
         )
       );
@@ -27875,6 +27901,7 @@ const __boot = (async () => {
     }
     gehFightSpectate(dt);
     gehennaResident();
+    looseSlimesWhenReady();
     if (GEH.root) GEH.root.visible = netGehennaActive(); // built and kept, but drawn only when someone is under the seam
     gehChildrenHeal(dt);
     renderer.clippingPlanes = P.pos.y < DIVIDE ? GEH_CLIP : NO_CLIP;

@@ -57,3 +57,7 @@ the rename to legend of wildmoor: `qa-game` clean on `legend_of_wildmoor_v3.6.ht
 ## 3.6.1
 
 the three missed headings renamed; `qa-game` loads `legend_of_wildmoor_v3.6.1.html` and its retro edition clean; a whole-line scan of the game finds no remaining "Legend of Peanits".
+
+## 3.6.2
+
+three fixes (the context-loss reload stages a save; the first slimes wait for the gate knight; the queen's cape is closed). run against `legend_of_wildmoor_v3.6.2.html` and its retro edition: a forced context loss (WEBGL_lose_context, the reload held back) stages a key at the player's position with hp 2.5 on both builds; slimes 0 at the start with the escort present, 0 after 1.5 s, 31 the frame after the knight is back at his post, on both; the queen screenshotted from above and beside with no hollow. suites, run last against these files: network-live, bystander-live, personal-fairies-live, repair-reload and lucifer-ending on main; those plus kingdom-geometry, lucifer-visuals, pride-river and postgame-peace on retro; the two-minute soak green on both (15 / 15 combat, 152 checks, 0 errors).
