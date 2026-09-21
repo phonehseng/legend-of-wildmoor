@@ -45,3 +45,7 @@ two minutes, four clients, each build, run last against the released files: gree
 ## 3.5.1
 
 one fix: the subtitle dedupe never joins a box a voice is holding, and extends the reading time of the box it joins. run against `legend_of_peanits_v3.5.1.html` and `legend_of_peanits_v3.5.1_retro.html`: `qa-game` clean on both (world built, game started), and a state test on both builds — a held line said twice makes two boxes; a plain line said twice 400 ms apart makes one box with its floor pushed out and its timer re-armed. the plaza's texture offset and repeat are unchanged by the helper rewrite: (-4.25, -11.75) and (8.5, 8.5), rotation π/2.
+
+## 3.5.2
+
+one fix: the town wall's merlons are solid, on the outer edge of the wall top. run against `legend_of_peanits_v3.5.2.html` and `legend_of_peanits_v3.5.2_retro.html`: `qa-game` clean on both, and a state test on the wall top of segment ten — a probe at a merlon's centre pushed 0.729 m, at its edge 0.542, between two merlons 0.336; the ground under a merlon reads the walkway's 20.0, not a step; a probe on the plank walk is not moved; eighteen merlon colliders in that grid cell. the retro edition rebuilds with the same 31 edits.

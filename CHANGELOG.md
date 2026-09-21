@@ -2,6 +2,14 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.5.2 — the battlements
+
+[test notes](docs/QA_3.5.md#352)
+
+`legend_of_peanits_v3.5.2.html` and `legend_of_peanits_v3.5.2_retro.html`. one fix, in both.
+
+- **the town wall's merlons had no collider, and stood across the walkway.** the collision audit's one unresolved note: on the wall top, sixty-odd segments carried three blocks of dark stone each, a metre and a bit tall, spanning the whole three-metre width of the wall — plank walk included — with nothing solid behind them, so a body on the wall passed through them. they stand on the outer edge now, a metre ninety tall so the step-up rule cannot read them as stairs from the walk, each with a collider of its own; the walk along the inner edge is clear. measured on the wall top: a probe at a merlon's centre is pushed 0.73 m and at its edge 0.54, the ground under it stays the walkway's, and a probe on the plank walk is not moved.
+
 ## 3.5.1 — a held line
 
 [test notes](docs/QA_3.5.md#351)
