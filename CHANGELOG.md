@@ -2,6 +2,12 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.8.1 — the wall put back
+
+`legend_of_wildmoor_v3.8.1.html` and `legend_of_wildmoor_v3.8.1_retro.html`. one fix, in both.
+
+- **3.8 deleted the town wall's stone.** the batching across the wall's segments was written for holders: it took each segment's children, merged them, and removed the segment as an emptied holder. but a segment is itself the wall box, with its merlons and its plank walk as children — so all sixty boxes of stone were removed and disposed, and a ring of merlons and planks was left floating twelve metres up with nothing under it. the collision ring is a separate solid, so the wall still stopped you; you could not walk through the wall you could not see, and the draw-call count moved the right way for the wrong reason. found in review, by running the batching against the wall loop. the trimmings are merged first now, and a segment that is itself a mesh, standing childless once they are gone, joins its kind in a second pass; a mesh is never removed for being childless. measured: one stone mesh reaching the ring's outer radius of 63.6 m with its top at the walkway height, where 3.8 had none. vertex-coloured materials are now skipped by the batching too (nothing batched carried one; a tinted beam would have gone black).
+
 ## 3.8 — the kingdom, lighter
 
 `legend_of_wildmoor_v3.8.html` and `legend_of_wildmoor_v3.8_retro.html`. everything here is in both.

@@ -13,7 +13,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Wildmoor 3.8 Retro</title>
+<title>Legend of Wildmoor 3.8.1 Retro</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#1b1626, #0d0a14); --edge: #6c583a; --hi: #8a6a3e; }
@@ -579,7 +579,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.8r</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.8.1r</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -649,7 +649,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="pmenu">
-      <div class="pm-head"><div class="edition">LEGEND OF WILDMOOR 3.8 RETRO</div><h2 class="pm-title">Take a<br>breather<span class="brand-dot">.</span></h2></div>
+      <div class="pm-head"><div class="edition">LEGEND OF WILDMOOR 3.8.1 RETRO</div><h2 class="pm-title">Take a<br>breather<span class="brand-dot">.</span></h2></div>
       <nav class="pm-tabs" aria-label="Pause menu">
         <button class="pm-tab pm-go" data-act="resume" style="--i:0">Play</button>
         <button class="pm-tab on" data-pane="pm-play" style="--i:1">Controls</button>
@@ -4190,7 +4190,7 @@ const __boot = (async () => {
     const byMat = new Map();
     for (const c of children) {
       if (!c.isMesh || c.isInstancedMesh || c.isSprite || c.children.length || Object.keys(c.userData).length || Array.isArray(c.material) || !c.geometry || !c.geometry.attributes.position || !c.geometry.attributes.normal) continue;
-      if (c.material.transparent || keep.has(c) || BATCH_KEEP.has(c)) continue;
+      if (c.material.transparent || c.material.vertexColors || keep.has(c) || BATCH_KEEP.has(c)) continue; // vertex colours are not carried by the merge
       if (!byMat.has(c.material)) byMat.set(c.material, []);
       byMat.get(c.material).push(c);
     }
@@ -4234,18 +4234,25 @@ const __boot = (async () => {
   function batchAcross(groups, keep = new Set()) {
     let saved = 0;
     const all = [];
-    for (const g of groups) { g.updateMatrixWorld(true); for (const c of g.children) all.push(c); }
-    for (const [mat, list] of batchGather(all, keep)) {
-      if (list.length < 2) continue;
-      const geo = batchMerge(list, m => m.matrixWorld);
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.castShadow = list.some(m => m.castShadow);
-      mesh.receiveShadow = list.some(m => m.receiveShadow);
-      for (const m of list) { m.parent.remove(m); m.geometry.dispose(); }
-      scene.add(mesh);
-      saved += list.length - 1;
-    }
-    for (const g of groups) if (!g.children.length && g.parent) g.parent.remove(g);
+    // a segment may itself be geometry with its trimmings as children (the town wall's stone carries its merlons and
+    // planks), so the segment goes into the harvest too; 3.8 took only the children and then removed the childless
+    // parent as an empty holder — every wall box in the ring, with the merlons and the walk left floating
+    for (const g of groups) { g.updateMatrixWorld(true); for (const c of g.children.slice()) all.push(c); }
+    const merge = candidates => {
+      for (const [mat, list] of batchGather(candidates, keep)) {
+        if (list.length < 2) continue;
+        const geo = batchMerge(list, m => m.matrixWorld);
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.castShadow = list.some(m => m.castShadow);
+        mesh.receiveShadow = list.some(m => m.receiveShadow);
+        for (const m of list) { m.parent.remove(m); m.geometry.dispose(); }
+        scene.add(mesh);
+        saved += list.length - 1;
+      }
+    };
+    merge(all); // the trimmings first: once they are taken off, a segment that is itself a mesh stands childless
+    merge(groups.filter(g => g.isMesh && !g.children.length)); // and joins its kind in a second pass
+    for (const g of groups) if (!g.isMesh && !g.children.length && g.parent) g.parent.remove(g); // only an emptied holder goes; a mesh is never removed for being childless
     return saved;
   }
   const pivot = (x, y, z, parent) => {

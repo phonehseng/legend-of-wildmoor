@@ -3,7 +3,7 @@ const path=require('path');
 const crypto=require('crypto');
 const {instrument,serve,loadPlaywright,browserPath}=require('./qa-game.cjs');
 async function main(){
-  const input=path.resolve(process.argv[2]||'legend_of_wildmoor_v3.8.html'),out=path.resolve(process.argv[3]||'artifacts/pride-river/final');fs.mkdirSync(out,{recursive:true});
+  const input=path.resolve(process.argv[2]||'legend_of_wildmoor_v3.8.1.html'),out=path.resolve(process.argv[3]||'artifacts/pride-river/final');fs.mkdirSync(out,{recursive:true});
   const source=fs.readFileSync(input,'utf8').replace(/\r\n/g,'\n'),errors=[],results=[];
   const server=await serve(instrument(source));const browser=await loadPlaywright().chromium.launch({executablePath:browserPath('edge'),headless:true});
   try{

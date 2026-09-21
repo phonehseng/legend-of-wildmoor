@@ -73,3 +73,7 @@ the dialogue pass, the open errands, the herb tally and the faster regrowth. mea
 ## 3.8
 
 the kingdom's frame. measured on main in the harness profile: the square's main pass 5.8 ms → 4.4 ms and 916 → 840 draw calls; the moor 3.5 → 3.2 ms; 236 of 346 static groups hidden from the square, 293 from the moor (the first cut hid 413 and took the rose court's children with it — the fairy suite caught it, and every registry that owns its groups' visibility is excluded now); the town seen from the wall walkway with nothing missing inside 260 m (screenshot). the houses batched to one mesh per material each (bed and furnishings kept), the wall to three meshes. all ten suites, both builds.
+
+## 3.8.1
+
+the wall put back. measured on the retro build: one mesh of the wall's stone in the scene, outer reach 63.6 m, top at 20 (3.8: none); screenshot of the wall from outside the ring. the sandbox trio, repair-reload, network-live, personal-fairies-live and lucifer-ending green on both builds.
