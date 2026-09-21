@@ -69,3 +69,7 @@ four changes (the hanging axe, tab without the pause, the endurance grant, the s
 ## 3.7
 
 the dialogue pass, the open errands, the herb tally and the faster regrowth. measured on main: 8 of 14 errands available at the start; the healer's errand taken the plain way stamps its baseline at the picked count (5) and two picks later reads 2/3; an unstamped baseline with one herb in hand reads 1; the deeds line reads "the woman out of the stocks and the beacon lit" with those two flags set. all ten suites, both builds, below.
+
+## 3.8
+
+the kingdom's frame. measured on main in the harness profile: the square's main pass 5.8 ms → 4.4 ms and 916 → 840 draw calls; the moor 3.5 → 3.2 ms; 236 of 346 static groups hidden from the square, 293 from the moor (the first cut hid 413 and took the rose court's children with it — the fairy suite caught it, and every registry that owns its groups' visibility is excluded now); the town seen from the wall walkway with nothing missing inside 260 m (screenshot). the houses batched to one mesh per material each (bed and furnishings kept), the wall to three meshes. all ten suites, both builds.

@@ -2,6 +2,21 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.8 — the kingdom, lighter
+
+`legend_of_wildmoor_v3.8.html` and `legend_of_wildmoor_v3.8_retro.html`. everything here is in both.
+
+### the kingdom's frame
+- **measured first.** on the square the main pass issued 916 draw calls against 194 on the moor, and the renderer walked fifteen thousand objects a frame to find the few hundred in view; the people were not the cost (hiding every villager saved six calls), the houses' parts and the far props were.
+- **static batching.** meshes that share a material and never move on their own are merged into one mesh per material: inside each house, hut and room (so the group still scales, hides and slides as one; the bed and the furnishings keep their own meshes), and the town wall's sixty-four segments of five meshes into three meshes of stone, merlons and planks. seven hundred house meshes and three hundred wall meshes gone.
+- **a distance cull on the static scene groups.** every half second the static groups at the top of the scene that stand more than 260 m from the player are hidden, so their subtrees are not walked, and shown again on the way back. only groups that were visible when the world was built and that nothing else manages are touched — the rooms, the keep, gehenna, the player, the people and the enemies are left alone — and a group this hid is the only kind it ever shows again. on the square 236 of 346 such groups are hidden.
+- **the result**, main build, harness profile (shadows and textures off), RTX 5080: the main pass on the square 5.8 ms → 4.4 ms; the moor 3.5 → 3.2. the frame rate there was never the whole story — the game is capped by the display — but a quarter of the square's render work is gone, which is headroom on the machines that were dropping frames there.
+- what was not done, and why: the remaining eight hundred calls on the square are loose props each with a material of its own colour; merging those needs a material cache that the hit flash and the teardown code do not yet expect, so it waits.
+
+### small things
+- the deeds line no longer pretends a `typeof` guards a closure variable (it cannot); it is documented as dialogue-only, which it is.
+- the three errands that stamped their baseline again in `ask()` no longer do: `prepare` covers every take path since 3.7, and a re-run `ask()` could have zeroed a tally.
+
 ## 3.7 — what the valley owes
 
 `legend_of_wildmoor_v3.7.html` and `legend_of_wildmoor_v3.7_retro.html`. everything here is in both.
