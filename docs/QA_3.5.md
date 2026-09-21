@@ -85,3 +85,7 @@ the build audit: 896 materials tracked through the architecture stages, none on 
 ## 3.8.3
 
 the audit's whole net: 1,059 materials tracked (the streets, the plaza, the canopy and mountain huts and the church added), none lost, both builds. the sandbox trio, repair-reload, network-live and personal-fairies-live green on both.
+
+## 3.8.4
+
+the church's audit raise moved onto the church's own group; the audit clean on both builds; the sandbox trio and repair-reload green on both.

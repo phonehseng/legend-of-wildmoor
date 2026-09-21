@@ -2,6 +2,12 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.8.4 — the raise in the right place
+
+`legend_of_wildmoor_v3.8.4.html` and `legend_of_wildmoor_v3.8.4_retro.html`. in both.
+
+- **the church's audit raise had landed on the black pool.** the pool's dark face and the church both open with a group made the same way, and the raise was put on the first of them, six hundred lines before the church, so the flag stayed up across two unrelated blocks — a true result today, and a trap for whoever moves either block. the raise sits on the church's own group now, two lines from the plinth it is built on. found in review. 1,053 materials tracked (the pool's props no longer among them), none lost, both builds.
+
 ## 3.8.3 — the audit's whole net
 
 `legend_of_wildmoor_v3.8.3.html` and `legend_of_wildmoor_v3.8.3_retro.html`. in both.

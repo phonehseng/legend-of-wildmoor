@@ -13,7 +13,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Wildmoor 3.8.3 Retro</title>
+<title>Legend of Wildmoor 3.8.4 Retro</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#1b1626, #0d0a14); --edge: #6c583a; --hi: #8a6a3e; }
@@ -579,7 +579,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.8.3r</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.8.4r</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -649,7 +649,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="pmenu">
-      <div class="pm-head"><div class="edition">LEGEND OF WILDMOOR 3.8.3 RETRO</div><h2 class="pm-title">Take a<br>breather<span class="brand-dot">.</span></h2></div>
+      <div class="pm-head"><div class="edition">LEGEND OF WILDMOOR 3.8.4 RETRO</div><h2 class="pm-title">Take a<br>breather<span class="brand-dot">.</span></h2></div>
       <nav class="pm-tabs" aria-label="Pause menu">
         <button class="pm-tab pm-go" data-act="resume" style="--i:0">Play</button>
         <button class="pm-tab on" data-pane="pm-play" style="--i:1">Controls</button>
@@ -12307,7 +12307,6 @@ const __boot = (async () => {
     addPickup(V3(KEEP.cx - KEEP.w + 3, PLATEAU + KEEP_ROOM.floorTop * (1 + (TUNE.world.keepGrow - 1) * TUNE.world.keepGrowHeight) + 0.16, KEEP.cz - KEEP.d + 3), "clue", "Hale's private note, folded small: 'The pool took the miller's girl before I could give it the sheep. It has never taken one of us before. Better her than the town. Better anyone than the town.'", () => { evidence("note"); }, { shape: "book", id: "clue:note" });
     // the pool's darker face, hidden until something wakes: black reeds, dead fish, cold fog, a violet light, and the marks that begin to glow
     {
-      BUILD_AUDIT = true; // the church is batched with the rooms, and built long after the town
       const g = new THREE.Group();
       const reedM = new THREE.MeshStandardMaterial({ color: toLin(0x101018), roughness: 0.95 });
       for (let k = 0; k < 16; k++) { const a = hash(k, 91) * 6.28, r = 7.5 + hash(k, 92) * 5; const reed = cone(0.12, 1.6 + hash(k, 93) * 1.2, reedM, POOL.x + Math.cos(a) * r, POOL.y + 0.7, POOL.z + Math.sin(a) * r, 5); reed.rotation.z = (hash(k, 94) - 0.5) * 0.3; g.add(reed); }
@@ -12640,6 +12639,7 @@ const __boot = (async () => {
       console.log("church at", site.x.toFixed(1), site.z.toFixed(1), "| r", site.r, "yaw", site.yaw.toFixed(2), "rough", site.rough.toFixed(2), "| by", how, "| channel", chanSegs.length ? chanNear(site.x, site.z).toFixed(1) : "none", "| plinth", RISE.toFixed(2), "on", PH.toFixed(2));
       const FY = site.y + RISE, // the plinth top, which is the church's floor level
         g = new THREE.Group();
+      BUILD_AUDIT = true; // the church is batched with the rooms, and built long after the town; lowered after scene.add(g) below
       g.position.set(site.x, FY, site.z);
       g.rotation.y = site.yaw;
       // local church axes -> world. cc and ss are exactly 0 or +-1, so every collider below is exactly axis-aligned,
