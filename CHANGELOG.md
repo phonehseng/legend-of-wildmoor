@@ -2,6 +2,12 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.8.2 — the build audit
+
+`legend_of_wildmoor_v3.8.2.html` and `legend_of_wildmoor_v3.8.2_retro.html`. a guard, in both.
+
+- **a material given out while the town is built must still be on something once the batching has run.** the 3.8 wall deletion had a signature nothing in the suites could see: a build-time transform silently removed geometry, every gameplay check passed because the collision is a separate solid, and the one number being watched moved the way success looks. from the cobblestones to the villagers, every material handed to a mesh is remembered, and after the batching pass the scene is walked; any of them on no mesh is reported by name through console.error, which the test harness treats as a failed run. the stages after that are not watched, because the people are remade by design (a swapped body, the hero after the character screen) and their skin and hair would report every boot. measured: 896 materials tracked, none lost, on both builds; on 3.8 it would have named the wall's stone.
+
 ## 3.8.1 — the wall put back
 
 `legend_of_wildmoor_v3.8.1.html` and `legend_of_wildmoor_v3.8.1_retro.html`. one fix, in both.

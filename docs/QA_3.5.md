@@ -77,3 +77,7 @@ the kingdom's frame. measured on main in the harness profile: the square's main 
 ## 3.8.1
 
 the wall put back. measured on the retro build: one mesh of the wall's stone in the scene, outer reach 63.6 m, top at 20 (3.8: none); screenshot of the wall from outside the ring. the sandbox trio, repair-reload, network-live, personal-fairies-live and lucifer-ending green on both builds.
+
+## 3.8.2
+
+the build audit: 896 materials tracked through the architecture stages, none on nothing, both builds; `window.__lostMaterials` holds the list for a state test. the sandbox trio, repair-reload and network-live green on both builds.

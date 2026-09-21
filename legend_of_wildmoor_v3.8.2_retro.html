@@ -13,7 +13,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Wildmoor 3.8.1 Retro</title>
+<title>Legend of Wildmoor 3.8.2 Retro</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#1b1626, #0d0a14); --edge: #6c583a; --hi: #8a6a3e; }
@@ -579,7 +579,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.8.1r</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.8.2r</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -649,7 +649,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="pmenu">
-      <div class="pm-head"><div class="edition">LEGEND OF WILDMOOR 3.8.1 RETRO</div><h2 class="pm-title">Take a<br>breather<span class="brand-dot">.</span></h2></div>
+      <div class="pm-head"><div class="edition">LEGEND OF WILDMOOR 3.8.2 RETRO</div><h2 class="pm-title">Take a<br>breather<span class="brand-dot">.</span></h2></div>
       <nav class="pm-tabs" aria-label="Pause menu">
         <button class="pm-tab pm-go" data-act="resume" style="--i:0">Play</button>
         <button class="pm-tab on" data-pane="pm-play" style="--i:1">Controls</button>
@@ -4147,9 +4147,20 @@ const __boot = (async () => {
     return m;
   };
   const metal = c => new THREE.MeshStandardMaterial({ color: toLin(c), roughness: 0.3, metalness: 0.85 });
+  // every material handed to a mesh while the world is built is remembered, so the build audit below can ask, once the
+  // batching has run, whether each one is still on some mesh in the scene. 3.8 removed all sixty boxes of the town
+  // wall's stone and nothing noticed, because the collision ring is a separate solid and the draw calls fell — the
+  // number being watched moved the way success looks. a material that was given out and is on nothing now is the
+  // signature of that whole class of fault, and it is reported by the material's own name
+  // only the architecture stages are watched — the streets, the wall, the keep and the houses, from the cobblestones to
+  // the villagers — because the people built after them are remade by design (a swapped body, the hero after the
+  // character screen) and their skin and hair would report as lost every boot
+  const BUILD_MATS = new Map(); // material -> a name for the report
+  let BUILD_AUDIT = false;
   const shadowed = m => {
     m.castShadow = true;
     m.receiveShadow = true;
+    if (BUILD_AUDIT && m.material && !BUILD_MATS.has(m.material)) BUILD_MATS.set(m.material, m.material.name || (m.material.map ? "textured " + m.material.type : m.material.type + " " + (m.material.color ? "#" + m.material.color.getHexString() : "")));
     return m;
   };
   const sphere = (r, mat, x, y, z, sx = 1, sy = 1, sz = 1) => {
@@ -8587,6 +8598,7 @@ const __boot = (async () => {
     return g;
   }
   await __stage(76, "Laying cobblestones…");
+  BUILD_AUDIT = true; // from here to the villagers, every material given out must still be on something once the batching has run
   // ============================================================ the kingdom: tall cobblestone walls, streets of enterable houses, a keep with a flagstone floor
   const KEEP = { cx: 0, cz: -14, w: 14, d: 12, h: 13, door: 2.8 };
   let CROWS = [],
@@ -9505,6 +9517,7 @@ const __boot = (async () => {
   );
   MILLER.radius = 1.5;
 
+  BUILD_AUDIT = false;
   await __stage(84, "Waking the villagers…");
   // ============================================================ mountain villages: flat terraces, huts you can enter, working folk
   const hillJobs = ["gatherer", "hunter", "water", "woodcutter", "washer", "bather", "gatherer"];
@@ -27900,6 +27913,14 @@ const __boot = (async () => {
       saved += batchGroup(it.group, keep);
     }
     console.log("batched " + saved + " house meshes");
+    // the build audit: a material given out during construction that is on no mesh in the scene now was lost by a
+    // transform like the one above. the retro and main editions share this line; the harness fails a run on it
+    const onScene = new Set();
+    scene.traverse(o => { if (o.material) for (const m of [].concat(o.material)) onScene.add(m); });
+    const lost = [];
+    for (const [m, name] of BUILD_MATS) if (!onScene.has(m)) lost.push(name);
+    window.__lostMaterials = lost;
+    if (lost.length) console.error("build audit: " + lost.length + " material(s) given to meshes during the build are on nothing in the scene: " + lost.slice(0, 12).join(", "));
   }
   await __stage(98, "Drawing the map…");
   // ============================================================ hud
