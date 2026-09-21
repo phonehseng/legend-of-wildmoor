@@ -3,7 +3,7 @@
 const fs = require('node:fs'), assert = require('node:assert/strict');
 const { instrument, serve, loadPlaywright, browserPath } = require('./qa-game.cjs');
 (async () => {
-  const html = process.argv[2] || 'legend_of_peanits_v3.5.2.html';
+  const html = process.argv[2] || 'legend_of_wildmoor_v3.6.html';
   const server = await serve(instrument(fs.readFileSync(html, 'utf8').replace(/\r\n/g, '\n')));
   const browser = await loadPlaywright().chromium.launch({ executablePath: browserPath('chrome'), headless: true });
   const errors = [], checks = [];

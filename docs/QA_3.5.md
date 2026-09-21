@@ -49,3 +49,7 @@ one fix: the subtitle dedupe never joins a box a voice is holding, and extends t
 ## 3.5.2
 
 one fix: the town wall's merlons are solid, on the outer edge of the wall top. run against `legend_of_peanits_v3.5.2.html` and `legend_of_peanits_v3.5.2_retro.html`: `qa-game` clean on both, and a state test on the wall top of segment ten — a probe at a merlon's centre pushed 0.729 m, at its edge 0.542, between two merlons 0.336; the ground under a merlon reads the walkway's 20.0, not a step; a probe on the plank walk is not moved; eighteen merlon colliders in that grid cell. the retro edition rebuilds with the same 31 edits.
+
+## 3.6
+
+the rename to legend of wildmoor: `qa-game` clean on `legend_of_wildmoor_v3.6.html` (version 3.6) and `legend_of_wildmoor_v3.6_retro.html` (3.6r); the retro edition rebuilds with the same 31 edits. no game code changed beyond the name strings and the network topic.

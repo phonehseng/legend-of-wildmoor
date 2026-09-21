@@ -2,6 +2,12 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.6 — legend of wildmoor
+
+`legend_of_wildmoor_v3.6.html` and `legend_of_wildmoor_v3.6_retro.html`. the game has its name back.
+
+- **renamed.** the title, the pause menu's edition line, the credits, the end card and the champion's line now read Legend of Wildmoor; the files, the generator's anchors, every tool's default and the save key editor follow. the network topic is `legendofwildmoor/v1`, so a 3.6 party cannot see a 3.5 one — nor could it before, across a protocol change. the title screen's kicker is a line of the story and keeps its word. nothing else changed; both builds load clean.
+
 ## 3.5.2 — the battlements
 
 [test notes](docs/QA_3.5.md#352)

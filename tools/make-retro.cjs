@@ -9,13 +9,13 @@
 //
 //   node tools/make-retro.cjs [source.html] [target.html]
 //
-// defaults: legend_of_peanits_v3.5.2.html -> legend_of_peanits_v3.5.2_retro.html
+// defaults: legend_of_wildmoor_v3.6.html -> legend_of_wildmoor_v3.6_retro.html
 const fs = require("fs");
 const path = require("path");
 
-const SRC = path.resolve(process.argv[2] || "legend_of_peanits_v3.5.2.html");
-const OUT = path.resolve(process.argv[3] || "legend_of_peanits_v3.5.2_retro.html");
-const VERSION = "3.5.2";
+const SRC = path.resolve(process.argv[2] || "legend_of_wildmoor_v3.6.html");
+const OUT = path.resolve(process.argv[3] || "legend_of_wildmoor_v3.6_retro.html");
+const VERSION = "3.6";
 
 let html = fs.readFileSync(SRC, "utf8").replace(/\r\n/g, "\n");
 const edits = [];
@@ -47,14 +47,14 @@ edit(
     "filtering, lighting worked out per vertex, vertices snapped to the pixel grid, affine texture warp and 15-bit dithered colour. gameplay, saves and\n" +
     "multiplayer are the main build's, untouched; look for \"the 1998 renderer\" in the script. built from the main file by tools/make-retro.cjs"
 );
-edit("title", `<title>Legend of Peanits ${VERSION}</title>`, `<title>Legend of Peanits ${VERSION} Retro</title>`);
+edit("title", `<title>Legend of Wildmoor ${VERSION}</title>`, `<title>Legend of Wildmoor ${VERSION} Retro</title>`);
 edit(
   "canvas css",
   "canvas#game { display: block; width: 100vw; height: 100vh; cursor: none; }",
   "canvas#game { display: block; width: 100vw; height: 100vh; cursor: none; image-rendering: pixelated; image-rendering: crisp-edges; }"
 );
 edit("hud version", `<span class="quest-version">${VERSION}</span>`, `<span class="quest-version">${VERSION}r</span>`);
-edit("pause edition", `<div class="edition">LEGEND OF PEANITS ${VERSION}</div>`, `<div class="edition">LEGEND OF PEANITS ${VERSION} RETRO</div>`);
+edit("pause edition", `<div class="edition">LEGEND OF WILDMOOR ${VERSION}</div>`, `<div class="edition">LEGEND OF WILDMOOR ${VERSION} RETRO</div>`);
 after(
   "settings controls",
   '      <p id="graphics-status" role="status" aria-live="polite"></p>\n',

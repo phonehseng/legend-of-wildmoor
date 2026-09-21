@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Peanits Save Key Editor</title>
+<title>Wildmoor Save Key Editor</title>
 <style>
   /* the game's own palette, so the tool does not feel like it came from somewhere else */
   :root {
@@ -82,7 +82,7 @@
 </head>
 <body>
 <header>
-  <h1>Legend of Peanits &mdash; Save Key Editor</h1>
+  <h1>Legend of Wildmoor &mdash; Save Key Editor</h1>
   <p>Builds a <code>WM1-</code> key (format <b>v5</b>) for <b>2.24.3</b>. Imports v3, v4 and v5 keys, preserving quest rewards, shared progress and your personal fairy rescues. The editor works offline.</p>
   <div class="presets">
     <button class="big" data-preset="fresh">Fresh start</button>
@@ -1303,7 +1303,7 @@
     var blob = new Blob([$("key").value], { type: "text/plain" });
     var a = el("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "peanits_save_key.txt";
+    a.download = "wildmoor_save_key.txt";
     document.body.appendChild(a);
     a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- legend of peanits, formerly wildmoor: a single-file 3d rpg built on three r128 (bundled below for offline play)
+<!-- legend of wildmoor (peanits for a while, 3.0 to 3.5): a single-file 3d rpg built on three r128 (bundled below for offline play)
 html: canvas, hud, title, character creation and pause controls; css: layout and state classes; javascript runs in one async boot scope:
 utilities/audio/textures, world generation, characters/quests/enemies, player skills/input/combat, weather/update/hud, graphics/frame loop
 units are world metres and seconds unless noted; p holds player state, sk holds practiced skills, ps holds cosmetic particle pools
@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Peanits 3.5.2</title>
+<title>Legend of Wildmoor 3.6</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#1b1626, #0d0a14); --edge: #6c583a; --hi: #8a6a3e; }
@@ -576,7 +576,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.5.2</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.6</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -646,7 +646,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="pmenu">
-      <div class="pm-head"><div class="edition">LEGEND OF PEANITS 3.5.2</div><h2 class="pm-title">Take a<br>breather<span class="brand-dot">.</span></h2></div>
+      <div class="pm-head"><div class="edition">LEGEND OF WILDMOOR 3.6</div><h2 class="pm-title">Take a<br>breather<span class="brand-dot">.</span></h2></div>
       <nav class="pm-tabs" aria-label="Pause menu">
         <button class="pm-tab pm-go" data-act="resume" style="--i:0">Play</button>
         <button class="pm-tab on" data-pane="pm-play" style="--i:1">Controls</button>
@@ -16745,7 +16745,7 @@ const __boot = (async () => {
     });
   }
   async function netBoard(onMessage) { for (const url of NET_BROKERS) { try { return await mqttConnect(url, onMessage); } catch (_) {} } return null; }
-  const netTopic = (code, side) => `legendofpeanits/v1/${code}/${side}`;
+  const netTopic = (code, side) => `legendofwildmoor/v1/${code}/${side}`;
   // host with a code: the offer sits on the board; every friend who types the code gets it, answers, and a fresh offer replaces it for the next
   // the leftovers of an earlier hosting attempt: its offer on the board, its board connection, and every peer that never connected
   function netTearDownHosting() {
@@ -21835,7 +21835,7 @@ const __boot = (async () => {
     AFTERLIFE.phase = "credits";
     releaseKeys(); if (document.pointerLockElement) document.exitPointerLock();
     const panel = endingPanel();
-    panel.innerHTML = '<article><div class="credits-roll"><small>THE ROAD IS OPEN</small><h1>The Legend of Peanits</h1><p>Created by Phone Hseng<br>Built with Three.js</p><p>For every person you stopped to help.</p><p>For the roads still ahead.</p><p>For someone who could not.</p><h2>Thank you for playing.</h2></div><button id="endingTitle">Continue →</button></article>';
+    panel.innerHTML = '<article><div class="credits-roll"><small>THE ROAD IS OPEN</small><h1>The Legend of Wildmoor</h1><p>Created by Phone Hseng<br>Built with Three.js</p><p>For every person you stopped to help.</p><p>For the roads still ahead.</p><p>For someone who could not.</p><h2>Thank you for playing.</h2></div><button id="endingTitle">Continue →</button></article>';
     panel.querySelector("button").onclick = () => showEndingTitle();
     panel.querySelector("button").focus();
   }
@@ -21844,7 +21844,7 @@ const __boot = (async () => {
     AFTERLIFE.phase = "title";
     releaseKeys(); if (document.pointerLockElement) document.exitPointerLock();
     const panel = endingPanel();
-    panel.innerHTML = '<article><small>THE END</small><h1>Legend of Peanits</h1><p>That life is spent. Begin another, or take the road back into the valley and stay.</p>' +
+    panel.innerHTML = '<article><small>THE END</small><h1>Legend of Wildmoor</h1><p>That life is spent. Begin another, or take the road back into the valley and stay.</p>' +
       '<p><button id="endNew">New game</button> <button id="endStay">Return to Wildmoor</button></p></article>';
     // a reload is the only honest reset for a world this size: it drops every built room, every actor and every
     // open connection, and comes back up on the real title screen with Continue still offering this same save.
@@ -22677,7 +22677,7 @@ const __boot = (async () => {
       fairy: "Twenty-five small voices, and hers. The thing under the water listens the way a child listens, and sleeps the way a child sleeps. The pool is clear and still and full of pink petals, and will be, every spring."
     };
     say(lines[key], 12000, true, "fairy");
-    setTimeout(() => say(`Legend of Peanits — ${CUSTOM.name}, Champion of Wildmoor. The valley remembers.`, 8000, true), 12500);
+    setTimeout(() => say(`Legend of Wildmoor — ${CUSTOM.name}, its champion. The valley remembers.`, 8000, true), 12500);
     fairyTune(false);
     grant("Champion's Rest: hearts and stamina restored, and a heart more for the valley's thanks", () => { P.maxHp++; P.hp = P.maxHp; P.stam = stamMax(); });
   }
