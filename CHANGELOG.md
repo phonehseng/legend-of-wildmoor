@@ -2,6 +2,12 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.6.1 — the name on the door
+
+`legend_of_wildmoor_v3.6.1.html` and `legend_of_wildmoor_v3.6.1_retro.html`.
+
+- **the loading card, the title screen and the rose court's brand lockup still said Legend of Peanits.** 3.6 missed them: the three headings sit on the same lines as the peanut mark's long svg paths, and the scan that listed the name's occurrences cut those lines short before reaching the words. every occurrence of the old name in the game is gone now, save the story kicker on the title screen.
+
 ## 3.6 — legend of wildmoor
 
 `legend_of_wildmoor_v3.6.html` and `legend_of_wildmoor_v3.6_retro.html`. the game has its name back.

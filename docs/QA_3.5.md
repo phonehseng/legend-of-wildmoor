@@ -53,3 +53,7 @@ one fix: the town wall's merlons are solid, on the outer edge of the wall top. r
 ## 3.6
 
 the rename to legend of wildmoor: `qa-game` clean on `legend_of_wildmoor_v3.6.html` (version 3.6) and `legend_of_wildmoor_v3.6_retro.html` (3.6r); the retro edition rebuilds with the same 31 edits. no game code changed beyond the name strings and the network topic.
+
+## 3.6.1
+
+the three missed headings renamed; `qa-game` loads `legend_of_wildmoor_v3.6.1.html` and its retro edition clean; a whole-line scan of the game finds no remaining "Legend of Peanits".
