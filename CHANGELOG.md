@@ -2,6 +2,63 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.5 — solid trees, a dark doorway, and the square underfoot
+
+[screenshots](docs/updates/3.5.md) · [test notes](docs/QA_3.5.md)
+
+`legend_of_peanits_v3.5.html` and `legend_of_peanits_v3.5_retro.html`. everything here is in both unless it says retro. a fourth playthrough's reports, a dedicated collision audit, and six investigators with a skeptic on every finding.
+
+### collision
+- **every tree in the valley could be walked through.** 3.4 gave the pale trees a trunk mesh of their own and wrote the oak mesh's zero-scaled slot one line after the trunk's own matrix — into the same scratch matrix the next lines read to find the trunk's base and middle. so every tree's collision axis came out at the world origin: the push-out was there, all of it centred on (0, 0), and no trunk anywhere pushed anything. the three stamina fruits that grow beside a tree grew on the square for the same reason. the slot is written after the read now. measured on six trees spread over the map, a probe placed twenty centimetres from the axis is pushed out to the trunk's radius; before, every tree's base read (0, 0). found by the audit; this is the "clipping through trees" of the report.
+- **two berry bushes in three never pushed at all, and the rest stopped you inside the leaves.** the solid was a cylinder 0.9 s0 wide and 0.9 s0 tall under a bush drawn 1.3 s0 tall and 1.55 s0 out on one side; a body is pushed out of a solid only while its feet are more than a metre under its top, so every bush under 1.11 in size was thin air. the solid is the drawn bush now — 1.3 s0 tall, 1.25 s0 wide, centred a little toward the big lobe — and the gatherers stand past it.
+- **the elder tree's bark was up to 1.1 m wider than the trunk the stair and the collision use.** the bark was one cone the full height of the trunk while the walkway's inner lip and the push-out follow a profile that narrows over the first 106 m and stays flat above; between the endpoints the cone was always the wider, so the climber walked buried to the shoulder. the bark is a lathe on that profile now.
+- **a solid within a body's width of a grid line was thin air on the far side of the line.** the struct grid filed a solid only in the 32 m cells its box overlapped, while the resolver tests a body's radius past the box; twenty-eight faces jittered instead of holding. the grid registers with a metre of margin, in the valley and in gehenna.
+- **walls stayed as thick as they were built while the stone around them grew.** a room's mesh scales on both axes; its wall colliders scaled only their long one, so at the throne hall's full size 2.24 m of stone stood over a 1.4 m collider, forty centimetres of it walkable on each face, and their tops stayed at thirteen metres under a wall forty high. houses had the same fault at a smaller scale. wall colliders scale on both axes and their tops rise with the room; the throne and the door posts keep their size, as before.
+- **the props pushed off the square by the swollen hall left their colliders behind.** the avenue's lamp posts stood invisible inside the grown hall while the visible posts, sixteen metres out, could be walked through; and because the last step of the growth never lands, every pushed prop sat five centimetres off its place for good after the hall shrank. colliders switch off while a prop is displaced, and the snap to rest puts everything exactly back.
+
+### the castle entrance
+- **the throne hall was lit through its doorway from the square.** the black box meant to hide it was a back-face shell built a little larger than the hall's own inner surfaces, so every face of it lost the depth test to the stone and it never drew a pixel — measured at 0.95 opacity with the doorway fully lit. the four wall torches made it worse: their lights were dropped at build, so they burned at full strength whether or not you were inside, and while the hall was grown they sat ten metres from their own flames. the doorway is a curtain hung across the door gap now, the torches burn only while you are inside, and they ride with the walls.
+- **a strip of bright grass at the foot of the wall on both sides of the gate.** the cross streets stopped eighty centimetres short of the wall's face. they reach twenty centimetres under it.
+- **the carpet "running out through the door" with a stepped edge.** it never left the hall: the avenue slab lay over the flagstones at the door and 2.6 mm above the carpet, and its own north edge, cutting the carpet 1.6 m short, was the edge in the picture — with the lit interior in view because the box above never drew. covered by the street heights below, and by the curtain.
+
+### the streets, the square, and the shadows
+- **every street slab stood eight to fourteen centimetres above the ground under everyone's feet, the plaza thirteen.** the slabs are not floors, so villagers, the player and the retro edition's shadow discs all sat at the plateau: boots inside the stone, and the discs — six centimetres over the feet — inside the cobbles, coming through only where the depth bias happened to win. that was the "shadow texture": grey slivers a stride from the body, and on the square no disc at all. the polygon offset was worth nothing against a seven-centimetre gap (measured: 691 disc pixels with it, 699 without). slab tops are two and a half to four centimetres up now, the plaza four and a half, and the discs eight over the feet, above every slab.
+- **overlapping slabs showed a darker patch of finer cobbles with a hard straight edge** — the "textures overlapping" report. every slab's texture began at its own corner, and the plaza's ran at a different scale, a lighter tint, and turned a quarter round (a cylinder cap's uv runs u along z). every paved surface samples one world grid now — four metres a cobble, phase from position, one tint — so a crossing shows the same stones in the same places on both slabs, and the plaza's disc is turned to put its texture axis on x.
+- **the hall's floor lay under the avenue at the door** by 23 mm: a cobbled rectangle inside the doorway that changed texture as the hall breathed. covered by the same change.
+- **the inner of the two flagstone aprons under the fountain** was a centimetre under the outer and could never be seen. removed; the outer shows now that the plaza is lower.
+- **(retro) the shadow disc was an eight-sided octagon**, because the generator halves every round count including its own, and **wolves and bog wraiths had no disc at all**, being built outside makePerson. the disc is a soft painted circle on a quad now — what the consoles actually drew — and wolves and wraiths carry one, laid on the ground under them so a wraith's rise shrinks and fades it the way a jump does.
+
+### the rose queen
+- **her cape hung out beside her in flat boards** (retro): the halving cut its ten sides to five, and the front board stood half a metre from the dress. sixteen sides (eight retro).
+
+### pale trees
+- **their branches were oak bark.** the trunk had a pale mesh since 3.4; the branches still came from the oak's. a branch mesh of their own, on the pale bark; felling and regrowth route by kind.
+
+### the pause menu
+- **play resumes.** the first tab is the verb: pressing it is pressing resume. the controls it used to front — restart, the keys, sensitivity, the guide arrow, the frame rate — sit on a Controls tab, which the menu opens on.
+
+### gehenna
+- **raised at boot with the rest of the map**, in the main build too. the retro edition has done this since 3.1; the main build built it when the whirlpool woke and again on every dive. the same resident mechanism, moved into the main file: a provisional seed adopted by the world when it wants one, taken down and raised again for a save or a host with a seed of its own, hidden while nobody is under the seam. the generator lost five edits.
+
+### lucifer
+- **his shove takes exactly half of what you hold.** it took half rounded up, was lethal at two hearts, and was then softened on the way in by the hero's level and the guard bonus like any other blow — at level five it took a third. it is the pure half now, unrounded, untouched by level, guard or anything carried; at one heart it takes the rest. a guest's is worked out on the host from the guest's own health and applied as sent.
+- **the children's mercy.** standing among the children while he holds the hand off mends you a little — a heart every eight seconds — with a soft pink breath at the chest each half second, so it can be seen to happen. worked out on each player's own machine.
+- **he stands your height when you first meet him.** measured: his rig is 3.59 tall at scale one and the player's crown stands 3.16 over the ground, so 0.62 put his crown at your shoulder; 0.88 now. the number lived in eleven places (two of them the guest's fallbacks over the wire); one constant carries it. his collision height was 3.4 per unit of scale for a rig of 3.6; corrected.
+
+### dialogue
+- **"the wraith comes apart like breath." twice, stacked.** two real kills: one swing takes every wraith in its arc, and a kill line holds its box for the 3.4 s subtitle floor whatever it asked for, so the second landed under an identical first. a plain line that matches the newest box still on screen is said once; story beats and tagged lines keep their own.
+- **(multiplayer) a kill was credited to the last peer who ever touched the enemy**, even when a knight landed the blow, and the line was dropped entirely if that peer had left. only the last striker holds the marker now, and credit leaves the host only when it is actually handed over.
+
+### the test harness
+- **the headless browser took the tester's mouse.** the game asks for pointer lock on every start, and the new headless mode honours it at the desktop. the harness answers the request with nothing; no test needs it.
+- the ending suite's blow assertions follow the new rule; the pride-river suite expects gehenna standing on both builds.
+
+### refuted, or left as it is
+- the carpet was never outside the hall: at every scale its end is inside the door; what showed was the avenue slab's edge.
+- the polygon offset on the discs was not "shrinking from a steep camera"; it was never enough at any angle.
+- the two house rows at x = ±23 reach 1.3 m onto the side streets with their plank floors nine centimetres above the cobbles behind the door. deliberate placement; left alone rather than moving eight houses and everyone who lives in them.
+- the sandbox suites (kingdom geometry, lucifer visuals) never reach a ground query, so they are structurally blind to changes there; the live suites and the probes are what cover it.
+
 ## 3.4.1 — the hall's floor, off the hot path
 
 [test notes](docs/QA_3.4.md#341)

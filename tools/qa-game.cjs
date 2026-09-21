@@ -11,7 +11,7 @@ const CHROME = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 
 function parseArgs(argv) {
   const options = {
-    html: "legend_of_peanits_v3.4.1.html",
+    html: "legend_of_peanits_v3.5.html",
     browser: "edge",
     timeout: 90000,
     headed: false,
@@ -40,7 +40,7 @@ function parseArgs(argv) {
 function usage() {
   return [
     "Usage: node tools/qa-game.cjs [options]",
-    "  --html FILE          game HTML (default: legend_of_peanits_v3.4.1.html)",
+    "  --html FILE          game HTML (default: legend_of_peanits_v3.5.html)",
     "  --browser edge|chrome|PATH",
     "  --timeout MS         real wall-clock timeout (default: 90000)",
     "  --headed             show the browser window",
@@ -75,6 +75,11 @@ function instrument(html) {
   if (close < 0) throw new Error("Game boot closure anchor was not found");
   const bridge = String.raw`
   ;(() => {
+    // the browser runs headless, but the new headless mode still honours a pointer lock at the desktop: the game asks for
+    // one on every start, and the tester's own mouse vanished for the length of a run. no test needs it — they move the
+    // player and the camera directly — so the request is answered with nothing
+    if (window.HTMLElement) HTMLElement.prototype.requestPointerLock = function () { return Promise.resolve(); };
+    if (navigator.keyboard && navigator.keyboard.lock) navigator.keyboard.lock = () => Promise.resolve();
     const qaSnapshot = () => {
       const gl = renderer.getContext();
       const debug = gl.getExtension("WEBGL_debug_renderer_info");

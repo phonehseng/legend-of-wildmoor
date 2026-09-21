@@ -3,7 +3,7 @@ const path=require('path');
 const crypto=require('crypto');
 const {instrument,serve,loadPlaywright,browserPath}=require('./qa-game.cjs');
 async function main(){
-  const input=path.resolve(process.argv[2]||'legend_of_peanits_v3.4.1.html'),out=path.resolve(process.argv[3]||'artifacts/pride-river/final');fs.mkdirSync(out,{recursive:true});
+  const input=path.resolve(process.argv[2]||'legend_of_peanits_v3.5.html'),out=path.resolve(process.argv[3]||'artifacts/pride-river/final');fs.mkdirSync(out,{recursive:true});
   const source=fs.readFileSync(input,'utf8').replace(/\r\n/g,'\n'),errors=[],results=[];
   const server=await serve(instrument(source));const browser=await loadPlaywright().chromium.launch({executablePath:browserPath('edge'),headless:true});
   try{
@@ -22,8 +22,8 @@ async function main(){
       q.move(GEH.prideWater.center(q.PZ+63),q.PZ+63,GEH.floor+8.6);q.tick(.5);check(P.swim,'return test starts swimming');
       const save=parseSaveKey(makeSaveKey());check(save&&save.pos[1]<DIVIDE,'ordinary portable save accepts river depth');
       gehAscend();check(P.pos.y>DIVIDE&&!P.swim&&!P.swimVol&&P.air===100,'ascend resets swim, volume and air');q.tick(2.3);
-      const resident=/retro/i.test(document.title);// the retro edition keeps gehenna standing between visits, so its river stays registered below the seam
-      check(resident?GEH.root&&SWIM_VOLS.some(v=>v.id==='pride-river'):!GEH.root&&!SWIM_VOLS.some(v=>v.id==='pride-river'),resident?'gehenna stays standing in the retro edition':'teardown removes river volume');
+      // both editions keep gehenna standing between visits since 3.5 (it is raised at boot with the map), so its river stays registered below the seam
+      check(GEH.root&&SWIM_VOLS.some(v=>v.id==='pride-river'),'gehenna stays standing between visits');
       check(swimVolAt(506,663,-272).dry,'removed river cannot catch another realm');return{checks:checks.length,labels:checks};
     })()`));
     if(errors.length)throw Error(errors.join('\n'));

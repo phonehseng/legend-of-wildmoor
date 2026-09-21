@@ -3,7 +3,7 @@
 const fs = require('node:fs'), assert = require('node:assert/strict');
 const { instrument, serve, loadPlaywright, browserPath } = require('./qa-game.cjs');
 (async () => {
-  const html = process.argv[2] || 'legend_of_peanits_v3.4.1.html';
+  const html = process.argv[2] || 'legend_of_peanits_v3.5.html';
   const server = await serve(instrument(fs.readFileSync(html, 'utf8').replace(/\r\n/g, '\n')));
   const browser = await loadPlaywright().chromium.launch({ executablePath: browserPath('chrome'), headless: true });
   const errors = [], checks = [];
@@ -30,14 +30,14 @@ const { instrument, serve, loadPlaywright, browserPath } = require('./qa-game.cj
     console.log('World ready');
 
     // ---- the blow ----
-    check('A full-health blow takes exactly half', await run('gehLuciferBlow({hp:20})===10 && gehLuciferBlow({hp:9})===5'));
-    check('Halving never quite finishes you above two hearts', await run('gehLuciferBlow({hp:5})===3 && gehLuciferBlow({hp:3})===2'));
-    check('Two hearts or fewer is lethal', await run('gehLuciferBlow({hp:2})===2 && gehLuciferBlow({hp:1})===1'));
-    check('Twenty hearts run out in four blows, the last of them from two', await run(`(() => {
+    check('A full-health blow takes exactly half, unrounded', await run('gehLuciferBlow({hp:20})===10 && gehLuciferBlow({hp:9})===4.5'));
+    check('Halving never quite finishes you above one heart', await run('gehLuciferBlow({hp:5})===2.5 && gehLuciferBlow({hp:1.5})===0.75'));
+    check('One heart or fewer is lethal', await run('gehLuciferBlow({hp:1})===1 && gehLuciferBlow({hp:0.5})===0.5'));
+    check('Twenty hearts run out in six blows, the last of them from under one', await run(`(() => {
       const seen = [];
       let hp = 20;
       while (hp > 0 && seen.length < 20) { const d = gehLuciferBlow({hp}); seen.push(hp + '-' + d); hp -= d; }
-      return hp === 0 && seen.join(',') === '20-10,10-5,5-3,2-2';
+      return hp === 0 && seen.join(',') === '20-10,10-5,5-2.5,2.5-1.25,1.25-0.625,0.625-0.625';
     })()`));
 
     // ---- the strain ----

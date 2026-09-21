@@ -9,13 +9,13 @@
 //
 //   node tools/make-retro.cjs [source.html] [target.html]
 //
-// defaults: legend_of_peanits_v3.4.1.html -> legend_of_peanits_v3.4.1_retro.html
+// defaults: legend_of_peanits_v3.5.html -> legend_of_peanits_v3.5_retro.html
 const fs = require("fs");
 const path = require("path");
 
-const SRC = path.resolve(process.argv[2] || "legend_of_peanits_v3.4.1.html");
-const OUT = path.resolve(process.argv[3] || "legend_of_peanits_v3.4.1_retro.html");
-const VERSION = "3.4.1";
+const SRC = path.resolve(process.argv[2] || "legend_of_peanits_v3.5.html");
+const OUT = path.resolve(process.argv[3] || "legend_of_peanits_v3.5_retro.html");
+const VERSION = "3.5";
 
 let html = fs.readFileSync(SRC, "utf8").replace(/\r\n/g, "\n");
 const edits = [];
@@ -287,14 +287,28 @@ before(
     t.anisotropy = aniso;
     t.needsUpdate = true;
   }
-  // the round shadow that stood in for a real one on every 1998 machine: a dark disc, sat just above the ground
-  const retroBlobGeo = new THREE.CircleGeometry(1, 16), // sixteen asked for, eight after the halving above: the renderer's own geometry is not exempt
-    retroBlobMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+  // the round shadow that stood in for a real one on every 1998 machine: a soft dark disc painted on a quad, sat just
+  // above the ground. it was a circle geometry, which the halving above cut to eight sides — a hard grey octagon under
+  // every villager. a radial gradient on a small texture is what the consoles actually drew, and it has no sides to lose
+  const retroBlobGeo = new THREE.PlaneGeometry(2.6, 2.6),
+    retroBlobTex = (() => {
+      const c = document.createElement("canvas");
+      c.width = c.height = 64;
+      const g = c.getContext("2d"), rg = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      rg.addColorStop(0, "rgba(0,0,0,1)"); rg.addColorStop(0.5, "rgba(0,0,0,0.92)"); rg.addColorStop(0.8, "rgba(0,0,0,0.3)"); rg.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = rg;
+      g.fillRect(0, 0, 64, 64);
+      const t = new THREE.CanvasTexture(c);
+      t.minFilter = t.magFilter = THREE.LinearFilter;
+      t.generateMipmaps = false;
+      return t;
+    })(),
+    retroBlobMat = new THREE.MeshBasicMaterial({ color: 0x000000, map: retroBlobTex, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
   retroBlobGeo.userData.shared = retroBlobMat.userData.shared = true; // shared by every villager; disposeTree and disposeCharacter are taught below to step over shared geometry as they already do shared materials
   function retroBlob(r, mat = retroBlobMat, track = false) {
     const m = new THREE.Mesh(retroBlobGeo, mat);
     m.rotation.x = -Math.PI / 2;
-    m.position.y = 0.06;
+    m.position.y = 0.08; // over the feet by more than any street slab's top is over the plateau (four centimetres at most since 3.5)
     m.scale.setScalar(r);
     m.renderOrder = 1;
     if (track) RETRO_BLOBS.push(m); // a villager's disc: watched for the group being laid flat
@@ -459,46 +473,11 @@ after(
     put("r-affine-val", RETRO.warp.toFixed(1));
     put("r-tex-val", retroTexName());
   }
-  // gehenna is raised at boot and kept, hidden, so the dive needs no building during the fall: the same guarded,
-  // error-swallowing kickoff the main build uses when the whirlpool wakes, run whenever there is no gehenna and
-  // nothing is building one. the seed it is raised on is provisional — held in GEH.seed and adopted by the world the
-  // moment it wants one of its own — and is never written to WORLDSTATE, because a player who has never been below
-  // is known by having no seed there. a loaded save that carries its own seed gets its own gehenna: gehBuildWorld
-  // takes the standing one down when asked to build for a different seed. a guest never builds their own — the
-  // host's arrives over the wire and is built by netGehennaEnsure.
-  function retroGehennaResident() {
-    if (GEH.netBuilding || GEH.failed || typeof window.gehBuildWorld !== "function") return;
-    if (NET.role === "guest") {
-      // a guest's gehenna is the host's. the provisional one raised before they joined comes down, so a guest who
-      // never goes below has none, exactly as in the main build; the host's arrives through netGehennaEnsure
-      if (GEH.root && !WORLDSTATE.gehSeed && GEH.root.userData.retroSeed !== undefined && !netGehennaActive()) gehTeardown("a guest takes the host's gehenna");
-      return;
-    }
-    if (GEH.root) {
-      const built = GEH.root.userData.retroSeed;
-      if (!WORLDSTATE.gehSeed || built === undefined || built === WORLDSTATE.gehSeed) return;
-      GEH.seed = WORLDSTATE.gehSeed; // the world has a seed of its own now; the build below replaces the provisional one
-    } else GEH.seed = WORLDSTATE.gehSeed || GEH.seed || 1 + Math.floor(Math.random() * 999999);
-    GEH.netBuilding = true;
-    Promise.resolve()
-      .then(window.gehBuildWorld)
-      .then(() => { GEH.netBuilding = false; })
-      .catch(err => {
-        GEH.netBuilding = false;
-        GEH.failed = true;
-        console.error("Gehenna: the resident build threw", err);
-        if (GEH.root) {
-          if (GEH.root.parent) scene.remove(GEH.root);
-          try { disposeTree(GEH.root); } catch (_) {}
-          GEH.root = null;
-        }
-      });
-  }
   // the hero's blob shadow lives in the scene rather than under the model, because the model rises with a jump and
   // the shadow has to stay on the ground and shrink. other players get the same treatment, one pooled disc each,
   // for the same reason. villagers get theirs from makePerson, carried by the group.
   let retroHeroBlob = null, retroBlobFrame = 0;
-  const retroAvatarBlobs = new Map();
+  const retroAvatarBlobs = new Map(), retroEnemyBlobs = new Map(); // one pooled disc per other player, and per wolf or wraith
   // put a scene-level disc on the ground under a character, shrinking and fading with height; hidden when swimming,
   // when there is no ground to speak of, or when they are more than seven metres above it
   function retroPlaceBlob(b, x, y, z, hide) {
@@ -508,7 +487,7 @@ after(
     if (!Number.isFinite(g) || !(lift < 7)) { b.visible = false; return; }
     const k = clamp(1 - lift / 7, 0, 1);
     b.visible = true;
-    b.position.set(x, g + 0.05, z);
+    b.position.set(x, g + 0.08, z);
     b.scale.setScalar(0.55 + 0.45 * k);
     b.material.opacity = 0.5 * (0.4 + 0.6 * k);
   }
@@ -545,6 +524,19 @@ after(
     } else if (retroAvatarBlobs.size) {
       for (const b of retroAvatarBlobs.values()) { scene.remove(b); b.material.dispose(); }
       retroAvatarBlobs.clear();
+    }
+    // wolves and bog wraiths are not made by makePerson and carried no disc at all: one pooled disc each, laid on the
+    // ground under them like the hero's, so the wraith's rise shrinks and fades it the way a jump does
+    if (typeof allEnemies === "function") {
+      const seen = new Set();
+      for (const e of allEnemies()) {
+        if (!e || !e.alive || !e.mesh || !e.pos || !(e.kind === "wolf" || e.kind === "wraith")) continue;
+        seen.add(e);
+        let b = retroEnemyBlobs.get(e);
+        if (!b) { b = retroBlob(e.kind === "wolf" ? 1.05 : 0.8, retroBlobMat.clone()); b.material.userData.shared = true; b.position.y = 0; scene.add(b); retroEnemyBlobs.set(e, b); }
+        retroPlaceBlob(b, e.pos.x, e.pos.y, e.pos.z, e.mesh.visible === false || !!e.hidden);
+      }
+      for (const [e, b] of retroEnemyBlobs) if (!seen.has(e)) { scene.remove(b); b.material.dispose(); retroEnemyBlobs.delete(e); }
     }
   }
   retroReady = true;
@@ -612,39 +604,6 @@ edit(
   "      it.group.visible = !it.keepHides && (it.keep || it === roomNow || Math.hypot(it.cx - P.pos.x, it.cz - P.pos.z) < (it.drawR || ROOM_DRAW_R));",
   "      it.group.visible = !it.keepHides && (it.keep || it === roomNow || Math.hypot(it.cx - P.pos.x, it.cz - P.pos.z) < camera.far); // retro: every room is drawn as far as the view reaches, so a house does not arrive with its inside missing"
 );
-// gehenna stays built once it is built (retroGehennaResident raises it at boot); only the after-story's own grace
-// period still takes it down, so its closing beat can be the valley heard from outside as it was written
-edit(
-  "gehenna stays",
-  '      if (GEH.away > (api && api.done ? 14 : 2)) gehTeardown("the player is no longer under the seam");',
-  '      if (api && api.done && GEH.away > 14) gehTeardown("the after-story is over"); // this edition keeps gehenna standing between visits; it is raised again at once if this takes it down'
-);
-// a build asked for on a different seed than the standing gehenna was raised on takes that one down first, rather
-// than returning as if the work were done: the resident one is raised on a provisional seed, and a loaded save, a
-// host's shared visit or a test suite may each arrive with a seed of their own
-edit(
-  "build for the seed asked for",
-  "  window.gehBuildWorld = async function gehBuildWorld() {\n    if (GEH.root) return;",
-  "  window.gehBuildWorld = async function gehBuildWorld() {\n    if (GEH.root) {\n      const built = GEH.root.userData.retroSeed;\n      if (built === undefined || built === GEH.seed) return;\n      gehTeardown(\"raised again for its own seed\");\n    }"
-);
-edit(
-  "remember the seed a gehenna was raised on",
-  "    GEH.root = g;\n    const cityGroup = new THREE.Group();",
-  "    GEH.root = g;\n    g.userData.retroSeed = GEH.seed; // so a later build for another seed knows this one is not it\n    const cityGroup = new THREE.Group();"
-);
-// the world adopts the provisional seed the resident gehenna was raised on, rather than rolling a fresh one it
-// would then have to rebuild for
-editAll(
-  "adopt the resident seed",
-  "if (!WORLDSTATE.gehSeed) WORLDSTATE.gehSeed = 1 + Math.floor(Math.random() * 999999);",
-  "if (!WORLDSTATE.gehSeed) WORLDSTATE.gehSeed = GEH.seed || 1 + Math.floor(Math.random() * 999999); // the resident gehenna's own seed, when there is one",
-  2
-);
-edit(
-  "adopt the resident seed (shared visit)",
-  "if (!netGehennaSeed(WORLDSTATE.gehSeed)) WORLDSTATE.gehSeed = 1 + Math.floor(Math.random() * 999999);",
-  "if (!netGehennaSeed(WORLDSTATE.gehSeed)) WORLDSTATE.gehSeed = netGehennaSeed(GEH.seed) ? GEH.seed : 1 + Math.floor(Math.random() * 999999); // the resident gehenna's own seed, when there is one"
-);
 // a frame that throws after retroBegin would otherwise leave the renderer aimed at the small picture with nothing
 // copied to the window; if it throws every frame the screen freezes while the game runs on underneath. the copy is
 // made on the way into the error handler, so whatever was drawn is shown and the next frame starts clean.
@@ -679,8 +638,8 @@ edit(
 );
 edit(
   "frame begin",
-  "    gehFightSpectate(dt);\n    renderer.clippingPlanes = P.pos.y < DIVIDE ? GEH_CLIP : NO_CLIP;\n    renderer.render(scene, camera);",
-  "    gehFightSpectate(dt);\n    sky.material.uniforms.uTime.value = now * 0.001;\n    retroGehennaResident();\n    if (GEH.root) GEH.root.visible = netGehennaActive(); // built and kept, but drawn only when someone is under the seam\n    retroBlobUpdate();\n    retroBegin(); // every pass below lands in the small picture\n    renderer.clippingPlanes = P.pos.y < DIVIDE ? GEH_CLIP : NO_CLIP;\n    renderer.render(scene, camera);"
+  "    gehChildrenHeal(dt);\n    renderer.clippingPlanes = P.pos.y < DIVIDE ? GEH_CLIP : NO_CLIP;\n    renderer.render(scene, camera);",
+  "    gehChildrenHeal(dt);\n    sky.material.uniforms.uTime.value = now * 0.001;\n    retroBlobUpdate();\n    retroBegin(); // every pass below lands in the small picture\n    renderer.clippingPlanes = P.pos.y < DIVIDE ? GEH_CLIP : NO_CLIP;\n    renderer.render(scene, camera);"
 );
 edit(
   "frame end",
