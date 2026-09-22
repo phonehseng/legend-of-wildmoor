@@ -9,13 +9,13 @@
 //
 //   node tools/make-retro.cjs [source.html] [target.html]
 //
-// defaults: legend_of_wildmoor_v3.8.6.html -> legend_of_wildmoor_v3.8.6_retro.html
+// defaults: legend_of_wildmoor_v3.8.7.html -> legend_of_wildmoor_v3.8.7_retro.html
 const fs = require("fs");
 const path = require("path");
 
-const SRC = path.resolve(process.argv[2] || "legend_of_wildmoor_v3.8.6.html");
-const OUT = path.resolve(process.argv[3] || "legend_of_wildmoor_v3.8.6_retro.html");
-const VERSION = "3.8.6";
+const SRC = path.resolve(process.argv[2] || "legend_of_wildmoor_v3.8.7.html");
+const OUT = path.resolve(process.argv[3] || "legend_of_wildmoor_v3.8.7_retro.html");
+const VERSION = "3.8.7";
 
 let html = fs.readFileSync(SRC, "utf8").replace(/\r\n/g, "\n");
 const edits = [];
@@ -385,7 +385,7 @@ after(
   // full-screen pass that cuts the colour depth and scales without smoothing
   // stencil on: without it r128 backs the target with a 16-bit depth buffer, 1/256 of what the window had, and the
   // town's cobbles z-fight past a few metres. with it the target gets the window's 24 bits, for two bytes a pixel.
-  const retroRT = new THREE.WebGLRenderTarget(320, 240, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true, stencilBuffer: true });
+  const retroRT = new THREE.WebGLRenderTarget(320, 240, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true, stencilBuffer: true /* two reasons, both load-bearing: with a stencil the depth is 24-bit instead of 16, and the hero's silhouette (3.8.5) marks and tests the stencil — without it the mask is a no-op and the outline paints through his own body */ });
   retroRT.texture.encoding = THREE.sRGBEncoding; // every material writes finished srgb bytes into it, as it would to the screen, so the copy is a copy
   retroRT.texture.generateMipmaps = false;
   const retroPost = new THREE.ShaderMaterial({
@@ -507,9 +507,10 @@ after(
       // above the ground, and shrunk and faded with the height the way the hero's is
       if (!m.visible) continue;
       const gy = groundAt(p.position.x, p.position.z, p.position.y + 0.4), lift = p.position.y - gy, sy = p.scale.y || 1, r = m.userData.r || 1;
-      if (!Number.isFinite(gy) || lift <= 0.05 || lift >= 7) { m.position.y = 0.08; m.scale.setScalar(r); continue; }
+      if (!Number.isFinite(gy) || lift <= 0.05) { m.position.y = 0.08; m.scale.setScalar(r); continue; }
+      if (lift >= 7) { m.visible = false; continue; } // too high for a shadow to mean anything, as for the hero
       const k = clamp(1 - lift / 7, 0, 1);
-      m.position.y = 0.08 - lift / sy;
+      m.position.y = (0.08 - lift) / sy; // the whole offset is in the group's space, not just the lift: a child's disc sat 2.7 cm low
       m.scale.setScalar(r * (0.55 + 0.45 * k));
     }
     if ((retroBlobFrame & 255) === 0) RETRO_BLOBS = RETRO_BLOBS.filter(m => { let o = m; while (o.parent) o = o.parent; return o === scene; }); // goblins come and go; do not keep their groups alive through their discs

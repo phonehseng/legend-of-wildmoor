@@ -2,6 +2,15 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.8.7 — the child's shadow, and three small guards
+
+`legend_of_wildmoor_v3.8.7.html` and `legend_of_wildmoor_v3.8.7_retro.html`.
+
+- **(retro) 3.8.6 lowered a jumping villager's disc by the lift divided by the group's scale, but left the eight-centimetre bias undivided** — right on an adult, 2.7 cm low on a child at two-thirds size, which is exactly who hops at the practice dummy. the whole offset is in the group's space now; measured on a child-scaled group lifted a metre and a half, the disc lands on the target to the millimetre. a disc lifted past seven metres is hidden, as the hero's is, rather than riding up again. found in review.
+- **the goblin king's lull survives a reload.** it already stops counting inside the walls and in the hall (measured: unchanged for two seconds in either, two seconds shorter on the moor), but it was not in the save, so a reload after dying to him set it to nothing and he could be at the gate again at once. it rides in the save key now, clamped to ten minutes.
+- **the retro picture's stencil flag carries its two reasons** in a comment: the 24-bit depth it buys, and the silhouette mask that would silently become a no-op without it.
+- **the build audit says two more things**: an error if the recorder is still raised when the batching runs (a block that raised it and never lowered it), and a line with the tracked and lost counts, so the number is one the harness sees.
+
 ## 3.8.6 — a shadow that stays down
 
 `legend_of_wildmoor_v3.8.6.html` and `legend_of_wildmoor_v3.8.6_retro.html`. one fix, retro.

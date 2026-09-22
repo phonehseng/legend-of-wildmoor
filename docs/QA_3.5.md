@@ -97,3 +97,7 @@ the silhouette masked by a stencil laid after the world is drawn. measured in th
 ## 3.8.6
 
 the carried discs held to the ground (retro): a tracked disc on a group lifted 1.5 m stays at ground + 0.08 at scale 0.86, and returns to 0.95 on landing. repair-reload, network-live, lucifer-visuals and personal-fairies-live green on retro; the main build loads clean.
+
+## 3.8.7
+
+the disc offset in the group's own space: a group at scale 0.66 lifted 1.5 m puts its disc at 13.691 against a target of 13.691 (3.8.6: 2.7 cm low). the audit line reads on both builds. the goblin king's lull: unchanged over two seconds in town and in the hall, two seconds shorter on the moor; set to 123 it reads 123 from the save key and 123 after the apply. the sandbox trio, repair-reload, network-live and postgame-peace green on both.
