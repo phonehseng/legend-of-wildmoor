@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Wildmoor 3.8.7</title>
+<title>Legend of Wildmoor 3.8.8</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#1b1626, #0d0a14); --edge: #6c583a; --hi: #8a6a3e; }
@@ -576,7 +576,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.8.7</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.8.8</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -646,7 +646,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="pmenu">
-      <div class="pm-head"><div class="edition">LEGEND OF WILDMOOR 3.8.7</div><h2 class="pm-title">Take a<br>breather<span class="brand-dot">.</span></h2></div>
+      <div class="pm-head"><div class="edition">LEGEND OF WILDMOOR 3.8.8</div><h2 class="pm-title">Take a<br>breather<span class="brand-dot">.</span></h2></div>
       <nav class="pm-tabs" aria-label="Pause menu">
         <button class="pm-tab pm-go" data-act="resume" style="--i:0">Play</button>
         <button class="pm-tab on" data-pane="pm-play" style="--i:1">Controls</button>
@@ -7140,10 +7140,15 @@ const __boot = (async () => {
         if (it && insideInterior(n.pos.x, n.pos.z) === it) {
           /* safe inside */
         } else if (it) {
-          if (!step(it.door.x, it.door.z, 7.5)) {
+          // the doorstep is 1.6 m outside the wall, on the doorway's axis. once there, only the step into the room runs:
+          // this used to step to the doorstep first and then toward the room, every frame, and the doorstep step was
+          // the longer of the two, so every villager was pulled back onto the threshold as fast as they left it and
+          // stood at their own door jittering while the goblins came. the near radius is small so the second step
+          // starts close to the axis and its look-ahead passes through the doorway instead of into the wall beside it.
+          // and anyone already nearer the room's middle than the doorstep is has come through the door: they keep going
+          const nearDoor = dist2D(it.door, n.pos) < 0.7 || Math.hypot(n.pos.x - it.cx, n.pos.z - it.cz) < Math.hypot(it.door.x - it.cx, it.door.z - it.cz);
+          if (nearDoor ? !step(it.cx, it.cz, 5) && !step(it.door.x, it.door.z, 5) : !step(it.door.x, it.door.z, 7.5)) {
             if (Math.random() < dt) n.hideTo = null;
-          } else if (dist2D(it.door, n.pos) < 1.5) {
-            step(it.cx, it.cz, 5);
           }
         } else {
           const gob = goblins.find(g => g.alive && !g.hidden && dist2D(g.pos, n.pos) < 30);
@@ -15481,6 +15486,7 @@ const __boot = (async () => {
             .replace(/[<>&"'`]/g, "")
             .slice(0, n);
       if (!Array.isArray(d.pos) || d.pos.length !== 3 || !d.pos.every(v => num(v, -2000, 2000))) return null;
+      if (d.lull !== undefined && !num(d.lull, 0, 600)) return null; // the king's timer, like the others: refused as a whole rather than clamped in silence
       if (!num(d.day, 0, 1) || !num(d.hp, -1, 60) || !num(d.maxHp, 1, 60) || !num(d.stam, 0, 400) || !["sword", "spear", "axe"].includes(d.weapon))
         return null;
       const bool = v => typeof v === "boolean", pickObj = (src, spec) => { if (!src || typeof src !== "object") return null; const out = {}; for (const k in spec) { const v = src[k]; if (v === undefined) continue; if (!spec[k](v)) return null; out[k] = v; } return out; };

@@ -101,3 +101,7 @@ the carried discs held to the ground (retro): a tracked disc on a group lifted 1
 ## 3.8.7
 
 the disc offset in the group's own space: a group at scale 0.66 lifted 1.5 m puts its disc at 13.691 against a target of 13.691 (3.8.6: 2.7 cm low). the audit line reads on both builds. the goblin king's lull: unchanged over two seconds in town and in the hall, two seconds shorter on the moor; set to 123 it reads 123 from the save key and 123 after the apply. the sandbox trio, repair-reload, network-live and postgame-peace green on both.
+
+## 3.8.8
+
+sheltering from goblins: at night, a goblin in the square (spawned unkillable), eight villagers within twenty-two metres who had picked a house — all eight indoors within four seconds on the main build and the retro one (3.8.7: one of eight, the rest at 0 to 1.3 m from their doorsteps for the whole ten seconds). repair-reload, save-generator and pride-river green; the landing-page check passes on the generator.

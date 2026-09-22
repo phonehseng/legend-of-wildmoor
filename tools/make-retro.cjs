@@ -9,13 +9,13 @@
 //
 //   node tools/make-retro.cjs [source.html] [target.html]
 //
-// defaults: legend_of_wildmoor_v3.8.7.html -> legend_of_wildmoor_v3.8.7_retro.html
+// defaults: legend_of_wildmoor_v3.8.8.html -> legend_of_wildmoor_v3.8.8_retro.html
 const fs = require("fs");
 const path = require("path");
 
-const SRC = path.resolve(process.argv[2] || "legend_of_wildmoor_v3.8.7.html");
-const OUT = path.resolve(process.argv[3] || "legend_of_wildmoor_v3.8.7_retro.html");
-const VERSION = "3.8.7";
+const SRC = path.resolve(process.argv[2] || "legend_of_wildmoor_v3.8.8.html");
+const OUT = path.resolve(process.argv[3] || "legend_of_wildmoor_v3.8.8_retro.html");
+const VERSION = "3.8.8";
 
 let html = fs.readFileSync(SRC, "utf8").replace(/\r\n/g, "\n");
 const edits = [];
@@ -662,4 +662,16 @@ edit(
 if (html.indexOf("})();\nwindow.__boot = __boot;") < 0) throw new Error("retro: boot anchor lost");
 
 fs.writeFileSync(OUT, html);
+
+// the landing pages on github pages redirect to a file by name: a release that renamed the builds and missed a page
+// would open a 404. every target they name has to exist beside them and carry this version
+for (const page of ["index.html", "retro.html"]) {
+  if (!fs.existsSync(page)) continue;
+  const targets = [...fs.readFileSync(page, "utf8").matchAll(/(?:url=|href=")(legend_of_wildmoor_[^"> ]+.html)/g)].map(m => m[1]);
+  if (!targets.length) throw new Error(page + ": names no build");
+  for (const tg of targets) {
+    if (!fs.existsSync(tg) && path.resolve(tg) !== OUT) throw new Error(page + " points at a missing file: " + tg);
+    if (!tg.includes("_v" + VERSION)) throw new Error(page + " points at another version: " + tg);
+  }
+}
 console.log(`${path.basename(OUT)}: ${edits.length} edits, ${(html.length / 1048576).toFixed(2)} MB`);

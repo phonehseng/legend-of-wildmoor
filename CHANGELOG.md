@@ -2,6 +2,14 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.8.8 — through the door
+
+`legend_of_wildmoor_v3.8.8.html` and `legend_of_wildmoor_v3.8.8_retro.html`.
+
+- **villagers could not get into their own houses when goblins came.** the shelter rule was firing — they ran to their doorsteps and stood on them jittering while the goblins arrived, which looked like a collision with the doorway. it was not the door: once within a metre and a half of the doorstep the code stepped to the doorstep first and *then* toward the room, every frame, and the doorstep step was the longer of the two, so anyone who set foot inside was pulled back onto the threshold as fast as they left it. the doorstep is only a waypoint now: once there (or already nearer the room's middle than the doorstep is), only the step into the room runs. measured at night with a goblin in the square: eight sheltering villagers were all indoors within four seconds on both builds, against one in the old build (the one whose house has its doorstep on the far side).
+- **a save whose king's lull is not a number is refused** like the other fields, instead of quietly becoming zero. from review.
+- **the retro generator checks the landing pages**: every build `index.html` and `retro.html` name has to exist beside them and carry the version, so a release that renamed the files and missed a page cannot ship a 404. from review.
+
 ## 3.8.7 — the child's shadow, and three small guards
 
 `legend_of_wildmoor_v3.8.7.html` and `legend_of_wildmoor_v3.8.7_retro.html`.
