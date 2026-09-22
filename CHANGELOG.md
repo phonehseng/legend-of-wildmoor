@@ -2,6 +2,13 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.8.5 — the outline, only where it belongs
+
+`legend_of_wildmoor_v3.8.5.html` and `legend_of_wildmoor_v3.8.5_retro.html`. one fix, in both.
+
+- **your outline showed all the time.** the see-through silhouette is painted wherever a fragment of the hero lies behind whatever the depth buffer already holds — and once 3.6.3 drew it every frame, that included the hero himself: an arm behind the chest, the cape behind the back, the far leg behind the near one, all painted through the body in a pale wash on every frame. it had been true since 3.6.3, hidden by the old rule that only ran the pass while the camera arm was blocked. measured in the retro picture with the wash turned solid: 6,246 silhouette pixels with the player standing in the open — almost as many as behind a wall.
+- **the fix is a stencil, laid after the world is drawn.** a first pass over the hero writes nothing but a mark wherever a fragment of him is no deeper than the depth buffer, that is wherever he is actually seen; the silhouette pass then paints only where his depth is greater and there is no mark. the mark has to be laid after the world and not during it: the hero is often drawn before whatever will cover him, and the cover rewrites depth and colour but never the stencil, so a fragment hidden later kept the mark it made first — the first cut did it that way and hid the silhouette behind every wall. the marking pass carries the whole hero, cape included, because the cape is what is seen from behind; the silhouette pass leaves the cape out, because its hem dips into whatever the hero stands on and a hem "behind the world" painted a patch beside the body on open ground. after: no silhouette pixels in the open, 3,664 behind a slab set between the camera and the body, none again once it is removed.
+
 ## 3.8.4 — the raise in the right place
 
 `legend_of_wildmoor_v3.8.4.html` and `legend_of_wildmoor_v3.8.4_retro.html`. in both.

@@ -2,7 +2,7 @@ const fs = require("fs"), path = require("path"), crypto = require("crypto");
 const { instrument, serve, loadPlaywright, browserPath } = require("./qa-game.cjs");
 
 (async () => {
-  const html = path.resolve(process.argv[2] || "legend_of_wildmoor_v3.8.4.html"), editorPath = path.resolve("save_editor.html");
+  const html = path.resolve(process.argv[2] || "legend_of_wildmoor_v3.8.5.html"), editorPath = path.resolve("save_editor.html");
   const source = fs.readFileSync(html, "utf8"), checks = [], errors = [];
   const check = (ok, label) => { if (!ok) throw Error(label); checks.push(label); };
   const server = await serve(instrument(source.replace(/\r\n/g, "\n")));

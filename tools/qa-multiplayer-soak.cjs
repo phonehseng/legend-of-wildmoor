@@ -3,7 +3,7 @@ const fs = require('node:fs'), path = require('node:path'), crypto = require('no
 const assert = require('node:assert/strict');
 const {instrument,serve,loadPlaywright,browserPath} = require('./qa-game.cjs');
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
-const html = path.resolve(process.argv[2] || 'legend_of_wildmoor_v3.8.4.html');
+const html = path.resolve(process.argv[2] || 'legend_of_wildmoor_v3.8.5.html');
 const combatOnly = process.argv.includes('--combat-only');
 const minutesAt = process.argv.indexOf('--minutes');
 const minutes = minutesAt < 0 ? 10 : Number(process.argv[minutesAt + 1]);

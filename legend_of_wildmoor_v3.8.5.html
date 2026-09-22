@@ -10,7 +10,7 @@ villager simulation throttled by distance; the keep and every house grow around 
 multiplayer is peer to peer over webrtc with pasted invite/answer codes and no server: each player keeps their own world, quests and stats, sees the others, and blades count between players -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Legend of Wildmoor 3.8.4</title>
+<title>Legend of Wildmoor 3.8.5</title>
 <style>
   /* appearance and layout for :root */
   :root { --ink: #100c21; --bone: #f4ead2; --accent: #e0b45a; --gold: #e0b45a; --bronze: #b8823f; --red: #ff658c; --green: #75e5c8; --blue: #82cfff; --box: linear-gradient(#1b1626, #0d0a14); --edge: #6c583a; --hi: #8a6a3e; }
@@ -576,7 +576,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <!-- fade: game interface element -->
   <div id="fade" style="position:absolute;inset:0;background:#000;opacity:0;transition:opacity .7s;"></div>
   <!-- quest, objectives: game interface element -->
-  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.8.4</span></h1><ul id="objectives"></ul></div>
+  <div id="quest"><h1><span class="quest-cube" aria-hidden="true">◇</span> Wildmoor <span class="quest-version">3.8.5</span></h1><ul id="objectives"></ul></div>
   <!-- minimap: game interface element -->
   <canvas id="minimap" width="800" height="800"></canvas>
   <!-- statspanel: game interface element -->
@@ -646,7 +646,7 @@ multiplayer is peer to peer over webrtc with pasted invite/answer codes and no s
   <div id="choice" class="hidden"><div class="panel choice-panel"><h2 id="choiceTitle">Choose</h2><div id="choiceList"></div><p class="hint" style="font-size:12px;margin-top:8px">Press the number, or click.</p></div></div>
   <div id="pause" class="hidden"><button id="pauseX" title="Resume">✕</button>
     <div class="pmenu">
-      <div class="pm-head"><div class="edition">LEGEND OF WILDMOOR 3.8.4</div><h2 class="pm-title">Take a<br>breather<span class="brand-dot">.</span></h2></div>
+      <div class="pm-head"><div class="edition">LEGEND OF WILDMOOR 3.8.5</div><h2 class="pm-title">Take a<br>breather<span class="brand-dot">.</span></h2></div>
       <nav class="pm-tabs" aria-label="Pause menu">
         <button class="pm-tab pm-go" data-act="resume" style="--i:0">Play</button>
         <button class="pm-tab on" data-pane="pm-play" style="--i:1">Controls</button>
@@ -5590,8 +5590,28 @@ const __boot = (async () => {
     root.userData.rig = rig;
     return root;
   }
-  const heroOccludedMaterial = new THREE.MeshBasicMaterial({ color: 0xd8e5ff, transparent: true, opacity: 0.28, depthWrite: false, depthTest: true, depthFunc: THREE.GreaterDepth, fog: false });
-  function enableHeroSilhouette(root) { root.traverse(o => { if (o.isMesh) o.layers.enable(2); }); }
+  // the see-through silhouette is drawn wherever a hero fragment lies behind something in the depth buffer — and since
+  // 3.6.3 drew it every frame, "something" included the hero himself: an arm behind the chest, the cape behind the back,
+  // the far leg behind the near one, all painted through the body in a pale wash on every frame. so the hero also
+  // marks the stencil wherever he is actually seen in the main pass, and the silhouette is skipped there: it can only
+  // show where the body is hidden by the world, never by itself
+  // two passes over the hero after the world is drawn. the first writes nothing but the stencil: wherever a fragment
+  // of the hero is no deeper than what the depth buffer holds — that is, wherever he is actually seen — it marks a 1.
+  // it has to run after the world, not in the main pass: the hero is often drawn before whatever will cover him, and
+  // the cover rewrites depth and colour but never the stencil, so a fragment hidden later kept the mark it made first.
+  // the second pass paints the silhouette where his depth is greater than the buffer's and the stencil is not 1
+  const heroMarkMaterial = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false, depthTest: true, depthFunc: THREE.LessEqualDepth, fog: false, stencilWrite: true, stencilRef: 1, stencilFunc: THREE.AlwaysStencilFunc, stencilFail: THREE.KeepStencilOp, stencilZFail: THREE.KeepStencilOp, stencilZPass: THREE.ReplaceStencilOp });
+  const heroOccludedMaterial = new THREE.MeshBasicMaterial({ color: 0xd8e5ff, transparent: true, opacity: 0.28, depthWrite: false, depthTest: true, depthFunc: THREE.GreaterDepth, fog: false, stencilWrite: true, stencilRef: 1, stencilFunc: THREE.NotEqualStencilFunc, stencilFail: THREE.KeepStencilOp, stencilZFail: THREE.KeepStencilOp, stencilZPass: THREE.KeepStencilOp });
+  // layer 2 is the marking pass and carries the whole hero, cape included: the cape is what is seen from behind, and
+  // left out of the marks it counted as "the world" and the body was painted through it. layer 3 is the silhouette
+  // pass and leaves the cape out: its hem dips into whatever the hero stands on, and a hem "behind the world" painted
+  // a patch beside the body on open ground, which reads as a fault rather than a hint
+  function enableHeroSilhouette(root) {
+    const u = root.userData || {}, capes = new Set();
+    if (u.capeSkin && u.capeSkin.mesh) capes.add(u.capeSkin.mesh);
+    for (const node of u.cape || []) node.traverse(o => { if (o.isMesh) capes.add(o); });
+    root.traverse(o => { if (!o.isMesh) return; o.layers.enable(2); if (!capes.has(o)) o.layers.enable(3); });
+  }
   let hero = makeHero();
   enableHeroSilhouette(hero);
   scene.add(hero);
@@ -28121,13 +28141,19 @@ const __boot = (async () => {
       camera.far = farSave;
       camera.updateProjectionMatrix();
       camera.layers.set(2);
-      scene.overrideMaterial = heroOccludedMaterial;
       renderer.autoClear = false;
       scene.autoUpdate = false;
-      // drawn every frame: the pass costs the hero's forty meshes and paints only where the depth test says the body is
-      // behind something. gated on the camera arm being blocked, it missed every case where the arm ran clear through a
-      // doorway or over a wall while the walls hid the body — the castle gate most of all
-      if (started) renderer.render(scene, camera);
+      // drawn every frame: the two passes cost the hero's fifty meshes twice and paint only where the depth test says the
+      // body is behind something in the world. gated on the camera arm being blocked, it missed every case where the arm
+      // ran clear through a doorway or over a wall while the walls hid the body — the castle gate most of all
+      if (started) {
+        renderer.clearStencil();
+        scene.overrideMaterial = heroMarkMaterial;
+        renderer.render(scene, camera); // layer 2: the whole hero marks where he is seen
+        camera.layers.set(3);
+        scene.overrideMaterial = heroOccludedMaterial;
+        renderer.render(scene, camera); // layer 3: the body without the cape, painted where the world hides it
+      }
       scene.overrideMaterial = null;
       scene.autoUpdate = true;
       renderer.autoClear = true;
