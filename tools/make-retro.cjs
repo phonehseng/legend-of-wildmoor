@@ -9,13 +9,13 @@
 //
 //   node tools/make-retro.cjs [source.html] [target.html]
 //
-// defaults: legend_of_wildmoor_v3.8.5.html -> legend_of_wildmoor_v3.8.5_retro.html
+// defaults: legend_of_wildmoor_v3.8.6.html -> legend_of_wildmoor_v3.8.6_retro.html
 const fs = require("fs");
 const path = require("path");
 
-const SRC = path.resolve(process.argv[2] || "legend_of_wildmoor_v3.8.5.html");
-const OUT = path.resolve(process.argv[3] || "legend_of_wildmoor_v3.8.5_retro.html");
-const VERSION = "3.8.5";
+const SRC = path.resolve(process.argv[2] || "legend_of_wildmoor_v3.8.6.html");
+const OUT = path.resolve(process.argv[3] || "legend_of_wildmoor_v3.8.6_retro.html");
+const VERSION = "3.8.6";
 
 let html = fs.readFileSync(SRC, "utf8").replace(/\r\n/g, "\n");
 const edits = [];
@@ -310,6 +310,7 @@ before(
     m.rotation.x = -Math.PI / 2;
     m.position.y = 0.08; // over the feet by more than any street slab's top is over the plateau (four centimetres at most since 3.5)
     m.scale.setScalar(r);
+    m.userData.r = r; // the disc's size on the ground; it shrinks from this as its owner rises
     m.renderOrder = 1;
     if (track) RETRO_BLOBS.push(m); // a villager's disc: watched for the group being laid flat
     return m;
@@ -501,6 +502,15 @@ after(
       if (!p) continue;
       const e = p.matrixWorld.elements;
       m.visible = e[5] > 0.7 * Math.hypot(e[4], e[5], e[6]);
+      // the disc is carried by the group, so a villager who jumps — the boy at the dummy — took his shadow up with him.
+      // it is held on the ground under him instead: lowered in the group's own space by however far the group stands
+      // above the ground, and shrunk and faded with the height the way the hero's is
+      if (!m.visible) continue;
+      const gy = groundAt(p.position.x, p.position.z, p.position.y + 0.4), lift = p.position.y - gy, sy = p.scale.y || 1, r = m.userData.r || 1;
+      if (!Number.isFinite(gy) || lift <= 0.05 || lift >= 7) { m.position.y = 0.08; m.scale.setScalar(r); continue; }
+      const k = clamp(1 - lift / 7, 0, 1);
+      m.position.y = 0.08 - lift / sy;
+      m.scale.setScalar(r * (0.55 + 0.45 * k));
     }
     if ((retroBlobFrame & 255) === 0) RETRO_BLOBS = RETRO_BLOBS.filter(m => { let o = m; while (o.parent) o = o.parent; return o === scene; }); // goblins come and go; do not keep their groups alive through their discs
     if (!retroHeroBlob) {

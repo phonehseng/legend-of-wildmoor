@@ -93,3 +93,7 @@ the church's audit raise moved onto the church's own group; the audit clean on b
 ## 3.8.5
 
 the silhouette masked by a stencil laid after the world is drawn. measured in the retro picture (the wash set to solid magenta and counted from the render target): open ground 6,246 → 0 pixels; a slab between the camera and the body (no collider, so the camera does not pull in) 3,664, and 0 again once it is removed; the first cut, which marked the stencil during the main pass, gave 0 behind the slab too — the marks survived the cover. eight suites green on both builds.
+
+## 3.8.6
+
+the carried discs held to the ground (retro): a tracked disc on a group lifted 1.5 m stays at ground + 0.08 at scale 0.86, and returns to 0.95 on landing. repair-reload, network-live, lucifer-visuals and personal-fairies-live green on retro; the main build loads clean.

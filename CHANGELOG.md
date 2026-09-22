@@ -2,6 +2,12 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.8.6 — a shadow that stays down
+
+`legend_of_wildmoor_v3.8.6.html` and `legend_of_wildmoor_v3.8.6_retro.html`. one fix, retro.
+
+- **(retro) a villager's shadow rose with him when he jumped.** the boy at the practice dummy hops, and his disc — carried by his group at the feet — hopped with him. every carried disc is held on the ground under its owner now: lowered in the group's own space by however far the group stands above the ground, and shrunk and faded with the height the way the hero's disc is. measured: a group lifted a metre and a half keeps its disc eight centimetres over the ground at 0.86 of its size, and back at full size when it lands. the main build changes only its version.
+
 ## 3.8.5 — the outline, only where it belongs
 
 `legend_of_wildmoor_v3.8.5.html` and `legend_of_wildmoor_v3.8.5_retro.html`. one fix, in both.
