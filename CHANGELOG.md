@@ -2,6 +2,13 @@
 
 all notable **Legend of Peanits** changes live here. newest first.
 
+## 3.8.9 — waves on the lakes
+
+`legend_of_wildmoor_v3.8.9.html` and `legend_of_wildmoor_v3.8.9_retro.html`.
+
+- **the lakes had no waves you could see, while the black pool did.** nothing had broken: the lake shader has been the same since 2.0 and its clock was measured running on both builds. its swell moves a vertex grid seven metres apart by about twenty centimetres, which from the shore is a flat blue sheet; the pool's waves are a wave-streak texture drifting over it. the lakes now carry the same texture, tiled about every ten metres and turned so its streaks lie across the water as crests, blended a third of the way to white so it reads as a sheen rather than stripes, and drifting with the wind (faster in a gust, never jumping when the wind changes). the first cut, unturned and at full strength, looked like planks running out from the shore.
+- **the retro generator checks the landing pages before it writes the build**, so a refusal leaves nothing half-released, and it now also reads single-quoted, unquoted and `src=` links. from review.
+
 ## 3.8.8 — through the door
 
 `legend_of_wildmoor_v3.8.8.html` and `legend_of_wildmoor_v3.8.8_retro.html`.

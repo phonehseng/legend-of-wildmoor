@@ -105,3 +105,7 @@ the disc offset in the group's own space: a group at scale 0.66 lifted 1.5 m put
 ## 3.8.8
 
 sheltering from goblins: at night, a goblin in the square (spawned unkillable), eight villagers within twenty-two metres who had picked a house — all eight indoors within four seconds on the main build and the retro one (3.8.7: one of eight, the rest at 0 to 1.3 m from their doorsteps for the whole ten seconds). repair-reload, save-generator and pride-river green; the landing-page check passes on the generator.
+
+## 3.8.9
+
+lake waves: the lake shader's time uniform advanced 1.01 s per second of play on both builds before the change (it was never stopped); the pool sheen and river textures were scrolling too. screenshots from the south shore of the lake at (89, -108), before and after, on both builds: flat blue before, drifting crests after. repair-reload, save-generator, pride-river and network-live green.

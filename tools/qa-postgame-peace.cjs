@@ -3,7 +3,7 @@ const path = require('path');
 const assert = require('assert');
 const vm = require('vm');
 
-const htmlPath = path.resolve(process.argv[2] || path.join(__dirname, '..', 'legend_of_wildmoor_v3.8.8.html'));
+const htmlPath = path.resolve(process.argv[2] || path.join(__dirname, '..', 'legend_of_wildmoor_v3.8.9.html'));
 const html = fs.readFileSync(htmlPath, 'utf8');
 
 console.log('Testing ' + path.basename(htmlPath) + ' post-game peaceful state...');
